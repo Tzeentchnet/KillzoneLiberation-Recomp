@@ -5,6 +5,101 @@ findings or tasks it touched. Items move here from [TODO.md](TODO.md) when they 
 
 ---
 
+## 2026-10-19 — Session 2l: LocalAppData VFS completion (T-3.3)
+- Fork IoFileMgr: writable storage now defaults to `%LOCALAPPDATA%\KZLRecomp\ms0`; `fatms0:` and `cache:` alias that
+  same hierarchy, while `SR_FSDIR` remains an explicit test/developer override. A missing `LOCALAPPDATA` is reported
+  instead of silently falling back to a repository-relative directory. ISO-backed `disc0:` behavior is unchanged.
+- Extended `kzl_hle_smoke` to write `cache:CHAPTER5.BIN`, stat it through `fatms0:`, read it through `ms0:`, and verify
+  the exact physical location and contents under the default root. Existing override-path and real-ISO coverage remains.
+- Validation: `kzl_hle_tests` and `kzl_driver` built; focused CTest passed 1/1 with the KZL ISO. A strict turbo scheduled
+  boot with `SR_FSDIR` unset reached and captured frame 1,200 without an unimplemented NID. T-3.3 is complete. → F-057
+
+## 2026-10-19 — Session 2k: deterministic offline networking (T-3.7)
+- Fork: added `src/rt/net.c` and registered all 69 networking imports, both imported sceWlan calls, and the existing
+  `sceWlanDevIsPowerOn` entry. Lifecycle calls are local no-ops; stable MAC/OpenPSID and numeric IPv4 conversion work;
+  Inet, resolver, infrastructure and ad-hoc operations return deterministic offline errors without host networking.
+- Extended `kzl_hle_smoke` to invoke every one of the 71 imported networking NIDs and verify WLAN-off/disconnected
+  errors, Inet `ENETDOWN`, resolver failure, stable identity output and IPv4 parsing. A mechanical import audit reports
+  71/71 registered. → F-056
+- Fixed the clang-cl CMake path to use the adjacent `llvm-lib.exe`; WinLibs `ar.exe` on PATH cannot consume CMake's
+  MSVC librarian flags.
+- Validation: focused CTest 1/1 passed with the KZL ISO, and `kzl_driver` built. A strict paced scripted run selected
+  PLAY A GAME → MULTIPLAYER → COMBAT ZONE - ADHOC → JOIN GAME, exercised ad-hoc init/connect/teardown, and rendered
+  "NETWORK ERROR OCCURRED, WLAN SWITCH HAS BEEN TURNED OFF" with no unimplemented NID. T-3.7 is complete.
+
+## 2026-10-19 — Session 2j: scheduled asynchronous file I/O (T-3.5)
+- Fork scheduler: added reusable HLE helper fibers, with real thread objects, typed UIDs, PSP stack allocation,
+  priorities and ThreadMan visibility. IoFileMgr uses one `SceIoAsync` helper per participating descriptor.
+- Fork IoFileMgr: async open/read/seek/close now have pending, ready, consumed and close-pending states; reject overlap
+  with `ASYNC_BUSY`; distinguish pending polls from waits; return signed 64-bit results; and delay completion using
+  PPSSPP's timing estimates. Async close releases the fd only when its result is consumed, and failed async opens use a
+  temporary fd carrying the open error. `sceIoChangeAsyncPriority` controls default and active helper priorities. → F-055
+- Extended `kzl_hle_smoke` with a scheduler-driven async sequence covering helper-thread enumeration/status, pending
+  polls, blocking waits, busy/no-async/bad-fd errors, read/seek data, deferred close, and failed-open cleanup.
+- Validation: CTest 1/1 passed with the KZL ISO; the allocator differential passed 320,000 operations/80 seeds with
+  0 mismatches; and the clang-cl driver build passed. A strict paced run created one priority-0x24 `SceIoAsync` helper,
+  reached vblank 3,600 without an unimplemented NID, and rendered PLAY A GAME. T-3.5 is complete.
+
+## 2026-10-19 — Session 2i: ThreadMan and directory I/O completion (T-3.4, T-3.5 partial)
+- Fork ThreadMan: added typed UID tracking for threads, semaphores, event flags, FPLs and callbacks; scheduler-owned
+  thread metadata and exit status; PPSSPP-compatible `sceKernelReferThreadStatus`, `sceKernelGetThreadExitStatus`,
+  `sceKernelGetThreadmanIdList` (including state filters), and `sceKernelSysClock2USec`. T-3.4 is complete. → F-054
+- Fork IoFileMgr/ISO: added ISO9660 lookup/list APIs; host and ISO `sceIoDopen/Dread/Dclose`; `sceIoRemove`,
+  `sceIoRmdir`, and host-backed `sceIoGetstat`. Writable-device paths retain hierarchy, `fatms0:`/`cache:` alias
+  `ms0:`, and reads retain compatibility with the prior flat mapping. Reserved fd 0–2 so the first file write is not
+  mistaken for stdout. Async worker-thread/delay modeling remains, so T-3.5 stays open. → F-054
+- Root CMake now reuses one runtime source list for `kzl_driver` and the new `kzl_hle_tests` target. The focused smoke
+  test directly invokes the HLE NIDs and covers ThreadMan ABI/errors/lists, clock conversion, host directory and removal
+  behavior, invalid handles, and real KZL ISO enumeration.
+- Validation: CTest 1/1 passed with `PSP_ISO`; the allocator differential passed 320,000 operations/80 seeds with
+  0 mismatches; the full clang-cl `kzl_driver` build passed. A strict 3,600-vblank headless run had no unimplemented NID
+  and captured SELECT YOUR LANGUAGE, MAIN MENU, and PLAY A GAME, preserving F-053.
+
+## 2026-10-19 — Session 2h: GE display lists, callbacks, headless main menu (T-3.6, T-3.9, T-3.10)
+- Fork: new `src/rt/gelist.c`, a port of PPSSPP's display-list manager (`GPUCommon`: enqueue, stall, every
+  SIGNAL behaviour, FINISH/END, Break, Continue, ListSync, DrawSync) and its GE interrupt handler, with all sceGe
+  calls KZL imports. `ge.c` now executes single commands (`ge_execute_op`, `ge_list_begin/end`); list control flow
+  moved out of it. KZL's libgu signal path (handler → `SetEventFlag(SceGuSignal)` → resume → finish handler)
+  matches PPSSPP's log. → F-051
+- Fork: new `src/rt/intr.c` (PPSSPP's sub-interrupt table) and `sched_run_interrupt()`. Vblank and GE handlers
+  run through it, and an interrupt raised inside another one is delivered after it returns. Vblank sub-handlers now
+  get a0 = sub-interrupt number, as in PPSSPP.
+- Fork: new `src/rt/callback.c`, PPSSPP's kernel callbacks (create/delete/notify/cancel/count/check, run on the
+  owning thread with the 128-byte save area) and the scePower callback slots. The scheduler runs callbacks in
+  every ...CB wait (`sceKernelDelayThreadCB` added; Sleep/WaitSema/WaitEventFlag/WaitThreadEnd/IoWaitAsync CB
+  variants now process callbacks). → F-052
+- Fork `hle.c`: `sceIoDevctl` ported (UMD, memory stick, fatms0, callback notification), `sceIoChangeAsyncPriority`,
+  `sceRtcGetCurrentTick` (PPSSPP epoch) and `sceRtcGetTime_t`, `sceImpose{Get,Set}LanguageMode`, `sceAudioOutput2*`,
+  `sceCtrlPeekBufferPositive`, `sceCtrlSetSamplingCycle`, UMD activate/deactivate/prohibit with the UMD callback,
+  Dcache/GPI, `sceMpegAvcDecodeMode`. `SR_NIDLOG` now records the thread and flushes every line.
+- Fixed two sal063 bugs: `sceIoLseekAsync` read its offset from the wrong register (every PSP.DAT read came from
+  offset 0, then a NULL virtual call at 0x08837744), and `sceKernelSetCompilerVersion` overwrote the SDK version.
+  The wrongly registered `sceRtcGetTick` (it takes `pspTime*, u64*`) was removed. → F-052
+- New `tools/kzl/hleseq.py`: aligns PPSSPP's debug-log HLE sequence with ours (`SR_NIDLOG`). It found the
+  memory-stick and Lseek divergences.
+- `SR_DLDUMP=<vblank>`: dumps a frame's executed GE commands to `gedump_f<vblank>.txt`.
+- Result: strict mode boots to SELECT YOUR LANGUAGE and, with a pad script, to the PLAY A GAME main menu, with no
+  unimplemented NID. `module_start` still matches PPSSPP for 71 steps, and the memory probe still matches F-050. → F-053
+
+## 2026-10-19 — Session 2g: PPSSPP's memory allocator in the runtime (T-3.13)
+- Fork: new `src/rt/kmem.c`, a literal C port of PPSSPP's `BlockAllocator`, with kernel, volatile and user partitions.
+  User memory starts with `usersystemlib` (16 KB), then the loaded module. `sceKernelAllocPartitionMemory` (all five
+  placement types), `Free`, `GetBlockHeadAddr`, `MaxFreeMemSize` and `TotalFreeMemSize` now follow PPSSPP. The UID is
+  taken only when an allocation succeeds. All eight FPL calls are implemented on the allocator. The bump allocator in
+  `hle.c` is gone.
+- Fork: thread stacks come from the user partition (from the top, or low with attr 0x00400000). A started thread gets
+  PPSSPP's start state: register reset, 0xFF stack fill, k0 block, argument copy, 64-byte return stub. `DeleteThread`,
+  `ExitDeleteThread` and `TerminateDeleteThread` free the stack and the thread slot. The entry thread takes its UID
+  (0x11C) and stack from the seed's k0 block and is deleted when `module_start` returns. The vblank and GE/mpeg callback
+  stacks moved out of user RAM into the kernel partition.
+- `tools/tests/test_kmem_blockalloc.py` (fork) builds PPSSPP's `BlockAllocator.cpp` next to `kmem.c` and compares them on
+  320,000 random operations: 0 mismatches, and 4 of 4 injected bugs caught.
+- KZL's memory probe now matches PPSSPP: same layout, the same 25 DummyHeap results, and `GameHeap` 0xFBF800 at
+  0x08EB8800. `module_start` still matches for 71 steps. Strict mode now stops at `sceRtcGetCurrentTick` instead of
+  `sceKernelCreateFpl`. → F-050
+- Found that UIDs fall one behind PPSSPP after `user_main`, because BOOT.BIN's unload creates a thread in PPSSPP (new
+  T-3.14). Vpl is not imported by KZL. → F-050
+
 ## 2026-10-19 — Session 2f: first recompiled-vs-PPSSPP comparison (T-3.1 started)
 - Trace header in the PPSSPP patch: `# init` (all registers), `# kernel next_uid`, `# mem` (top 4 KB of user RAM).
   The post-HLE `0xDEADBEEF` filling stays on, since sal063 reproduces it. The patch now touches 3 files.

@@ -24,6 +24,14 @@ message(STATUS "KZL generated translation units: ${_n}")
 if(CMAKE_C_COMPILER_ID STREQUAL "MSVC")
   message(FATAL_ERROR "MSVC cl cannot compile the generated GNU C; configure with clang-cl (preset 'clang-cl').")
 endif()
+if(CMAKE_C_SIMULATE_ID STREQUAL "MSVC")
+  get_filename_component(KZL_CLANG_BIN_DIR "${CMAKE_C_COMPILER}" DIRECTORY)
+  set(KZL_LLVM_LIB "${KZL_CLANG_BIN_DIR}/llvm-lib.exe")
+  if(NOT EXISTS "${KZL_LLVM_LIB}")
+    message(FATAL_ERROR "clang-cl requires llvm-lib.exe next to the compiler: ${KZL_LLVM_LIB}")
+  endif()
+  set(CMAKE_AR "${KZL_LLVM_LIB}")
+endif()
 
 # Recompiled game code. Float behaviour must match the PSP: no FMA contraction, no fast-math (F-013).
 add_library(kzl_game STATIC ${KZL_GEN_SRCS})
@@ -40,12 +48,25 @@ endif()
 # bring-up driver, without the SDL3/Vulkan backend (SR_SDL3VK unset). The D3D12 backend
 # replaces that later (phase 4).  -> T-3.1
 set(RT "${PSP_RECOMP_DIR}/src/rt")
-add_executable(kzl_driver
-  ${RT}/driver.c ${RT}/recomp.c ${RT}/vfpu_interp.c ${RT}/vfpu_asin.c ${RT}/hle.c ${RT}/sched.c
+set(KZL_RUNTIME_SRCS
+  ${RT}/recomp.c ${RT}/vfpu_interp.c ${RT}/vfpu_asin.c ${RT}/hle.c ${RT}/net.c ${RT}/kmem.c ${RT}/intr.c ${RT}/gelist.c ${RT}/callback.c ${RT}/sched.c
   ${RT}/iso.c ${RT}/mpeg.c ${RT}/pgf.c ${RT}/gui.c ${RT}/audio.c ${RT}/h264_mf.c ${RT}/savedata.c
   ${RT}/osk_win.c ${RT}/ge.c)
-target_include_directories(kzl_driver PRIVATE "${RT}")
-target_compile_definitions(kzl_driver PRIVATE _CRT_SECURE_NO_WARNINGS)
-target_compile_options(kzl_driver PRIVATE ${KZL_FP_FLAGS})
-target_link_libraries(kzl_driver PRIVATE kzl_game mfplat mfuuid gdi32 user32 dinput8 dxguid ole32 winmm)
+
+function(kzl_configure_runtime_target target)
+  target_include_directories(${target} PRIVATE "${RT}")
+  target_compile_definitions(${target} PRIVATE _CRT_SECURE_NO_WARNINGS)
+  target_compile_options(${target} PRIVATE ${KZL_FP_FLAGS})
+  target_link_libraries(${target} PRIVATE kzl_game mfplat mfuuid gdi32 user32 dinput8 dxguid ole32 winmm)
+endfunction()
+
+add_executable(kzl_driver ${RT}/driver.c ${KZL_RUNTIME_SRCS})
+kzl_configure_runtime_target(kzl_driver)
 set_target_properties(kzl_driver PROPERTIES OUTPUT_NAME kzl)
+
+include(CTest)
+if(BUILD_TESTING)
+  add_executable(kzl_hle_tests EXCLUDE_FROM_ALL tools/tests/hle_smoke.c ${KZL_RUNTIME_SRCS})
+  kzl_configure_runtime_target(kzl_hle_tests)
+  add_test(NAME kzl_hle_smoke COMMAND kzl_hle_tests)
+endif()
