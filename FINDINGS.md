@@ -514,6 +514,39 @@ only when that intentionally short runtime trace returns from `module_start`.
 - **Impact:** T-3.1 is complete. PPSSPP traces remain an optional differential oracle rather than a runtime boot
   dependency; T-3.14 separately tracks the later BOOT.BIN unload-thread UID consumed after startup.
 
+### F-060 Executed call targets introduce no missing function boundaries — Confirmed
+The PPSSPP v1.20.4 instrumentation now has a compact `PSPRECOMP_CALLTRACE` mode. From the interpreter's checked
+loop it records each unique `(source PC, jal/jalr, runtime target)` edge after `module_start` is reached. `jalr`
+destinations are read from the source register before the instruction executes, so virtual calls and callbacks are
+resolved without reconstructing register state from a multi-gigabyte instruction trace. Function replacements are
+disabled while either trace mode is active.
+
+`tools/kzl/ppsspp_calls.py` runs a bounded capture; `tools/kzl/calltargets.py` validates the format, relocates and
+analyzes KZL.PRX, classifies targets outside KZL (the seven observed targets are in the loaded MPEG module), and
+fails if any KZL executable target is absent. Its report is [research/kzl_calltargets.txt](research/kzl_calltargets.txt).
+
+The 90-second deterministic boot capture found:
+
+| Metric | Count |
+|---|---:|
+| unique call edges | 12,399 |
+| unique targets | 4,560 |
+| targets inside KZL executable sections | 4,553 |
+| effective codegen function inventory | 42,600 |
+| missing in-module targets | **0** |
+
+The analyzer has 42,601 raw seeds. The one seed omitted from codegen, 0x08B21928, was executed and correctly matched
+the existing `[[jal_next]]` override: the `jal .+8` at 0x08B21920 is a get-PC idiom inside one function, not a new
+function. This explains the inventory difference and ensures the audit does not turn a known false boundary back
+into generated code. The older 42,641 figure in the original task predates the stale-`lui` cleanup and later import
+stub accounting.
+
+The call-target parser/classifier unit tests pass, the patched PPSSPPHeadless builds, and the regenerated patch passes
+plain `git apply --check` against a clean detached v1.20.4 worktree.
+- **Impact:** T-2.7 is complete with no new override entries. Future gameplay captures can use the same strict tool;
+  any newly exercised indirect target missing from the inventory will fail the audit instead of reaching a runtime
+  dispatch miss.
+
 ---
 
 ## D. Assets and content

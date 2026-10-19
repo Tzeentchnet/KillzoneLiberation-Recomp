@@ -2,10 +2,11 @@
 
 `psprecomp-trace.patch` makes PPSSPPHeadless write the per-instruction trace format of the
 psp-recomp toolkit (`external/psp-recomp/tools/TRACE_FORMAT.md`), so a run of PPSSPP's
-interpreter can be diffed against our recompiled code with `tools/tracediff.py`.
+interpreter can be diffed against our recompiled code with `tools/tracediff.py`. It can also
+write a compact, deduplicated stream of executed `jal`/`jalr` edges for function-boundary audits.
 It applies to PPSSPP **v1.20.4** and touches four files:
 
-- `Core/MIPS/MIPSTables.cpp`: the trace writer in the interpreter's checked loop.
+- `Core/MIPS/MIPSTables.cpp`: the instruction and call-edge writers in the interpreter's checked loop.
 - `Core/HLE/sceKernel.h`: a read-only accessor for the next kernel object handle.
 - `Core/HLE/sceCtrl.cpp`: optional frame-based scripted controller input for reproducible UI paths.
 - `headless/Headless.cpp`: turns off function replacements while tracing (they skip guest
@@ -33,6 +34,8 @@ it in a `ppsspp` checkout next to this repo, or wherever `PPSSPP_HEADLESS` point
 | `PSPRECOMP_TRACE_START` | hex PC: start at its first execution (default: from the first instruction) |
 | `PSPRECOMP_TRACE_STEPS` | stop after this many steps (default 5,000,000) |
 | `PSPRECOMP_TRACE_TARGET` | name written in the header (default `ppsspp`) |
+| `PSPRECOMP_CALLTRACE` | compact unique `jal`/`jalr` edge output file |
+| `PSPRECOMP_CALLTRACE_START` | hex PC that arms the call trace (normally `08804000`) |
 | `PSPRECOMP_PADSCRIPT` | optional input file; each line is `<vblank> <hex PSP button mask> <width in vblanks>` |
 
 Run with the interpreter (`-i`). The JIT never reaches the traced loop. When the trace is complete
@@ -60,3 +63,18 @@ python external/psp-recomp/tools/tracediff.py build/kzl/ref/trace_ppsspp_200k.tx
 
 Without `--sched` the driver runs only `module_start`, which returns after 71 steps; those steps
 match PPSSPP exactly (FINDINGS F-049).
+
+## Function-boundary audit
+
+The call trace records each unique source, call kind, and runtime target without writing every
+executed instruction. Native function replacements are disabled for both trace modes so guest
+calls remain visible.
+
+```
+python tools/kzl/ppsspp_calls.py <ISO> --timeout=90 --padscript=tools/ppsspp/kzl_calltargets.pad --out=build/kzl/ref/calls_ppsspp_boot.txt
+python tools/kzl/calltargets.py build/kzl/ref/calls_ppsspp_boot.txt --report=research/kzl_calltargets.txt
+```
+
+The T-2.7 capture contains 12,399 unique edges and 4,553 targets inside KZL. All executed targets
+are represented by the effective 42,600-function codegen inventory; the report separately
+recognizes the existing `jal .+8` get-PC override as an intentional non-function.

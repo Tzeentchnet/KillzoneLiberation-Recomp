@@ -1,16 +1,3 @@
-diff --git a/Core/HLE/sceKernel.h b/Core/HLE/sceKernel.h
-index b1d79f9..2bec8c5 100644
---- a/Core/HLE/sceKernel.h
-+++ b/Core/HLE/sceKernel.h
-@@ -252,6 +252,8 @@ class KernelObjectPool {
- 	void List();
- 	void Clear();
- 	int GetCount() const;
-+	// psp-recomp trace: the handle the next Create() would try first.
-+	int PeekNextHandle() const { return nextID + handleOffset; }
- 
- 	enum {
- 		maxCount = 4096,
 diff --git a/Core/HLE/sceCtrl.cpp b/Core/HLE/sceCtrl.cpp
 index e6657bb..57010df 100644
 --- a/Core/HLE/sceCtrl.cpp
@@ -54,22 +41,23 @@ index e6657bb..57010df 100644
 +
 @@ -120,0 +156 @@ static void __CtrlUpdateLatch()
 +	buttons |= PrRecompScriptedButtons();
+diff --git a/Core/HLE/sceKernel.h b/Core/HLE/sceKernel.h
+index b1d79f9..2bec8c5 100644
+--- a/Core/HLE/sceKernel.h
++++ b/Core/HLE/sceKernel.h
+@@ -254,0 +255,2 @@ class KernelObjectPool {
++	// psp-recomp trace: the handle the next Create() would try first.
++	int PeekNextHandle() const { return nextID + handleOffset; }
 diff --git a/Core/MIPS/MIPSTables.cpp b/Core/MIPS/MIPSTables.cpp
-index 4e3e820..164409c 100644
+index 4e3e820..adab7e5 100644
 --- a/Core/MIPS/MIPSTables.cpp
 +++ b/Core/MIPS/MIPSTables.cpp
-@@ -29,6 +29,7 @@
- #include "Core/CoreTiming.h"
- #include "Core/Reporting.h"
- #include "Core/Debugger/Breakpoints.h"
+@@ -19,0 +20,2 @@
++#include <unordered_set>
++
+@@ -31,0 +34 @@
 +#include "Core/HLE/sceKernel.h"
- 
- #include "JitCommon/JitCommon.h"
- 
-@@ -990,6 +991,137 @@ static inline void RunUntilFast() {
- 	}
- }
- 
+@@ -992,0 +996,199 @@ static inline void RunUntilFast() {
 +// ---- psp-recomp CPU trace (Killzone: Liberation recomp project) ----------------------------------
 +// Writes the per-instruction trace format of sal063's psp-recomp (tools/TRACE_FORMAT.md) so a run
 +// of the interpreter can be diffed against recompiled code with tools/tracediff.py. Enabled by
@@ -88,6 +76,15 @@ index 4e3e820..164409c 100644
 +	char path[1024] = {};
 +};
 +PrTrace g_prTrace;
++
++struct PrCallTrace {
++	FILE *fp = nullptr;
++	bool checked = false, armed = false, active = false;
++	u32 startPc = 0;
++	std::unordered_set<u64> edges;
++	char path[1024] = {};
++};
++PrCallTrace g_prCallTrace;
 +
 +// Closes the trace and writes "<trace>.done" with the step count, so a driver script can stop the
 +// emulator as soon as the trace is complete.
@@ -132,6 +129,65 @@ index 4e3e820..164409c 100644
 +		}
 +	}
 +	return g_prTrace.armed;
++}
++
++void PrCallTraceClose() {
++	if (g_prCallTrace.fp) {
++		fflush(g_prCallTrace.fp);
++		fclose(g_prCallTrace.fp);
++		g_prCallTrace.fp = nullptr;
++	}
++	g_prCallTrace.armed = g_prCallTrace.active = false;
++}
++
++bool PrCallTraceArmed() {
++	if (!g_prCallTrace.checked) {
++		g_prCallTrace.checked = true;
++		const char *path = getenv("PSPRECOMP_CALLTRACE");
++		if (path && *path) {
++			snprintf(g_prCallTrace.path, sizeof(g_prCallTrace.path), "%s", path);
++			g_prCallTrace.fp = fopen(path, "wb");
++			if (g_prCallTrace.fp) {
++				const char *start = getenv("PSPRECOMP_CALLTRACE_START");
++				g_prCallTrace.startPc = start ? (u32)strtoul(start, nullptr, 16) : 0;
++				g_prCallTrace.armed = true;
++				g_prCallTrace.active = !start;
++				fprintf(g_prCallTrace.fp, "# psp-recomp call trace v1 start_pc=0x%08x\n", g_prCallTrace.startPc);
++				atexit(PrCallTraceClose);
++			}
++		}
++	}
++	return g_prCallTrace.armed;
++}
++
++inline void PrCallTraceInstruction(const MIPSState *m, u32 pc, u32 op) {
++	if (!g_prCallTrace.active && pc == g_prCallTrace.startPc)
++		g_prCallTrace.active = true;
++	if (!g_prCallTrace.active)
++		return;
++
++	u32 target;
++	const char *kind;
++	if (op >> 26 == 3) {
++		target = ((pc + 4) & 0xF0000000) | ((op & 0x03FFFFFF) << 2);
++		kind = "jal";
++	} else if (op >> 26 == 0 && (op & 0x3F) == 9) {
++		target = m->r[(op >> 21) & 0x1F];
++		kind = "jalr";
++	} else {
++		return;
++	}
++
++	u64 edge = (u64)pc << 32 | target;
++	if (g_prCallTrace.edges.insert(edge).second) {
++		fprintf(g_prCallTrace.fp, "0x%08x %s 0x%08x\n", pc, kind, target);
++		fflush(g_prCallTrace.fp);
++	}
++}
++
++bool PrInstrumentationArmed() {
++	bool armed = PrTraceArmed();
++	return PrCallTraceArmed() || armed;
 +}
 +
 +// Written once, before step 0, so the recompiled side can start from the same state:
@@ -201,17 +257,13 @@ index 4e3e820..164409c 100644
 +}
 +}  // namespace
 +
- static void RunUntilWithChecks(u64 globalTicks) {
- 	MIPSState *curMips = currentMIPS;
- 	// NEVER stop in a delay slot!
-@@ -1027,10 +1159,35 @@ static void RunUntilWithChecks(u64 globalTicks) {
- 					break;
- 			}
- 
+@@ -1029,0 +1232,24 @@ static void RunUntilWithChecks(u64 globalTicks) {
 +			// psp-recomp trace: snapshot before, emit after (see PrTraceAfter).
 +			bool traced = false;
 +			u32 tracePc = curMips->pc, traceAddr = 0;
 +			int traceSize = 0;
++			if (g_prCallTrace.armed)
++				PrCallTraceInstruction(curMips, tracePc, op.encoding);
 +			if (g_prTrace.armed) {
 +				if (!g_prTrace.active && tracePc == g_prTrace.startPc)
 +					g_prTrace.active = true;
@@ -230,38 +282,22 @@ index 4e3e820..164409c 100644
 +				}
 +			}
 +
- 			bool wasInDelaySlot = curMips->inDelaySlot;
- 			Interpret(instr, op);
- 			curMips->downcount -= GetInstructionCycleEstimate(instr);
- 
+@@ -1033,0 +1260,3 @@ static void RunUntilWithChecks(u64 globalTicks) {
 +			if (traced)
 +				PrTraceAfter(curMips, tracePc, op.encoding, traceAddr, traceSize);
 +
- 			// The reason we have to check this is the delay slot hack in Int_Syscall.
- 			if (curMips->inDelaySlot && wasInDelaySlot) {
- 				curMips->pc = curMips->nextPC;
-@@ -1049,7 +1206,7 @@ int MIPSInterpret_RunUntil(u64 globalTicks) {
- 		CoreTiming::Advance();
- 
+@@ -1051,3 +1280,3 @@ int MIPSInterpret_RunUntil(u64 globalTicks) {
  		uint64_t ticksLeft = globalTicks - CoreTiming::GetTicks();
 -		if (g_breakpoints.HasBreakPoints() || g_breakpoints.HasMemChecks() || ticksLeft <= curMips->downcount)
-+		if (PrTraceArmed() || g_breakpoints.HasBreakPoints() || g_breakpoints.HasMemChecks() || ticksLeft <= curMips->downcount)
++		if (PrInstrumentationArmed() || g_breakpoints.HasBreakPoints() || g_breakpoints.HasMemChecks() || ticksLeft <= curMips->downcount)
  			RunUntilWithChecks(globalTicks);
- 		else
- 			RunUntilFast();
 diff --git a/headless/Headless.cpp b/headless/Headless.cpp
-index 293878d..0740af3 100644
+index 293878d..20e9143 100644
 --- a/headless/Headless.cpp
 +++ b/headless/Headless.cpp
-@@ -550,6 +550,11 @@ int main(int argc, const char* argv[])
- 	g_Config.bMemStickInserted = true;
- 	g_Config.iMemStickSizeGB = 16;
- 	g_Config.bEnableWlan = true;
+@@ -552,0 +553,5 @@ int main(int argc, const char* argv[])
 +	// psp-recomp trace (Core/MIPS/MIPSTables.cpp): native function replacements would skip guest
 +	// instructions and break step-for-step comparison, so turn them off while tracing. The
 +	// 0xDEADBEEF filling after HLE calls stays on: the psp-recomp runtime reproduces it.
-+	if (getenv("PSPRECOMP_TRACE"))
++	if (getenv("PSPRECOMP_TRACE") || getenv("PSPRECOMP_CALLTRACE"))
 +		g_Config.bFuncReplacements = false;
- 	g_Config.sMACAddress = "12:34:56:78:9A:BC";
- 	g_Config.iFirmwareVersion = PSP_DEFAULT_FIRMWARE;
- 	g_Config.iPSPModel = PSP_MODEL_SLIM;

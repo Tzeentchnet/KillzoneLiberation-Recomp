@@ -5,6 +5,18 @@ findings or tasks it touched. Items move here from [TODO.md](TODO.md) when they 
 
 ---
 
+## 2026-10-19 — Session 2o: executed function-boundary audit (T-2.7)
+- Extended the reproducible PPSSPP v1.20.4 patch with `PSPRECOMP_CALLTRACE`, a compact interpreter hook that records
+  each unique executed `jal`/`jalr` source and runtime target. Unlike the full CPU trace, it can cover a long boot
+  without producing hundreds of megabytes of register deltas.
+- Added `tools/kzl/ppsspp_calls.py` for bounded deterministic captures and `tools/kzl/calltargets.py` for strict
+  comparison with the relocated analyzer inventory. The audit recognizes `[[jal_next]]` targets as intentional
+  non-functions, rejects malformed traces, writes a hash-stamped report, and exits nonzero on an unknown target.
+- Validation: the parser/classifier unit tests pass, the patched PPSSPPHeadless builds, and the distributable patch
+  passes plain `git apply --check` on a clean v1.20.4 worktree. A 90-second capture produced 12,399 unique edges and
+  4,553 in-module targets, with zero misses against the effective 42,600-function inventory. T-2.7 is complete.
+  → F-060
+
 ## 2026-10-19 — Session 2n: trace-free standalone loader (T-3.1)
 - Added `kzl.exe --boot` for the normal runtime path. It maps the pre-relocated `kzl_image.bin`, reserves the
   BOOT.BIN/kernel UID history, supplies `"modulename"`, enables scheduling, and enters the module's own constructor
