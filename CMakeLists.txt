@@ -9,6 +9,9 @@
 cmake_minimum_required(VERSION 3.25)
 project(KZLRecomp LANGUAGES C)
 
+set(KZL_GEN_DIR "${CMAKE_SOURCE_DIR}/build/kzl/gen" CACHE PATH "Directory written by tools/kzl/gen.py")
+set(PSP_RECOMP_DIR "${CMAKE_SOURCE_DIR}/external/psp-recomp" CACHE PATH "sal063 fork (submodule)")
+
 option(KZL_ENABLE_D3D12 "Build the SDL3/D3D12 backend" OFF)
 if(KZL_ENABLE_D3D12)
   if(NOT WIN32)
@@ -16,10 +19,21 @@ if(KZL_ENABLE_D3D12)
   endif()
   enable_language(CXX)
   find_package(SDL3 CONFIG REQUIRED COMPONENTS SDL3-shared)
+  find_package(Python3 REQUIRED COMPONENTS Interpreter)
+  set(KZL_DXC_EXECUTABLE "" CACHE FILEPATH "Optional explicit path to dxc.exe")
+  set(_KZL_DXC_ARGS)
+  if(KZL_DXC_EXECUTABLE)
+    list(APPEND _KZL_DXC_ARGS --dxc "${KZL_DXC_EXECUTABLE}")
+  endif()
+  add_custom_target(kzl_d3d12_shaders
+    COMMAND "${Python3_EXECUTABLE}"
+            "${PSP_RECOMP_DIR}/tools/compile_d3d12_shaders.py" ${_KZL_DXC_ARGS}
+    VERBATIM)
+  add_custom_target(kzl_d3d12_shaders_check
+    COMMAND "${Python3_EXECUTABLE}"
+            "${PSP_RECOMP_DIR}/tools/compile_d3d12_shaders.py" ${_KZL_DXC_ARGS} --check
+    VERBATIM)
 endif()
-
-set(KZL_GEN_DIR "${CMAKE_SOURCE_DIR}/build/kzl/gen" CACHE PATH "Directory written by tools/kzl/gen.py")
-set(PSP_RECOMP_DIR "${CMAKE_SOURCE_DIR}/external/psp-recomp" CACHE PATH "sal063 fork (submodule)")
 
 file(GLOB KZL_GEN_SRCS CONFIGURE_DEPENDS
      "${KZL_GEN_DIR}/kzl_recomp_[0-9][0-9][0-9].c"

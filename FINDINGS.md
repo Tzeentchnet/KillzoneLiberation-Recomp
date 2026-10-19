@@ -619,6 +619,43 @@ Validation:
 - **Impact:** T-4.2 is complete with a live synchronization/resource-allocation base. T-4.3 can compile embedded
   DXIL and T-4.4 can allocate root-signature descriptors directly from the exposed per-frame rings.
 
+### F-063 The Vulkan GE shader contract maps directly to a 64-byte Shader Model 6 interface — Confirmed
+The Vulkan backend's GPU stages operate after CPU transform/lighting and vertex decoding, so their portable
+contract is much smaller than the full PSP GE:
+- a 32-byte vertex (`float4` screen position/rw, `float2` u*rw/v*rw, `float` fog, UNORM8 RGBA);
+- four noperspective varyings (UV, reciprocal W, fog, color);
+- one sampled 2D texture and sampler;
+- four 16-byte state vectors for texture/alpha/depth flags, texture environment, fog color, and texture size/
+  render-target offset.
+
+`gpu_d3d12/shaders/psp_vs.hlsl` and `psp_ps.hlsl` now implement that contract in native HLSL. The vertex shader
+maps the 512x272 PSP target into D3D clip space; unlike Vulkan's positive-height viewport, D3D maps NDC +Y to the
+top, so the HLSL expression is `1 - y/136` rather than `y/136 - 1`. It passes UV/rw/fog/color as noperspective
+values. The pixel shader preserves the GLSL uber-shader's 0..255 arithmetic for texture functions 0..7,
+RGBA/color-double flags, transform-mode min/max depth discard, programmable alpha test, fog, clear-mode bypass,
+and doubled-source-alpha premultiplication. Fixed-function blend/depth/write-mask state remains a later PSO task.
+
+DXC reflection verifies the ABI rather than relying on source spelling:
+- VS inputs are `POSITION0 float4`, `TEXCOORD0 float2`, `TEXCOORD1 float`, and `COLOR0 float4`; its output and the
+  PS input match as `SV_Position`, `TEXCOORD0..2`, and `COLOR0`, with all user varyings noperspective.
+- `PSPConstants` is exactly 64 bytes at `b0`: `cfg` offset 0, `texenv` 16, `fogcol` 32, `texsize` 48.
+- The texture is `t0`, sampler is `s0`, and the pixel output is `SV_Target0`.
+
+`tools/compile_d3d12_shaders.py` compiles `vs_6_0`/`ps_6_0` with HLSL 2021, strict mode, warnings as errors, O3,
+and stripped debug/reflection chunks, then writes deterministic C initializers with source and DXIL SHA-256
+stamps. It auto-discovers the newest x64 Windows SDK DXC or accepts `--dxc`/`DXC`. `--check` recompiles into a
+temporary directory and rejects stale checked-in output. The current blobs are:
+- vertex: 2,484 bytes, SHA-256 `58A851B54F25AF153D483EB79C3C781AB024F86E89BEBBA90B9F7AE1788BD4D2`;
+- pixel: 4,240 bytes, SHA-256 `30CAF54B125FAF184F96528005ABC29F4F2A55AB2FB9E4E71410E45218C6BA9B`.
+
+Validation used Windows SDK DXC 1.8.2502.11. Direct generation/check, `mingw32-make check-shaders-d3d12`, and the
+CMake `kzl_d3d12_shaders`/`kzl_d3d12_shaders_check` targets all pass. D3D12 and dependency-free builds succeed,
+their focused CTests pass 1/1, the embedded arrays compile warning-free under MinGW C++17, and a D3D12 smoke boot
+still presents through the software framebuffer path. The bytecode is deliberately not bound yet: T-4.4 defines
+the root signature and T-4.6 creates PSOs.
+- **Impact:** T-4.3 is complete with a reflected, reproducible shader ABI. T-4.4 can define one `b0` root-constant
+  block, one `t0` descriptor table, and `s0` sampler without changing either shader.
+
 ---
 
 ## D. Assets and content

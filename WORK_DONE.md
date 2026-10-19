@@ -5,6 +5,21 @@ findings or tasks it touched. Items move here from [TODO.md](TODO.md) when they 
 
 ---
 
+## 2026-10-19 — Session 2r: native HLSL GE shaders and embedded DXIL (T-4.3)
+- Ported the Vulkan GE vertex and fragment stages to `gpu_d3d12/shaders/psp_vs.hlsl` and `psp_ps.hlsl`.
+  The vertex stage preserves the 32-byte pretransformed input and noperspective varyings while accounting for
+  D3D's opposite viewport-Y convention. The pixel stage carries over texturing modes, alpha/depth kills, fog,
+  clear mode, and doubled-source-alpha emulation in the same 0..255 arithmetic domain.
+- Added `tools/compile_d3d12_shaders.py`, which auto-discovers Windows SDK DXC (or accepts an override), compiles
+  strict optimized Shader Model 6.0, strips debug/reflection payloads, and emits deterministic source/DXIL
+  hash-stamped C initializers. Make and CMake both expose regenerate and byte-for-byte check targets. `device.cpp`
+  embeds the results and exposes `D3D12_SHADER_BYTECODE` accessors for T-4.4/T-4.6.
+- Validation: Windows SDK DXC 1.8.2502.11 compiles both stages with warnings-as-errors; regenerate/check succeeds
+  through the script, Make, and CMake. Reflection confirms matching stage signatures, all varyings noperspective,
+  a 64-byte `b0` at offsets 0/16/32/48, texture `t0`, sampler `s0`, and `SV_Target0`. D3D12/default targets build,
+  both focused CTests pass 1/1, MinGW compiles the embedded blobs warning-free, and the D3D12 smoke boot still
+  presents normally. T-4.3 is complete. → F-063
+
 ## 2026-10-19 — Session 2q: D3D12 device and swapchain foundation (T-4.2)
 - Added `src/rt/gpu_d3d12/device.cpp` and its C/C++ boundary. SDL3 creates the window and supplies its Win32
   `HWND`; the backend selects a high-performance hardware adapter (or explicit WARP), creates direct/copy queues,
