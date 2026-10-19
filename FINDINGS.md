@@ -547,6 +547,39 @@ plain `git apply --check` against a clean detached v1.20.4 worktree.
   any newly exercised indirect target missing from the inventory will fail the audit instead of reaching a runtime
   dispatch miss.
 
+### F-061 One backend descriptor now covers software, Vulkan, and future D3D12 GE paths — Confirmed
+The existing GE boundary split responsibilities: `GeGpuHooks` carried primitive/flush callbacks in
+`ge_shared.h`, while `gui.c` called the Vulkan renderer's init, direct-present, and shutdown functions by name.
+That made a second GPU implementation require Vulkan-specific branches throughout the front end.
+
+The seam is now one named `GeBackend` descriptor containing:
+- lifecycle: `init`, direct framebuffer `present`, and `shutdown`;
+- draw capture: triangle, sprite, line, and point;
+- synchronization/coherency: `flush`, CPU-side `vram_dirty`, and GPU block `xfer`.
+
+`ge.c` stores only the active descriptor through `ge_set_backend()` / `ge_backend_get()` and treats NULL as the
+reference software rasterizer. The Vulkan implementation exports a static `"vk"` descriptor; it no longer
+self-registers or clears global GE state. This is the same ABI the D3D12 implementation will export in T-4.2.
+
+The interactive path now accepts `SR_GPU=sw|vk|d3d12`. `sw` keeps software GE rendering (with the existing GDI or
+SDL presenter), `vk` requires the compiled SDL3/Vulkan implementation, and `d3d12` is recognized but reports that
+it is unavailable until T-4.2 supplies its descriptor. Unknown values, unavailable builds, failed initialization,
+and `SR_GPU=vk` combined with the legacy `SR_VIDEO=gdi` override fail before the scheduler starts. An unset
+`SR_GPU` preserves the prior software default; `SR_GPU_GE` and `SR_VIDEO` remain legacy-compatible.
+
+Validation:
+- `kzl_driver` and `kzl_hle_tests` build; focused CTest passes 1/1.
+- The HLE smoke test registers a fake descriptor, verifies getter identity and exact VRAM dirty forwarding, then
+  clears it back to software mode.
+- `ge_gpu.c` passes `gcc -std=c11 -fsyntax-only -Wall -Wextra` against current public Vulkan headers; only its
+  pre-existing Vulkan partial-initializer warnings remain.
+- `SR_GPU=vk`, `d3d12`, and an invalid value return exit 2 with the expected diagnostic in the non-GPU CMake build.
+  `SR_GPU=sw` opens GDI and presents frame 1.
+- A strict trace-free headless boot still reaches frame 1,200 without an unimplemented NID, and its language-screen
+  PPM retains SHA-256 `B47E272E940B3EC9E999CFB79F999A8E973E029BA0D2D27F3D7DC1BF833D1C49`.
+- **Impact:** T-4.1 is complete. T-4.2 can add a `"d3d12"` descriptor and selector branch without changing GE
+  command processing, software fallback, or call sites.
+
 ---
 
 ## D. Assets and content

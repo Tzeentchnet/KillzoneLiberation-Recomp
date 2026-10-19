@@ -82,7 +82,8 @@ Priority: **P0** blocks the next milestone · **P1** is needed for 1.0 · **P2**
 
 ## Phase 4 — D3D12 GE backend
 ### 4a: first image (milestone M1)
-- [ ] **T-4.1 P0** Define or confirm the `GeBackend` interface from `ge_shared.h` and `gpu_sdl3vk/ge_gpu.h`, and restructure it so Vulkan and D3D12 are interchangeable at runtime (`SR_GPU=d3d12|vk|sw`).
+- [x] **T-4.1 P0** Define or confirm the `GeBackend` interface from `ge_shared.h` and `gpu_sdl3vk/ge_gpu.h`, and restructure it so Vulkan and D3D12 are interchangeable at runtime (`SR_GPU=d3d12|vk|sw`).
+  *Done 2026-10-19: the old draw-only `GeGpuHooks` table is now a named `GeBackend` descriptor with init, present, shutdown, primitive, flush, invalidation, and block-transfer callbacks. `SR_GPU=sw|vk|d3d12` is parsed centrally by the GUI path; unavailable/invalid backends fail explicitly, while unset and legacy variables preserve the current software defaults. The existing Vulkan implementation exports the same descriptor that T-4.2 will provide for D3D12 (F-061).*
 - [ ] **T-4.2 P0** `src/gpu_d3d12/device.cpp`: adapter selection, device, queues, fences, flip-model swapchain on the SDL3 HWND, descriptor heaps (a CBV/SRV/UAV ring and an RTV/DSV pool), and an upload ring buffer.
 - [ ] **T-4.3 P0** Port `psp_vert.inc` and `psp_frag.inc` to HLSL (`shaders/psp_vs.hlsl`, `psp_ps.hlsl`), with a DXC build step producing embedded DXIL.
 - [ ] **T-4.4 P0** Root signature: per-draw root constants or CBV for GE state, SRVs for the texture and CLUT, and static samplers plus dynamic sampler descriptors.

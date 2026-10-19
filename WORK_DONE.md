@@ -5,6 +5,19 @@ findings or tasks it touched. Items move here from [TODO.md](TODO.md) when they 
 
 ---
 
+## 2026-10-19 — Session 2p: interchangeable GE backend interface (T-4.1)
+- Promoted the draw-only `GeGpuHooks` seam into a named `GeBackend` descriptor covering initialization, direct
+  target presentation, shutdown, primitives, synchronization, CPU invalidation, and block transfer. `ge.c` now
+  knows only that descriptor; the reference software rasterizer remains the null-backend path.
+- Reworked the existing SDL3/Vulkan renderer to export a `vk` descriptor instead of registering itself. The GUI
+  selects `SR_GPU=sw|vk|d3d12`, activates descriptors generically, and routes direct framebuffer presentation and
+  shutdown through them. Invalid names, unsupported compiled backends, initialization failures, and conflicting
+  `SR_GPU=vk`/`SR_VIDEO=gdi` settings are explicit errors; legacy variables remain compatible.
+- Validation: both clang-cl targets build and focused CTest passes 1/1, including a fake-backend registration and
+  VRAM-invalidation regression. The Vulkan source passes a GCC C11 syntax check against current public Vulkan
+  headers. Selector failure cases return exit 2, `SR_GPU=sw` renders through GDI, and strict headless frame 1,200
+  remains bit-identical (SHA-256 `B47E272E...833D1C49`). T-4.1 is complete. → F-061
+
 ## 2026-10-19 — Session 2o: executed function-boundary audit (T-2.7)
 - Extended the reproducible PPSSPP v1.20.4 patch with `PSPRECOMP_CALLTRACE`, a compact interpreter hook that records
   each unique executed `jal`/`jalr` source and runtime target. Unlike the full CPU trace, it can cover a long boot

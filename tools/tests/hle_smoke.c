@@ -1,4 +1,5 @@
 #include "recomp.h"
+#include "ge_shared.h"
 
 #include <direct.h>
 #include <stdio.h>
@@ -8,6 +9,8 @@
 #include <windows.h>
 
 static int failures;
+static uint32_t backend_dirty_addr;
+static uint32_t backend_dirty_bytes;
 
 static void fail_u32(const char *what, uint32_t got, uint32_t expected) {
     fprintf(stderr, "FAIL: %s: got 0x%08x, expected 0x%08x\n", what, got, expected);
@@ -45,6 +48,36 @@ static void guest_read_string(uint32_t addr, char *out, size_t size) {
     for (; i + 1 < size && MEM_R8(addr + (uint32_t)i); i++)
         out[i] = (char)MEM_R8(addr + (uint32_t)i);
     out[i] = 0;
+}
+
+static void test_backend_dirty(uint32_t addr, uint32_t bytes) {
+    backend_dirty_addr = addr;
+    backend_dirty_bytes = bytes;
+}
+
+static void test_ge_backend_interface(void) {
+    GeBackend backend;
+    memset(&backend, 0, sizeof(backend));
+    backend.name = "test";
+    backend.vram_dirty = test_backend_dirty;
+
+    if (ge_backend_get() != NULL) {
+        fprintf(stderr, "FAIL: GE backend was registered before the interface test\n");
+        failures++;
+    }
+    ge_set_backend(&backend);
+    if (ge_backend_get() != &backend) {
+        fprintf(stderr, "FAIL: GE backend registration did not round-trip\n");
+        failures++;
+    }
+    sr_gpu_vram_dirty(0x04012340u, 0x800u);
+    check_u32("GE backend dirty address", backend_dirty_addr, 0x04012340u);
+    check_u32("GE backend dirty size", backend_dirty_bytes, 0x800u);
+    ge_set_backend(NULL);
+    if (ge_backend_get() != NULL) {
+        fprintf(stderr, "FAIL: GE software fallback did not clear the backend\n");
+        failures++;
+    }
 }
 
 static uint32_t hle_call(CpuState *cpu, uint32_t nid, uint32_t a0, uint32_t a1,
@@ -634,6 +667,7 @@ int main(void) {
 
     sr_mem_init();
     CpuState cpu;
+    test_ge_backend_interface();
     test_default_vfs_root(&cpu, local_app_data);
     _putenv_s("SR_FSDIR", root);
     test_threadman(&cpu);
