@@ -29,7 +29,23 @@ endif()
 add_library(kzl_game STATIC ${KZL_GEN_SRCS})
 target_include_directories(kzl_game PRIVATE "${PSP_RECOMP_DIR}/src/rt" "${KZL_GEN_DIR}")
 if(CMAKE_C_SIMULATE_ID STREQUAL "MSVC")  # clang-cl
-  target_compile_options(kzl_game PRIVATE /W3 /fp:precise /clang:-ffp-contract=off /clang:-fno-strict-aliasing)
+  set(KZL_FP_FLAGS /fp:precise /clang:-ffp-contract=off /clang:-fno-strict-aliasing)
+  target_compile_options(kzl_game PRIVATE /W3 ${KZL_FP_FLAGS})
 else()
-  target_compile_options(kzl_game PRIVATE -Wall -Wno-unused-label -ffp-contract=off -fno-strict-aliasing)
+  set(KZL_FP_FLAGS -ffp-contract=off -fno-strict-aliasing)
+  target_compile_options(kzl_game PRIVATE -Wall -Wno-unused-label ${KZL_FP_FLAGS})
 endif()
+
+# sal063 runtime (HLE kernel, scheduler, ISO, media, GDI window, software GE) plus its
+# bring-up driver, without the SDL3/Vulkan backend (SR_SDL3VK unset). The D3D12 backend
+# replaces that later (phase 4).  -> T-3.1
+set(RT "${PSP_RECOMP_DIR}/src/rt")
+add_executable(kzl_driver
+  ${RT}/driver.c ${RT}/recomp.c ${RT}/vfpu_interp.c ${RT}/vfpu_asin.c ${RT}/hle.c ${RT}/sched.c
+  ${RT}/iso.c ${RT}/mpeg.c ${RT}/pgf.c ${RT}/gui.c ${RT}/audio.c ${RT}/h264_mf.c ${RT}/savedata.c
+  ${RT}/osk_win.c ${RT}/ge.c)
+target_include_directories(kzl_driver PRIVATE "${RT}")
+target_compile_definitions(kzl_driver PRIVATE _CRT_SECURE_NO_WARNINGS)
+target_compile_options(kzl_driver PRIVATE ${KZL_FP_FLAGS})
+target_link_libraries(kzl_driver PRIVATE kzl_game mfplat mfuuid gdi32 user32 dinput8 dxguid ole32 winmm)
+set_target_properties(kzl_driver PROPERTIES OUTPUT_NAME kzl)

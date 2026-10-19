@@ -224,6 +224,49 @@ PPSSPPHeadless (`-i --graphics=software --timeout=40`). Both boot to the front e
   headless has no per-instruction trace; T-2.11 needs a small patch to the interpreter loop
   (`RunUntilWithChecks` in `Core/MIPS/MIPSTables.cpp`).
 
+### F-048 PPSSPP traces: what the recompiled side must match — Confirmed
+[tools/ppsspp/psprecomp-trace.patch](tools/ppsspp/psprecomp-trace.patch) (PPSSPP v1.20.4) makes PPSSPPHeadless write the
+psp-recomp trace format from its interpreter loop; [tools/kzl/ppsspp_trace.py](tools/kzl/ppsspp_trace.py) records a
+trace (5M steps from `module_start` in 3 s, 229 MB). Things the first steps show:
+- **Thread start state** (PPSSPP `PSPThreadContext::reset`): r1–r31, hi, lo = `0xDEADBEEF`; f0–f31 and v0–v127 =
+  `0x7f800001`; VFPU prefixes S/T = `0xe4`, D = 0; VFPU CC = `0x3f`; REV = `0x7772ceab`; RCX0–7 = `0x3f800001`,
+  `0x3f800002`, `0x3f800004`, `0x3f800008`, then `0x3f800000` ×4; fcr31 = `0x00000e00`; fpcond = 0. The guest stores
+  these values (for example `sw s1` writes `0xdeadbeef` at step 2), so the runtime must start threads the same way.
+- **module_start entry:** `ra = 0x08000030` (kernel trampoline), `a0 = 11`, `a1 = 0x09FFFEF0` (argp copied onto the top
+  of the start thread's stack), `sp = 0x09FFFEB0` before the prologue.
+- **HLE results:** PPSSPP fills r1, r4–r15, r24, r25, hi and lo with `0xDEADBEEF` after most HLE calls. sal063's
+  `sr_syscall` does the same on purpose, so the patch leaves PPSSPP's filling on. (PPSSPP skips it for a few functions
+  via `hleSkipDeadbeef`; the runtime should copy those as traces expose them.)
+- **Kernel trampolines** at `0x08000000+` show up as steps with many register writes (thread switches, callbacks);
+  5 in the first 5M steps.
+- **Coverage:** the first 5M steps reach only 344 distinct PCs. From step 12,789 the game sits in an O(n²) sort of
+  8-byte pairs at 0x08A06C50–0x08A06CD0 (498,253 iterations of the inner loop). A useful trace gate needs several
+  start points or longer windows, not just the first 5M instructions.
+- **Impact:** T-3.1 must set the thread state above, and T-2.11 must decide how to treat trampoline steps.
+- Found while writing the trace's memory addressing: sal063 computed the `lv.q`/`sv.q` address from the raw immediate,
+  but bits 0–1 are not offset bits (bit 0 is the register's high bit, bit 1 a flag). **53 accesses in KZL** (4 + 49) were
+  1–3 bytes off. Fixed in the fork (offset = `imm & 0xFFFC`, as in PPSSPP).
+
+### F-049 Recompiled module_start matches PPSSPP step for step; memory manager is the next gap — Confirmed
+`kzl.exe --image` (fork `src/rt/driver.c`, runtime built without SDL3/Vulkan) seeded from the PPSSPP trace header
+(`# init`, `# kernel next_uid`, `# mem`) runs `module_start` for **71 steps identical to PPSSPP**, registers and memory
+writes included. Fixes needed to get there:
+- **Import stubs were never emitted.** KZL names its stub sections per library (`.sceStub.text.<lib>`), but
+  sal063 only looked for `.sceStub.text`, so no stub was generated and the first call aborted in `dispatch()`.
+  Both the analyzer and the codegen now match the prefix (300 stubs, 42,600 functions).
+- **Kernel UIDs** must continue from the oracle's next handle (0x11d here; PPSSPP has used 0x110–0x11c for the
+  bootloader). The trace header carries it and the runtime adopts it.
+- `tracediff.py` treats a syscall word on either side as matching, because each loader patches import-stub delay
+  slots with its own encoding.
+
+With `--sched` the game's threads run until the first missing HLE call, `sceKernelCreateFpl` (thread 0x11e), as
+F-047 predicted. But sal063's user-partition allocator is a bump pointer that never frees, ignores low/high
+placement, and **never fails or checks the partition end**. KZL probes free memory at start-up by asking for about
+24 MB and halving until an allocation succeeds (F-047), so with this allocator the first request "succeeds" and
+runs past 0x0A000000 into the thread stacks. PPSSPP also takes thread stacks from the top of the same partition.
+- **Impact:** port PPSSPP's `BlockAllocator` (first fit, 256-byte grain, low/high/fixed placement, free, failure) and
+  build partition memory, thread stacks, Fpl and Vpl on it before adding more HLE calls (T-3.13).
+
 ---
 
 ## D. Assets and content

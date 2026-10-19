@@ -5,6 +5,26 @@ findings or tasks it touched. Items move here from [TODO.md](TODO.md) when they 
 
 ---
 
+## 2026-10-19 — Session 2f: first recompiled-vs-PPSSPP comparison (T-3.1 started)
+- Trace header in the PPSSPP patch: `# init` (all registers), `# kernel next_uid`, `# mem` (top 4 KB of user RAM).
+  The post-HLE `0xDEADBEEF` filling stays on, since sal063 reproduces it. The patch now touches 3 files.
+- Fork: the driver reads the full header; `sr_set_next_uid`; `tracediff.py` accepts any word against a syscall in
+  stub delay slots; analyzer and codegen find per-library `.sceStub.text.<lib>` sections (300 import stubs were missing).
+- `kzl_driver` CMake target builds `kzl.exe` (runtime without SDL3/Vulkan, 0 link errors); `gen.py` writes the
+  relocated image. `module_start` runs **identically to PPSSPP for all 71 steps**. → F-049
+- Scheduler mode reaches the first missing HLE call (`sceKernelCreateFpl`). Found that sal063's bump allocator
+  cannot survive KZL's memory probe, so a `BlockAllocator` port comes first (new T-3.13). → F-049
+
+## 2026-10-19 — Session 2e: PPSSPP trace oracle (T-2.11, oracle side)
+- [tools/ppsspp/psprecomp-trace.patch](tools/ppsspp/psprecomp-trace.patch) for PPSSPP v1.20.4: PPSSPPHeadless's interpreter
+  writes the psp-recomp trace format. While tracing it forces the checked interpreter loop, turns off function
+  replacements and the post-HLE `0xDEADBEEF` filling, and writes `<trace>.done` when finished. Applies cleanly to
+  a fresh v1.20.4 checkout; build steps in [tools/ppsspp/README.md](tools/ppsspp/README.md).
+- [tools/kzl/ppsspp_trace.py](tools/kzl/ppsspp_trace.py): records a KZL trace; 5M steps from `module_start` in 3 s.
+  `tracediff.py` accepts the output.
+- Read off the thread start state, the `module_start` entry registers, and the coverage problem of the first
+  5M steps (one sort loop). → F-048
+
 ## 2026-10-19 — Session 2d: PPSSPP reference (T-0.5)
 - Installed PPSSPP 1.20.4 desktop from the official release zip (SHA-256 matched GitHub's digest) to
   `D:\Tools\PPSSPP-1.20.4`.

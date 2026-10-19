@@ -42,6 +42,14 @@ def main(argv):
     if os.path.exists(stubs):
         print(f"ERROR: trapping stubs were emitted, see {stubs}")
         return 1
+    # The relocated memory image the runtime loads at the base (code, data, zeroed BSS).
+    image = os.path.join(out, "kzl_image.bin")
+    r = subprocess.run([sys.executable, os.path.join(ROOT, "external", "psp-recomp", "tools", "prxload.py"),
+                        prx, f"{cfg['module']['base']:#x}", f"--out={image}"], capture_output=True, text=True)
+    if r.returncode:
+        print(r.stdout, r.stderr)
+        return r.returncode
+    print(f"wrote {image} ({os.path.getsize(image):,} bytes)")
     return 0
 
 

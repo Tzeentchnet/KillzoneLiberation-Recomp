@@ -1,0 +1,224 @@
+diff --git a/Core/HLE/sceKernel.h b/Core/HLE/sceKernel.h
+index b1d79f9..2bec8c5 100644
+--- a/Core/HLE/sceKernel.h
++++ b/Core/HLE/sceKernel.h
+@@ -252,6 +252,8 @@ class KernelObjectPool {
+ 	void List();
+ 	void Clear();
+ 	int GetCount() const;
++	// psp-recomp trace: the handle the next Create() would try first.
++	int PeekNextHandle() const { return nextID + handleOffset; }
+ 
+ 	enum {
+ 		maxCount = 4096,
+diff --git a/Core/MIPS/MIPSTables.cpp b/Core/MIPS/MIPSTables.cpp
+index 4e3e820..164409c 100644
+--- a/Core/MIPS/MIPSTables.cpp
++++ b/Core/MIPS/MIPSTables.cpp
+@@ -29,6 +29,7 @@
+ #include "Core/CoreTiming.h"
+ #include "Core/Reporting.h"
+ #include "Core/Debugger/Breakpoints.h"
++#include "Core/HLE/sceKernel.h"
+ 
+ #include "JitCommon/JitCommon.h"
+ 
+@@ -990,6 +991,137 @@ static inline void RunUntilFast() {
+ 	}
+ }
+ 
++// ---- psp-recomp CPU trace (Killzone: Liberation recomp project) ----------------------------------
++// Writes the per-instruction trace format of sal063's psp-recomp (tools/TRACE_FORMAT.md) so a run
++// of the interpreter can be diffed against recompiled code with tools/tracediff.py. Enabled by
++//   PSPRECOMP_TRACE=<file>          output path (tracing is off when unset)
++//   PSPRECOMP_TRACE_START=<hex pc>  start at the first execution of this pc (default: immediately)
++//   PSPRECOMP_TRACE_STEPS=<n>       stop after n steps (default 5000000)
++//   PSPRECOMP_TRACE_TARGET=<name>   name recorded in the header (default "ppsspp")
++// Run with the interpreter (-i). Function replacements are switched off by the headless host.
++namespace {
++struct PrTrace {
++	FILE *fp = nullptr;
++	bool checked = false, armed = false, active = false, initDone = false;
++	u32 startPc = 0;
++	unsigned long long maxSteps = 5000000ULL, step = 0;
++	u32 r[32], fi[32], vi[128], hi, lo, fcr31;
++	char path[1024] = {};
++};
++PrTrace g_prTrace;
++
++// Closes the trace and writes "<trace>.done" with the step count, so a driver script can stop the
++// emulator as soon as the trace is complete.
++void PrTraceClose() {
++	if (g_prTrace.fp) {
++		fflush(g_prTrace.fp);
++		fclose(g_prTrace.fp);
++		g_prTrace.fp = nullptr;
++		char done[1100];
++		snprintf(done, sizeof(done), "%s.done", g_prTrace.path);
++		if (FILE *d = fopen(done, "wb")) {
++			fprintf(d, "%llu\n", g_prTrace.step);
++			fclose(d);
++		}
++	}
++	g_prTrace.armed = g_prTrace.active = false;
++}
++
++// True while a trace is requested and not finished (keeps the interpreter on the checked path).
++bool PrTraceArmed() {
++	if (!g_prTrace.checked) {
++		g_prTrace.checked = true;
++		const char *path = getenv("PSPRECOMP_TRACE");
++		if (path && *path) {
++			snprintf(g_prTrace.path, sizeof(g_prTrace.path), "%s", path);
++			g_prTrace.fp = fopen(path, "wb");
++			if (g_prTrace.fp) {
++				static char buf[1 << 20];
++				setvbuf(g_prTrace.fp, buf, _IOFBF, sizeof(buf));
++				const char *start = getenv("PSPRECOMP_TRACE_START");
++				const char *steps = getenv("PSPRECOMP_TRACE_STEPS");
++				const char *target = getenv("PSPRECOMP_TRACE_TARGET");
++				g_prTrace.startPc = start ? (u32)strtoul(start, nullptr, 16) : 0;
++				if (steps)
++					g_prTrace.maxSteps = strtoull(steps, nullptr, 10);
++				g_prTrace.armed = true;
++				g_prTrace.active = !start;
++				fprintf(g_prTrace.fp, "# psp-recomp trace v1 oracle=ppsspp target=%s start_pc=0x%08x steps=%llu\n",
++					target ? target : "ppsspp", g_prTrace.startPc, g_prTrace.maxSteps);
++				atexit(PrTraceClose);
++			}
++		}
++	}
++	return g_prTrace.armed;
++}
++
++// Written once, before step 0, so the recompiled side can start from the same state:
++//   # init r0=.. hi=.. lo=.. f0=.. fcr31=.. v0=.. vc0=..     every register
++//   # mem 0x<addr> <hex bytes>                               top 4 KB of user RAM (start thread's
++//                                                             stack, argp copy, thread control area)
++void PrTraceStartState(const MIPSState *m) {
++	g_prTrace.initDone = true;
++	FILE *fp = g_prTrace.fp;
++	fprintf(fp, "# init");
++	for (int i = 0; i < 32; i++) fprintf(fp, " r%d=0x%08x", i, m->r[i]);
++	fprintf(fp, " hi=0x%08x lo=0x%08x", m->hi, m->lo);
++	for (int i = 0; i < 32; i++) fprintf(fp, " f%d=0x%08x", i, m->fi[i]);
++	fprintf(fp, " fcr31=0x%08x fpcond=0x%08x", m->fcr31, m->fpcond);
++	for (int i = 0; i < 128; i++) fprintf(fp, " v%d=0x%08x", i, m->vi[i]);
++	for (int i = 0; i < 16; i++) fprintf(fp, " vc%d=0x%08x", i, m->vfpuCtrl[i]);
++	fprintf(fp, "\n");
++	// Kernel object handles are allocated in order, so the next one must match too.
++	fprintf(fp, "# kernel next_uid=0x%x\n", kernelObjects.PeekNextHandle());
++	const u32 memLo = 0x09FFF000, memHi = 0x0A000000, chunk = 256;
++	for (u32 a = memLo; a < memHi; a += chunk) {
++		if (!Memory::IsValidRange(a, chunk))
++			continue;
++		fprintf(fp, "# mem 0x%08x ", a);
++		for (u32 k = 0; k < chunk; k++) fprintf(fp, "%02x", Memory::Read_U8(a + k));
++		fprintf(fp, "\n");
++	}
++}
++
++inline void PrTraceBefore(const MIPSState *m) {
++	memcpy(g_prTrace.r, m->r, sizeof(g_prTrace.r));
++	memcpy(g_prTrace.fi, m->fi, sizeof(g_prTrace.fi));
++	memcpy(g_prTrace.vi, m->vi, sizeof(g_prTrace.vi));
++	g_prTrace.hi = m->hi;
++	g_prTrace.lo = m->lo;
++	g_prTrace.fcr31 = m->fcr31;
++}
++
++// One line per executed instruction. Memory tokens match the recompiled side: the store's own
++// width, swl/swr (and every word store) as the aligned word, sv.q as four words. Syscalls report
++// register changes only.
++void PrTraceAfter(const MIPSState *m, u32 pc, u32 op, u32 memAddr, int memSize) {
++	char line[4096];
++	int n = snprintf(line, sizeof(line), "%llu pc=0x%08x op=0x%08x", g_prTrace.step, pc, op);
++	for (int i = 1; i < 32; i++)
++		if (m->r[i] != g_prTrace.r[i]) n += snprintf(line + n, sizeof(line) - n, " r%d=0x%08x", i, m->r[i]);
++	if (m->hi != g_prTrace.hi) n += snprintf(line + n, sizeof(line) - n, " hi=0x%08x", m->hi);
++	if (m->lo != g_prTrace.lo) n += snprintf(line + n, sizeof(line) - n, " lo=0x%08x", m->lo);
++	for (int i = 0; i < 32; i++)
++		if (m->fi[i] != g_prTrace.fi[i]) n += snprintf(line + n, sizeof(line) - n, " f%d=0x%08x", i, m->fi[i]);
++	if (m->fcr31 != g_prTrace.fcr31) n += snprintf(line + n, sizeof(line) - n, " fcr31=0x%08x", m->fcr31);
++	for (int i = 0; i < 128; i++)
++		if (m->vi[i] != g_prTrace.vi[i]) n += snprintf(line + n, sizeof(line) - n, " v%d=0x%08x", i, m->vi[i]);
++	if (memSize == 1 && Memory::IsValidAddress(memAddr))
++		n += snprintf(line + n, sizeof(line) - n, " m8[0x%08x]=0x%02x", memAddr, Memory::Read_U8(memAddr));
++	else if (memSize == 2 && Memory::IsValidAddress(memAddr))
++		n += snprintf(line + n, sizeof(line) - n, " m16[0x%08x]=0x%04x", memAddr, Memory::Read_U16(memAddr));
++	else if (memSize == 4 && Memory::IsValidAddress(memAddr))
++		n += snprintf(line + n, sizeof(line) - n, " m32[0x%08x]=0x%08x", memAddr, Memory::Read_U32(memAddr));
++	else if (memSize == 16 && Memory::IsValidRange(memAddr, 16))
++		for (int w = 0; w < 4; w++)
++			n += snprintf(line + n, sizeof(line) - n, " m32[0x%08x]=0x%08x", memAddr + w * 4, Memory::Read_U32(memAddr + w * 4));
++	line[n++] = '\n';
++	fwrite(line, 1, n, g_prTrace.fp);
++	if (++g_prTrace.step >= g_prTrace.maxSteps)
++		PrTraceClose();
++}
++}  // namespace
++
+ static void RunUntilWithChecks(u64 globalTicks) {
+ 	MIPSState *curMips = currentMIPS;
+ 	// NEVER stop in a delay slot!
+@@ -1027,10 +1159,35 @@ static void RunUntilWithChecks(u64 globalTicks) {
+ 					break;
+ 			}
+ 
++			// psp-recomp trace: snapshot before, emit after (see PrTraceAfter).
++			bool traced = false;
++			u32 tracePc = curMips->pc, traceAddr = 0;
++			int traceSize = 0;
++			if (g_prTrace.armed) {
++				if (!g_prTrace.active && tracePc == g_prTrace.startPc)
++					g_prTrace.active = true;
++				if (g_prTrace.active) {
++					if (!g_prTrace.initDone)
++						PrTraceStartState(curMips);
++					traced = true;
++					PrTraceBefore(curMips);
++					if ((instr->flags & OUT_MEM) != 0 && instr->interpret != &Int_Syscall) {
++						int offset = (instr->flags & IS_VFPU) != 0 ? SignExtend16ToS32(op & 0xFFFC) : SignExtend16ToS32(op);
++						traceAddr = R(_RS) + offset;
++						traceSize = MIPSGetMemoryAccessSize(op);
++						if (traceSize >= 4)
++							traceAddr &= ~3u;
++					}
++				}
++			}
++
+ 			bool wasInDelaySlot = curMips->inDelaySlot;
+ 			Interpret(instr, op);
+ 			curMips->downcount -= GetInstructionCycleEstimate(instr);
+ 
++			if (traced)
++				PrTraceAfter(curMips, tracePc, op.encoding, traceAddr, traceSize);
++
+ 			// The reason we have to check this is the delay slot hack in Int_Syscall.
+ 			if (curMips->inDelaySlot && wasInDelaySlot) {
+ 				curMips->pc = curMips->nextPC;
+@@ -1049,7 +1206,7 @@ int MIPSInterpret_RunUntil(u64 globalTicks) {
+ 		CoreTiming::Advance();
+ 
+ 		uint64_t ticksLeft = globalTicks - CoreTiming::GetTicks();
+-		if (g_breakpoints.HasBreakPoints() || g_breakpoints.HasMemChecks() || ticksLeft <= curMips->downcount)
++		if (PrTraceArmed() || g_breakpoints.HasBreakPoints() || g_breakpoints.HasMemChecks() || ticksLeft <= curMips->downcount)
+ 			RunUntilWithChecks(globalTicks);
+ 		else
+ 			RunUntilFast();
+diff --git a/headless/Headless.cpp b/headless/Headless.cpp
+index 293878d..0740af3 100644
+--- a/headless/Headless.cpp
++++ b/headless/Headless.cpp
+@@ -550,6 +550,11 @@ int main(int argc, const char* argv[])
+ 	g_Config.bMemStickInserted = true;
+ 	g_Config.iMemStickSizeGB = 16;
+ 	g_Config.bEnableWlan = true;
++	// psp-recomp trace (Core/MIPS/MIPSTables.cpp): native function replacements would skip guest
++	// instructions and break step-for-step comparison, so turn them off while tracing. The
++	// 0xDEADBEEF filling after HLE calls stays on: the psp-recomp runtime reproduces it.
++	if (getenv("PSPRECOMP_TRACE"))
++		g_Config.bFuncReplacements = false;
+ 	g_Config.sMACAddress = "12:34:56:78:9A:BC";
+ 	g_Config.iFirmwareVersion = PSP_DEFAULT_FIRMWARE;
+ 	g_Config.iPSPModel = PSP_MODEL_SLIM;
