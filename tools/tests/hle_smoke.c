@@ -58,6 +58,21 @@ static uint32_t hle_call(CpuState *cpu, uint32_t nid, uint32_t a0, uint32_t a1,
     return cpu->r[2];
 }
 
+static uint32_t hle_call7(CpuState *cpu, uint32_t nid, uint32_t a0, uint32_t a1,
+                          uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5,
+                          uint32_t a6) {
+    memset(cpu, 0, sizeof(*cpu));
+    cpu->r[4] = a0;
+    cpu->r[5] = a1;
+    cpu->r[6] = a2;
+    cpu->r[7] = a3;
+    cpu->r[8] = a4;
+    cpu->r[9] = a5;
+    cpu->r[10] = a6;
+    sr_syscall(cpu, nid);
+    return cpu->r[2];
+}
+
 static uint32_t running_hle_call(CpuState *cpu, uint32_t nid, uint32_t a0, uint32_t a1,
                                  uint32_t a2, uint32_t a3) {
     cpu->r[4] = a0;
@@ -264,6 +279,125 @@ static void test_default_vfs_root(CpuState *cpu, const char *local_app_data) {
     snprintf(path, sizeof(path), "%s\\KZLRecomp", local_app_data);
     _rmdir(path);
     _rmdir(local_app_data);
+}
+
+static uint32_t mpeg_callback_packets;
+static uint32_t mpeg_callback_end_packet;
+static uint64_t mpeg_callback_duration;
+
+static void guest_mpeg_scr(uint32_t addr, uint64_t value) {
+    MEM_W8(addr + 0, 0);
+    MEM_W8(addr + 1, 0);
+    MEM_W8(addr + 2, 1);
+    MEM_W8(addr + 3, 0xba);
+    MEM_W8(addr + 4, (uint8_t)(0x44 | ((value >> 27) & 0x38) | ((value >> 28) & 0x03)));
+    MEM_W8(addr + 5, (uint8_t)(value >> 20));
+    MEM_W8(addr + 6, (uint8_t)(0x04 | ((value >> 12) & 0xf8) | ((value >> 13) & 0x03)));
+    MEM_W8(addr + 7, (uint8_t)(value >> 5));
+    MEM_W8(addr + 8, (uint8_t)(0x04 | ((value << 3) & 0xf8)));
+}
+
+static void mpeg_fill_callback(CpuState *cpu) {
+    for (uint32_t i = 0; i < cpu->r[5]; i++) {
+        uint32_t packet = mpeg_callback_packets + i + 1;
+        uint64_t scr = mpeg_callback_duration * packet / mpeg_callback_end_packet;
+        guest_mpeg_scr(cpu->r[4] + i * 2048, scr);
+    }
+    mpeg_callback_packets += cpu->r[5];
+    cpu->r[2] = cpu->r[5];
+}
+
+static void guest_be32(uint32_t addr, uint32_t value) {
+    MEM_W8(addr + 0, (uint8_t)(value >> 24));
+    MEM_W8(addr + 1, (uint8_t)(value >> 16));
+    MEM_W8(addr + 2, (uint8_t)(value >> 8));
+    MEM_W8(addr + 3, (uint8_t)value);
+}
+
+static void guest_mpeg_timestamp(uint32_t addr, uint64_t value) {
+    MEM_W8(addr + 0, 0);
+    MEM_W8(addr + 1, (uint8_t)(value >> 32));
+    MEM_W8(addr + 2, (uint8_t)(value >> 24));
+    MEM_W8(addr + 3, (uint8_t)(value >> 16));
+    MEM_W8(addr + 4, (uint8_t)(value >> 8));
+    MEM_W8(addr + 5, (uint8_t)value);
+}
+
+static void test_mpeg_eof(CpuState *cpu) {
+    const uint32_t mpeg_addr = 0x0881c000u;
+    const uint32_t ring_addr = 0x0881c100u;
+    const uint32_t header_addr = 0x0881c200u;
+    const uint32_t offset_addr = 0x0881c300u;
+    const uint32_t au_addr = 0x0881c400u;
+    const uint32_t attr_addr = 0x0881c420u;
+    const uint32_t buffer_addr = 0x0881c430u;
+    const uint32_t init_addr = 0x0881c434u;
+    const uint32_t callback_addr = 0x0881d000u;
+    const uint32_t context_addr = 0x08830000u;
+    const uint32_t ring_data_addr = 0x08850000u;
+    const uint32_t packet_count = 10;
+    const uint32_t ring_packets = 4;
+    const uint64_t first_timestamp = 90000;
+    const uint64_t last_timestamp = first_timestamp + 3 * 3003;
+    const uint32_t end_packet = 3;
+
+    for (uint32_t i = 0; i < 0x800; i++) MEM_W8(header_addr + i, 0);
+    MEM_W32(header_addr, 0x464d5350u);
+    MEM_W32(header_addr + 4, 0x35313030u);
+    guest_be32(header_addr + 8, 2048);
+    guest_be32(header_addr + 12, packet_count * 2048);
+    guest_mpeg_timestamp(header_addr + 0x54, first_timestamp);
+    guest_mpeg_timestamp(header_addr + 0x5a, last_timestamp);
+    MEM_W32(buffer_addr, 0);
+    sr_register(callback_addr, mpeg_fill_callback);
+    mpeg_callback_packets = 0;
+    mpeg_callback_end_packet = end_packet;
+    mpeg_callback_duration = last_timestamp - first_timestamp;
+
+    check_u32("mpeg init", hle_call(cpu, 0x682a619bu, 0, 0, 0, 0), 0);
+    check_u32("mpeg query memory", hle_call(cpu, 0xc132e22fu, 0, 0, 0, 0), 0x10000);
+    check_u32("mpeg ring construct",
+              hle_call7(cpu, 0x37295ed8u, ring_addr, ring_packets, ring_data_addr,
+                        ring_packets * (104 + 2048), callback_addr, 0, 0), 0);
+    check_u32("mpeg create",
+              hle_call7(cpu, 0xd8c5f121u, mpeg_addr, context_addr, 0x10000,
+                        ring_addr, 512, 0, 0), 0);
+    check_u32("mpeg stream offset",
+              hle_call(cpu, 0x21ff80e4u, mpeg_addr, header_addr, offset_addr, 0), 0);
+    check_u32("mpeg stream offset value", MEM_R32(offset_addr), 2048);
+    uint32_t es_buffer = hle_call(cpu, 0xa780cf7eu, mpeg_addr, 0, 0, 0);
+    check_u32("mpeg AVC ES buffer", es_buffer, 1);
+    check_u32("mpeg init AVC AU",
+              hle_call(cpu, 0x167afd9eu, mpeg_addr, es_buffer, au_addr, 0), 0);
+    uint32_t video_stream = hle_call(cpu, 0x42560f23u, mpeg_addr, 0, 0, 0);
+    check_u32("mpeg video stream", video_stream, 1);
+
+    check_u32("mpeg initial available",
+              hle_call(cpu, 0xb5f6dc87u, ring_addr, 0, 0, 0), ring_packets);
+    check_u32("mpeg initial fill",
+              hle_call(cpu, 0xb240a59eu, ring_addr, end_packet, ring_packets, 0), end_packet);
+
+    for (uint32_t frame = 0; frame < 3; frame++) {
+        check_u32("mpeg get AVC AU",
+                  hle_call(cpu, 0xfe246728u, mpeg_addr, video_stream, au_addr, attr_addr), 0);
+        check_u32("mpeg AVC decode",
+                  hle_call7(cpu, 0x0e3c2e9du, mpeg_addr, au_addr, 512,
+                            buffer_addr, init_addr, 0, 0), 0);
+    }
+
+    check_u32("mpeg decoder tail drains ring",
+              hle_call(cpu, 0xb5f6dc87u, ring_addr, 0, 0, 0), ring_packets);
+    check_u32("mpeg callback packet total", mpeg_callback_packets, end_packet);
+    check_u32("mpeg video end",
+              hle_call(cpu, 0xfe246728u, mpeg_addr, video_stream, au_addr, attr_addr), 0x80618001u);
+    check_u32("mpeg end drains ring",
+              hle_call(cpu, 0xb5f6dc87u, ring_addr, 0, 0, 0), ring_packets);
+    check_u32("mpeg unregister stream",
+              hle_call(cpu, 0x591a4aa2u, mpeg_addr, video_stream, 0, 0), 0);
+    check_u32("mpeg free AVC ES buffer",
+              hle_call(cpu, 0xceb870b1u, mpeg_addr, es_buffer, 0, 0), 0);
+    check_u32("mpeg delete", hle_call(cpu, 0x606a4649u, mpeg_addr, 0, 0, 0), 0);
+    check_u32("mpeg finish", hle_call(cpu, 0x874624d6u, 0, 0, 0, 0), 0);
 }
 
 static void test_iso_directory(CpuState *cpu) {
@@ -506,6 +640,7 @@ int main(void) {
     test_time(&cpu);
     test_io(&cpu, root);
     test_iso_directory(&cpu);
+    test_mpeg_eof(&cpu);
     test_async_io(&cpu, root);
     test_offline_network(&cpu);
 

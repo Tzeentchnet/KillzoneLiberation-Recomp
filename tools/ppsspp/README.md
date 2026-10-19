@@ -3,10 +3,11 @@
 `psprecomp-trace.patch` makes PPSSPPHeadless write the per-instruction trace format of the
 psp-recomp toolkit (`external/psp-recomp/tools/TRACE_FORMAT.md`), so a run of PPSSPP's
 interpreter can be diffed against our recompiled code with `tools/tracediff.py`.
-It applies to PPSSPP **v1.20.4** and touches three files:
+It applies to PPSSPP **v1.20.4** and touches four files:
 
 - `Core/MIPS/MIPSTables.cpp`: the trace writer in the interpreter's checked loop.
 - `Core/HLE/sceKernel.h`: a read-only accessor for the next kernel object handle.
+- `Core/HLE/sceCtrl.cpp`: optional frame-based scripted controller input for reproducible UI paths.
 - `headless/Headless.cpp`: turns off function replacements while tracing (they skip guest
   instructions). The 0xDEADBEEF filling after HLE calls stays on, because the psp-recomp
   runtime reproduces it.
@@ -32,6 +33,7 @@ it in a `ppsspp` checkout next to this repo, or wherever `PPSSPP_HEADLESS` point
 | `PSPRECOMP_TRACE_START` | hex PC: start at its first execution (default: from the first instruction) |
 | `PSPRECOMP_TRACE_STEPS` | stop after this many steps (default 5,000,000) |
 | `PSPRECOMP_TRACE_TARGET` | name written in the header (default `ppsspp`) |
+| `PSPRECOMP_PADSCRIPT` | optional input file; each line is `<vblank> <hex PSP button mask> <width in vblanks>` |
 
 Run with the interpreter (`-i`). The JIT never reaches the traced loop. When the trace is complete
 the build writes `<trace>.done`, which `ppsspp_trace.py` uses to stop the emulator.

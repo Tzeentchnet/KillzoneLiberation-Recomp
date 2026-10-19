@@ -5,6 +5,19 @@ findings or tasks it touched. Items move here from [TODO.md](TODO.md) when they 
 
 ---
 
+## 2026-10-19 — Session 2m: MPEG intro completion and PPSSPP oracle (T-3.2)
+- Fork sceMpeg: fixed PPSSPP's six-byte PSMF timestamp layout, capped stream feeding at the declared packet count,
+  and moved packet consumption from `sceMpegGetAvcAu` to timestamp-proportional AVC decode. MPEG-2 pack SCR tracking
+  now recognizes when the decoder already holds the video tail, so reordered frames continue after the ring drains.
+- Added a synthetic three-frame/10-packet HLE regression covering the corrected timestamps, proportional demux,
+  ring-empty decoder tail, final no-data AU, and teardown. The real 11,573,248-byte intro reports 5,650 stream packets,
+  timestamps 90,000..7,402,305, and an 81.248 s duration.
+- Extended the reproducible PPSSPP v1.20.4 patch with `PSPRECOMP_PADSCRIPT`; its clean `git apply --check` passes and
+  the rebuilt oracle accepts the same vblank-based input script as the runtime.
+- Validation: both runtime targets built and focused CTest passed 1/1 with the KZL ISO. Patched PPSSPP and the strict
+  runtime both made 2,435 successful AVC decodes followed by one no-data AU and the same teardown order; the runtime
+  resumed presentation without an unimplemented NID. T-3.2 is complete. → F-058
+
 ## 2026-10-19 — Session 2l: LocalAppData VFS completion (T-3.3)
 - Fork IoFileMgr: writable storage now defaults to `%LOCALAPPDATA%\KZLRecomp\ms0`; `fatms0:` and `cache:` alias that
   same hierarchy, while `SR_FSDIR` remains an explicit test/developer override. A missing `LOCALAPPDATA` is reported

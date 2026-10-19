@@ -449,6 +449,41 @@ unimplemented NID.
 - **Impact:** T-3.3 is complete. Chapter 5 remains user-supplied content (F-021), but all relevant PSP device names now
   expose the required persistent location.
 
+### F-058 The MPEG intro reaches PPSSPP's exact video EOF — Confirmed
+The real `/interface/movies/gameintro_psp.pmf` is 11,573,248 bytes: a 2,048-byte PSMF header followed by
+11,571,200 bytes (5,650 packs) of program stream. Its header timestamps are 90,000..7,402,305, a duration of
+7,312,305 ticks or 81.248 s. At 3,003 ticks per 29.97 fps frame, that is exactly **2,435 AVC frames**.
+
+Two runtime shortcuts had made the intro's duration incorrect:
+- The six-byte PSMF timestamps were read from bytes 0..4 and omitted byte 5. PPSSPP's layout is
+  `b5 | b4<<8 | b3<<16 | b2<<24 | b1<<32 | b0<<36`; the old values were 351..28,915 instead of
+  90,000..7,402,305.
+- `sceMpegGetAvcAu` removed exactly one 2 KiB ring packet per frame. PPSSPP instead updates ring availability during
+  `sceMpegAvcDecode` according to demux progress, so packet count and frame count are independent. The headless model
+  now consumes toward `packets * elapsed_timestamp / duration_timestamp` during decode.
+
+The ring reaches zero after pack 5,643, whose MPEG-2 SCR is 7,309,366: less than one frame before the 7,312,305-tick
+video duration. PPSSPP still emits three reordered decoder frames after that drain. The runtime now parses pack SCR,
+marks that decoder tail as buffered, and continues AU/decode calls until the declared timestamp instead of treating an
+empty ring as immediate video EOF.
+
+A patched PPSSPP v1.20.4 oracle, driven by the same Cross-at-vblank-1,500 script through the new
+`PSPRECOMP_PADSCRIPT` hook, recorded for the first intro session:
+
+| Call | PPSSPP | Runtime |
+|---|---:|---:|
+| `sceMpegRingbufferPut` | 5,644 | 5,643 |
+| successful `sceMpegGetAvcAu` | 2,435 | 2,435 |
+| `sceMpegAvcDecode` | 2,435 | 2,435 |
+| final no-data `sceMpegGetAvcAu` | 1 | 1 |
+
+The one feed-call difference is internal buffering: both expose the same AU/decode sequence and then
+`FlushAllStream` -> `FreeAvcEsBuf` -> stream unregister -> `Delete` -> `RingbufferDestruct` -> `Finish`.
+The PPSSPP patch applies cleanly to tag v1.20.4, both clang-cl runtime targets build, the focused CTest passes with the
+real ISO, and a strict turbo run completes the movie and resumes presentation without an unimplemented NID.
+- **Impact:** T-3.2 is complete. The blank-frame headless decoder now has PPSSPP-equivalent timing and EOF behavior;
+  real H.264 output remains the SDL3/Media Foundation path.
+
 ---
 
 ## D. Assets and content

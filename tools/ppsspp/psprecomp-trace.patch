@@ -11,6 +11,49 @@ index b1d79f9..2bec8c5 100644
  
  	enum {
  		maxCount = 4096,
+diff --git a/Core/HLE/sceCtrl.cpp b/Core/HLE/sceCtrl.cpp
+index e6657bb..57010df 100644
+--- a/Core/HLE/sceCtrl.cpp
++++ b/Core/HLE/sceCtrl.cpp
+@@ -18,0 +19,2 @@
++#include <cstdio>
++#include <cstdlib>
+@@ -112,0 +115,33 @@ const u32 CTRL_EMU_RAPIDFIRE_MASK = CTRL_UP | CTRL_DOWN | CTRL_LEFT | CTRL_RIGHT
++static u32 PrRecompScriptedButtons() {
++	static struct {
++		int frame;
++		u32 mask;
++		int width;
++	} events[256];
++	static int count = -1;
++	if (count < 0) {
++		count = 0;
++		const char *path = getenv("PSPRECOMP_PADSCRIPT");
++		if (path && *path) {
++			if (FILE *fp = fopen(path, "r")) {
++				unsigned mask;
++				while (count < (int)ARRAY_SIZE(events) &&
++					fscanf(fp, "%d %x %d", &events[count].frame, &mask, &events[count].width) == 3) {
++					events[count].mask = mask;
++					count++;
++				}
++				fclose(fp);
++			} else {
++				fprintf(stderr, "PSPRECOMP_PADSCRIPT: cannot open %s\n", path);
++			}
++		}
++	}
++	int frame = __DisplayGetNumVblanks();
++	u32 buttons = 0;
++	for (int i = 0; i < count; i++) {
++		if (frame >= events[i].frame && frame < events[i].frame + events[i].width)
++			buttons |= events[i].mask;
++	}
++	return buttons;
++}
++
+@@ -120,0 +156 @@ static void __CtrlUpdateLatch()
++	buttons |= PrRecompScriptedButtons();
 diff --git a/Core/MIPS/MIPSTables.cpp b/Core/MIPS/MIPSTables.cpp
 index 4e3e820..164409c 100644
 --- a/Core/MIPS/MIPSTables.cpp
