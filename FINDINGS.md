@@ -580,6 +580,45 @@ Validation:
 - **Impact:** T-4.1 is complete. T-4.2 can add a `"d3d12"` descriptor and selector branch without changing GE
   command processing, software fallback, or call sites.
 
+### F-062 The D3D12 foundation is runnable before native GE shaders land — Confirmed
+`src/rt/gpu_d3d12/device.cpp` now supplies the `"d3d12"` descriptor introduced by F-061. Its initialization path:
+- creates an SDL3 window and retrieves the native `HWND` from
+  `SDL_PROP_WINDOW_WIN32_HWND_POINTER`;
+- enumerates adapters in high-performance preference order, rejects software adapters by default, and supports
+  the Microsoft Basic Render Driver only through explicit `SR_D3D12_WARP=1`;
+- creates a feature-level-11_0-or-newer D3D12 device, direct and copy command queues, timeline fences/events,
+  three command allocators, and one resettable graphics command list;
+- creates a three-buffer 480x272 BGRA8 `DXGI_SWAP_EFFECT_FLIP_DISCARD` swapchain on the SDL HWND;
+- partitions 4,095 shader-visible CBV/SRV/UAV descriptors and a persistently mapped 24 MiB upload buffer evenly
+  across the three fenced frame slots, and exposes reusable 256-entry RTV and 64-entry DSV descriptor pools.
+
+The native GE shader pipeline starts in T-4.3. For now the descriptor intentionally leaves primitive hooks NULL,
+so `ge.c` runs its reference rasterizer. At each display flip, the D3D12 backend converts guest 5650/5551/4444/
+8888 pixels into its current upload-ring slice, copies them into the current swapchain buffer, presents, signals
+that slot's fence, and only reuses it after completion. This exercises the actual device, swapchain, allocator,
+upload, and synchronization paths instead of leaving T-4.2 as unreachable scaffolding. SDL keyboard/gamepad
+state is returned through the existing GUI input contract.
+
+Build integration is dual-path: the fork Makefile compiles the C++ device object alongside SDL3/Vulkan, while
+root CMake keeps the dependency-free software build as its default and enables D3D12 with
+`KZL_ENABLE_D3D12=ON` plus an SDL3 package. Unavailable builds and `SR_GPU=d3d12` combined with
+`SR_VIDEO=gdi` still fail with exit 2. D3D device/present failures use the fatal backend return instead of
+silently falling back to GDI.
+
+Validation:
+- Default and D3D12 clang-cl driver/test targets build; focused CTest passes 1/1 in both configurations.
+- The same source compiles warning-free as C++17 with MinGW g++, matching the fork Makefile toolchain.
+- Hardware selection chose an NVIDIA GeForce RTX 5070 at feature level 12_1. The explicit WARP path chose
+  Microsoft Basic Render Driver and also presented successfully.
+- A 10-frame unpaced boot wrapped the three in-flight frame partitions without a fence, allocator, copy, or
+  presentation failure. A 1,200-frame D3D12-presented boot reached SELECT YOUR LANGUAGE and produced the exact
+  reference PPM SHA-256 `B47E272E940B3EC9E999CFB79F999A8E973E029BA0D2D27F3D7DC1BF833D1C49`.
+- The optional D3D12 debug layer is not installed on this host
+  (`DXGI_ERROR_SDK_COMPONENT_MISSING`, `0x887a002d`); `SR_D3D12_DEBUG=1` reports that error and aborts
+  initialization rather than pretending validation ran.
+- **Impact:** T-4.2 is complete with a live synchronization/resource-allocation base. T-4.3 can compile embedded
+  DXIL and T-4.4 can allocate root-signature descriptors directly from the exposed per-frame rings.
+
 ---
 
 ## D. Assets and content

@@ -9,6 +9,15 @@
 cmake_minimum_required(VERSION 3.25)
 project(KZLRecomp LANGUAGES C)
 
+option(KZL_ENABLE_D3D12 "Build the SDL3/D3D12 backend" OFF)
+if(KZL_ENABLE_D3D12)
+  if(NOT WIN32)
+    message(FATAL_ERROR "KZL_ENABLE_D3D12 requires Windows")
+  endif()
+  enable_language(CXX)
+  find_package(SDL3 CONFIG REQUIRED COMPONENTS SDL3-shared)
+endif()
+
 set(KZL_GEN_DIR "${CMAKE_SOURCE_DIR}/build/kzl/gen" CACHE PATH "Directory written by tools/kzl/gen.py")
 set(PSP_RECOMP_DIR "${CMAKE_SOURCE_DIR}/external/psp-recomp" CACHE PATH "sal063 fork (submodule)")
 
@@ -45,19 +54,29 @@ else()
 endif()
 
 # sal063 runtime (HLE kernel, scheduler, ISO, media, GDI window, software GE) plus its
-# bring-up driver, without the SDL3/Vulkan backend (SR_SDL3VK unset). The D3D12 backend
-# replaces that later (phase 4).  -> T-3.1
+# bring-up driver. SDL3/D3D12 is optional; SDL3/Vulkan remains outside the root build.  -> T-3.1, T-4.2
 set(RT "${PSP_RECOMP_DIR}/src/rt")
 set(KZL_RUNTIME_SRCS
   ${RT}/recomp.c ${RT}/vfpu_interp.c ${RT}/vfpu_asin.c ${RT}/hle.c ${RT}/net.c ${RT}/kmem.c ${RT}/intr.c ${RT}/gelist.c ${RT}/callback.c ${RT}/sched.c
   ${RT}/iso.c ${RT}/mpeg.c ${RT}/pgf.c ${RT}/gui.c ${RT}/audio.c ${RT}/h264_mf.c ${RT}/savedata.c
   ${RT}/osk_win.c ${RT}/ge.c)
+if(KZL_ENABLE_D3D12)
+  list(APPEND KZL_RUNTIME_SRCS ${RT}/gpu_d3d12/device.cpp)
+endif()
 
 function(kzl_configure_runtime_target target)
   target_include_directories(${target} PRIVATE "${RT}")
   target_compile_definitions(${target} PRIVATE _CRT_SECURE_NO_WARNINGS)
   target_compile_options(${target} PRIVATE ${KZL_FP_FLAGS})
   target_link_libraries(${target} PRIVATE kzl_game mfplat mfuuid gdi32 user32 dinput8 dxguid ole32 winmm)
+  if(KZL_ENABLE_D3D12)
+    target_compile_definitions(${target} PRIVATE SR_D3D12)
+    target_compile_features(${target} PRIVATE cxx_std_17)
+    target_link_libraries(${target} PRIVATE SDL3::SDL3 d3d12 dxgi)
+    add_custom_command(TARGET ${target} POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+              $<TARGET_FILE:SDL3::SDL3-shared> $<TARGET_FILE_DIR:${target}>)
+  endif()
 endfunction()
 
 add_executable(kzl_driver ${RT}/driver.c ${KZL_RUNTIME_SRCS})

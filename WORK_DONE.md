@@ -5,6 +5,21 @@ findings or tasks it touched. Items move here from [TODO.md](TODO.md) when they 
 
 ---
 
+## 2026-10-19 — Session 2q: D3D12 device and swapchain foundation (T-4.2)
+- Added `src/rt/gpu_d3d12/device.cpp` and its C/C++ boundary. SDL3 creates the window and supplies its Win32
+  `HWND`; the backend selects a high-performance hardware adapter (or explicit WARP), creates direct/copy queues,
+  timeline fences, three frame allocators, and a three-buffer flip-discard BGRA8 swapchain.
+- Added a 4,095-entry shader-visible CBV/SRV/UAV ring partitioned by in-flight frame, reusable 256-entry RTV and
+  64-entry DSV pools, and a persistently mapped 24 MiB upload ring. Until the HLSL/PSO stages land, D3D12 uploads
+  the proven software-GE framebuffer through that ring, so the backend is independently usable and testable.
+- Wired `SR_GPU=d3d12` into the GUI, including SDL input, fatal device-error propagation, explicit GDI conflicts,
+  a `KZL_ENABLE_D3D12` CMake option, and the fork Makefile's SDL3/Vulkan/D3D12 build.
+- Validation: both normal and D3D12 clang-cl targets build and their focused CTests pass 1/1; `device.cpp` also
+  compiles warning-free with MinGW g++. Hardware and WARP smoke boots pass, a 10-frame run wraps all three frame
+  slots, and a hardware run reaches frame 1,200 with the unchanged language-screen SHA-256
+  `B47E272E...833D1C49`. The host lacks the optional Windows Graphics Tools debug layer, and requesting it fails
+  explicitly with `DXGI_ERROR_SDK_COMPONENT_MISSING`. T-4.2 is complete. → F-062
+
 ## 2026-10-19 — Session 2p: interchangeable GE backend interface (T-4.1)
 - Promoted the draw-only `GeGpuHooks` seam into a named `GeBackend` descriptor covering initialization, direct
   target presentation, shutdown, primitives, synchronization, CPU invalidation, and block transfer. `ge.c` now
