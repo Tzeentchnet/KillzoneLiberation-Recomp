@@ -1,0 +1,187 @@
+== Program headers
+  type=0x1 off=0x80 vaddr=0x0 paddr=0x58b700 filesz=0x67bac0 memsz=0x67bac0 flags=0x5
+  type=0x1 off=0x67bb40 vaddr=0x67bac0 paddr=0x0 filesz=0xbaf8 memsz=0x28c50 flags=0x6
+== Sections
+  [ 0]                              type=0x00000000 addr=0x00000000 size=      0x0 flags=0x0
+  [ 1] .text                        type=0x00000001 addr=0x00000000 size= 0x58aa58 flags=0x6
+  [ 2] .rel.text                    type=0x700000a0 addr=0x00000000 size= 0x122030 flags=0x0
+  [ 3] .sceStub.text.sceNetResolver type=0x00000001 addr=0x0058aa58 size=     0x28 flags=0x6
+  [ 4] .sceStub.text.sceNetInet     type=0x00000001 addr=0x0058aa80 size=     0xb0 flags=0x6
+  [ 5] .sceStub.text.sceNetApctl    type=0x00000001 addr=0x0058ab30 size=     0x30 flags=0x6
+  [ 6] .sceStub.text.sceSsl         type=0x00000001 addr=0x0058ab60 size=     0x10 flags=0x6
+  [ 7] .sceStub.text.sceHttp        type=0x00000001 addr=0x0058ab70 size=     0x28 flags=0x6
+  [ 8] .sceStub.text.sceOpenPSID    type=0x00000001 addr=0x0058ab98 size=      0x8 flags=0x6
+  [ 9] .sceStub.text.sceWlanDrv     type=0x00000001 addr=0x0058aba0 size=     0x10 flags=0x6
+  [10] .sceStub.text.sceMpeg        type=0x00000001 addr=0x0058abb0 size=     0xb8 flags=0x6
+  [11] .sceStub.text.sceAudio       type=0x00000001 addr=0x0058ac68 size=     0x80 flags=0x6
+  [12] .sceStub.text.sceSasCore     type=0x00000001 addr=0x0058ace8 size=     0xa8 flags=0x6
+  [13] .sceStub.text.sceAtrac3plus  type=0x00000001 addr=0x0058ad90 size=     0x60 flags=0x6
+  [14] .sceStub.text.Kernel_Library type=0x00000001 addr=0x0058adf0 size=     0x10 flags=0x6
+  [15] .sceStub.text.InterruptManager type=0x00000001 addr=0x0058ae00 size=     0x18 flags=0x6
+  [16] .sceStub.text.sceGe_user     type=0x00000001 addr=0x0058ae18 size=     0x50 flags=0x6
+  [17] .sceStub.text.sceDmac        type=0x00000001 addr=0x0058ae68 size=      0x8 flags=0x6
+  [18] .sceStub.text.sceDisplay     type=0x00000001 addr=0x0058ae70 size=     0x10 flags=0x6
+  [19] .sceStub.text.sceCtrl        type=0x00000001 addr=0x0058ae80 size=     0x18 flags=0x6
+  [20] .sceStub.text.sceUtility     type=0x00000001 addr=0x0058ae98 size=     0xd8 flags=0x6
+  [21] .sceStub.text.sceRtc         type=0x00000001 addr=0x0058af70 size=     0x20 flags=0x6
+  [22] .sceStub.text.sceNetAdhocMatching type=0x00000001 addr=0x0058af90 size=     0x10 flags=0x6
+  [23] .sceStub.text.sceNetAdhocctl type=0x00000001 addr=0x0058afa0 size=     0x38 flags=0x6
+  [24] .sceStub.text.sceNetAdhoc    type=0x00000001 addr=0x0058afd8 size=     0x80 flags=0x6
+  [25] .sceStub.text.sceNet         type=0x00000001 addr=0x0058b058 size=     0x18 flags=0x6
+  [26] .sceStub.text.sceUmdUser     type=0x00000001 addr=0x0058b070 size=     0x50 flags=0x6
+  [27] .sceStub.text.sceImpose      type=0x00000001 addr=0x0058b0c0 size=     0x10 flags=0x6
+  [28] .sceStub.text.scePower       type=0x00000001 addr=0x0058b0d0 size=     0x10 flags=0x6
+  [29] .sceStub.text.UtilsForUser   type=0x00000001 addr=0x0058b0e0 size=     0x40 flags=0x6
+  [30] .sceStub.text.ThreadManForUser type=0x00000001 addr=0x0058b120 size=    0x138 flags=0x6
+  [31] .sceStub.text.SysMemUserForUser type=0x00000001 addr=0x0058b258 size=     0x30 flags=0x6
+  [32] .sceStub.text.StdioForUser   type=0x00000001 addr=0x0058b288 size=     0x18 flags=0x6
+  [33] .sceStub.text.sceSuspendForUser type=0x00000001 addr=0x0058b2a0 size=     0x28 flags=0x6
+  [34] .sceStub.text.ModuleMgrForUser type=0x00000001 addr=0x0058b2c8 size=     0x38 flags=0x6
+  [35] .sceStub.text.LoadExecForUser type=0x00000001 addr=0x0058b300 size=     0x18 flags=0x6
+  [36] .sceStub.text.IoFileMgrForUser type=0x00000001 addr=0x0058b318 size=     0xa0 flags=0x6
+  [37] .lib.ent.top                 type=0x00000001 addr=0x0058b3b8 size=      0x4 flags=0x3
+  [38] .lib.ent                     type=0x00000001 addr=0x0058b3bc size=     0x10 flags=0x2
+  [39] .rel.lib.ent                 type=0x700000a0 addr=0x00000000 size=      0x8 flags=0x0
+  [40] .lib.ent.btm                 type=0x00000001 addr=0x0058b3cc size=      0x4 flags=0x3
+  [41] .lib.stub.top                type=0x00000001 addr=0x0058b3d0 size=      0x4 flags=0x3
+  [42] .lib.stub                    type=0x00000001 addr=0x0058b3d4 size=    0x2a8 flags=0x2
+  [43] .rel.lib.stub                type=0x700000a0 addr=0x00000000 size=    0x330 flags=0x0
+  [44] .lib.stub.btm                type=0x00000001 addr=0x0058b67c size=      0x4 flags=0x3
+  [45] .rodata.sceModuleInfo        type=0x00000001 addr=0x0058b680 size=     0x34 flags=0x3
+  [46] .rel.rodata.sceModuleInfo    type=0x700000a0 addr=0x00000000 size=     0x20 flags=0x0
+  [47] .rodata.sceResident          type=0x00000001 addr=0x0058b6b4 size=    0x280 flags=0x2
+  [48] .rel.rodata.sceResident      type=0x700000a0 addr=0x00000000 size=     0x28 flags=0x0
+  [49] .rodata.sceNid               type=0x00000001 addr=0x0058b934 size=    0x4b0 flags=0x2
+  [50] .rodata                      type=0x00000001 addr=0x0058bdf0 size=  0x4560c flags=0x2
+  [51] .rel.rodata                  type=0x700000a0 addr=0x00000000 size=   0xd5f0 flags=0x0
+  [52] .data                        type=0x00000001 addr=0x005d1400 size=  0xaa608 flags=0x3
+  [53] .rel.data                    type=0x700000a0 addr=0x00000000 size=  0x5dcb0 flags=0x0
+  [54] .eh_frame                    type=0x00000001 addr=0x0067ba08 size=     0xb0 flags=0x3
+  [55] .rel.eh_frame                type=0x700000a0 addr=0x00000000 size=     0x18 flags=0x0
+  [56] .dtors                       type=0x00000001 addr=0x0067bab8 size=      0x8 flags=0x2
+  [57] .cplinit                     type=0x00000001 addr=0x0067bac0 size=   0x2928 flags=0x3
+  [58] .rel.cplinit                 type=0x700000a0 addr=0x00000000 size=   0x2920 flags=0x0
+  [59] .linkonce.d                  type=0x00000001 addr=0x0067e3e8 size=   0x9158 flags=0x3
+  [60] .rel.linkonce.d              type=0x700000a0 addr=0x00000000 size=   0x85f8 flags=0x0
+  [61] .psp_lib_mark_               type=0x00000001 addr=0x00687540 size=     0x50 flags=0x3
+  [62] .psp_lib_markimport_         type=0x00000001 addr=0x00687590 size=     0x14 flags=0x3
+  [63] .rel.psp_lib_markimport_     type=0x700000a0 addr=0x00000000 size=     0x28 flags=0x0
+  [64] .ctors                       type=0x00000001 addr=0x006875a4 size=     0x14 flags=0x3
+  [65] .rel.ctors                   type=0x700000a0 addr=0x00000000 size=     0x18 flags=0x0
+  [66] .bss                         type=0x00000008 addr=0x006875c0 size=  0x1d150 flags=0x3
+  [67] .symtab                      type=0x00000002 addr=0x00000000 size=     0x10 flags=0x0
+  [68] .strtab                      type=0x00000003 addr=0x00000000 size=      0x1 flags=0x0
+  [69] .shstrtab                    type=0x00000003 addr=0x00000000 size=    0x542 flags=0x0
+== ModuleInfo name="Guerrilla" attr=0x0 ver=0x101 gp=0x0 exports=0x58b3bc-0x58b3cc imports=0x58b3d4-0x58b67c
+== Imports
+  IoFileMgrForUser             funcs= 20 vars=0
+  LoadExecForUser              funcs=  3 vars=0
+  ModuleMgrForUser             funcs=  7 vars=0
+  sceSuspendForUser            funcs=  5 vars=0
+  StdioForUser                 funcs=  3 vars=0
+  SysMemUserForUser            funcs=  6 vars=0
+  ThreadManForUser             funcs= 39 vars=0
+  UtilsForUser                 funcs=  8 vars=0
+  scePower                     funcs=  2 vars=0
+  sceImpose                    funcs=  2 vars=0
+  sceUmdUser                   funcs= 10 vars=0
+  sceNet                       funcs=  3 vars=0
+  sceNetAdhoc                  funcs= 16 vars=0
+  sceNetAdhocctl               funcs=  7 vars=0
+  sceNetAdhocMatching          funcs=  2 vars=0
+  sceRtc                       funcs=  4 vars=0
+  sceUtility                   funcs= 27 vars=0
+  sceCtrl                      funcs=  3 vars=0
+  sceDisplay                   funcs=  2 vars=0
+  sceDmac                      funcs=  1 vars=0
+  sceGe_user                   funcs= 10 vars=0
+  InterruptManager             funcs=  3 vars=0
+  Kernel_Library               funcs=  2 vars=0
+  sceAtrac3plus                funcs= 12 vars=0
+  sceSasCore                   funcs= 21 vars=0
+  sceAudio                     funcs= 16 vars=0
+  sceMpeg                      funcs= 23 vars=0
+  sceWlanDrv                   funcs=  2 vars=0
+  sceOpenPSID                  funcs=  1 vars=0
+  sceHttp                      funcs=  5 vars=0
+  sceSsl                       funcs=  2 vars=0
+  sceNetApctl                  funcs=  6 vars=0
+  sceNetInet                   funcs= 22 vars=0
+  sceNetResolver               funcs=  5 vars=0
+  total imported funcs: 300
+== Exports
+  <syslib>                     funcs=2 vars=3
+== Code: 1453294 instructions (5.54 MiB)
+  FPU (COP1)                                  71488  (4.92%)
+  jal                                         69849  (4.81%)
+  jr                                          43576  (3.00%)
+  jalr                                        16331  (1.12%)
+  VFPU load/store (lv/sv)                     15440  (1.06%)
+  VFPU ALU (vadd/vmul/vmmul/vfim/...)          5550  (0.38%)
+  VFPU COP2 (mfv/mtv/bvf)                      1618  (0.11%)
+== Strings /[A-Za-z]:\\[\x20-\x7e]{4,120}/ : 0 unique
+== Strings /[\x20-\x7e]{0,60}\.(?:cpp|c|h|hpp|inl)\b/ : 95 unique
+    <0.c
+    .c
+    ../../source/SVBrowser.cpp
+    ../../source/SVTagModuleList.cpp
+    ../../source/SVTag.cpp
+    ../../source/Navigation.cpp
+    ../../source/ButtonTagModule.cpp
+    ../../source/LineTagModule.cpp
+    ../../source/SetVariableTagModule.cpp
+    ../../source/RectangleTagModule.cpp
+    ../../source/QuickLinkTagModule.cpp
+    ../../source/SelectTagModule.cpp
+    ../../source/ImageTagModule.cpp
+    ../../source/StaticImageTagModule.cpp
+    ../../source/StaticImageTag.cpp
+    ../../source/TextAreaTagModule.cpp
+    ../../source/TextInputTagModule.cpp
+    ../../source/PasswordInputTagModule.cpp
+    ../../source/RadioInputTagModule.cpp
+    ../../source/CheckboxInputTagModule.cpp
+    ../../source/FormTagModule.cpp
+    ../../source/SubmitInputTagModule.cpp
+    ../../source/LogoutTagModule.cpp
+    ../../source/GridTagModule.cpp
+    ../../source/URLListTagModule.cpp
+== Strings /(?i)(?:snc|prodg|sn systems|gcc|psp-gcc|/ : 1 unique
+    SceGuSignal
+== Strings /(?i)lua[\x20-\x7e]{0,40}/ : 10 unique
+    lua
+    luabin
+    LUA_NUM_TYPE)
+    LUA]
+    Lua
+    lua_getinfo' is not a function
+    Lua 4.0
+    LUA ****
+    luation key has expired or is invalid.
+    lUA
+== Strings /(?i)(?:assert|error)[\x20-\x7e]{6,80}/ : 79 unique
+    Error: SaveableData has wrong size
+    Error: Failed to read SaveableData header from memory stick
+    Error: SaveableData has an incorrect header
+    Error: Failed to read SaveableData data size from memory stick
+    Error: SaveableData is to big
+    Error: SaveableData has an incorrect data
+    Error: Failed to write SaveableData header to memory stick
+    Error: Failed to write SaveableData data to memory stick
+    Error: Failed to write SaveableData hash to memory stick
+    Error: Failed to write SaveableData (empty) hash to memory stick
+    Error: Failed to write SaveableData (reserved) data to memory stick
+    ErrorScalingFactor
+    ErrorReadingDls
+    ERROR_SESSION_MASTER_LEFT
+    ERROR_MAX_PLAYERS
+    ERROR_WLAN_SWITCH_OFF
+    ERROR_POWER_DOWN
+    ERROR_NO_CONNECTION
+    ERROR_COOP_CLIENT_LEFT
+    ERROR_BROWSER_CONNECTION
+    ERROR_SCORE_PROCESSOR
+    ERROR_CONNECTION_LOST
+    ERROR_GAME_FINISHED
+    ERROR_LOW_SIGNAL_STRENGTH
+    ERROR_UMD_EJECTED

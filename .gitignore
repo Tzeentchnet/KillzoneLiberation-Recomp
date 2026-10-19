@@ -1,0 +1,39 @@
+# Copyrighted game data — never commit (user supplies their own dump)
+*.iso
+*.ISO
+*.cso
+*.PRX
+*.prx
+*.PRX.*
+*.BIN
+*.bin
+*.DAT
+*.dat
+*.PBP
+*.elf
+CHAPTER5.BIN
+
+# Generated code derived from the game binary (rebuilt locally from the ISO)
+/gen/
+*_recomp*.c
+*_image.bin
+
+# Build output
+/build/
+/out/
+*.obj
+*.o
+*.pdb
+*.ilk
+*.exe
+*.dll
+*.lib
+*.exp
+
+# Tooling
+__pycache__/
+*.pyc
+.vs/
+.vscode/
+*.user
+CMakeUserPresets.json
