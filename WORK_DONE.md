@@ -5,6 +5,63 @@ findings or tasks it touched. Items move here from [TODO.md](TODO.md) when they 
 
 ---
 
+## 2026-10-19 — Session 2c: clang-cl build (T-0.1, T-2.9 started)
+- clang-cl 19.1.5 installed in the VS Build Tools. All 231 TUs compile with clang-cl `-O2 -W3`.
+- Codegen cleanups in the fork (`kzl` branch): a `j` to the function's own entry is a yielding loop instead of a self
+  tail call (F-046); FPU compares fold their constant condition bits (13,489 warnings gone); split mode keeps the
+  static inline helpers in the shared header. Result: 0 warnings.
+- [CMakeLists.txt](CMakeLists.txt) and [CMakePresets.json](CMakePresets.json): preset `clang-cl` (Ninja, Release)
+  builds `kzl_game.lib` in 49 s. VS Code CMake Tools loads the MSVC environment from the preset. → T-2.9
+
+## 2026-10-19 — Session 2b: sal063 fork, codegen complete (T-0.3, T-2.1 to T-2.6, T-2.8, T-2.13)
+- Created the private mirror `Tzeentchnet/psp-recomp` (upstream history on `main`, our work on `kzl`) and added it as
+  the submodule `external/psp-recomp`. → T-0.3
+- Moved `codegen_ext.py` and its tests into the fork and wired them into `codegen.py`: new encodings, `bv*` branches,
+  switch tables and computed gotos from the hint files, `jal .+8`, and reading the jump register before the delay
+  slot for every `jr`/`jalr`. → T-2.1 to T-2.6, T-2.13, F-019
+- Switch cases exposed `vasin` and `vnop`/`vflush`. Ported PPSSPP's `vfpu_asin` to `src/rt/vfpu_asin.c` and checked it
+  bit for bit against PPSSPP's own code on every input in [-1, 1]. → F-016
+- Fixed the analyzer's stale-`lui` heuristic: 342 bogus function entries gone (6 had produced C that did not compile).
+  → F-015
+- `codegen.py --split` and [tools/kzl/gen.py](tools/kzl/gen.py): 42,300/42,300 functions, **0 trapping stubs**, 230 TUs.
+  All pass `gcc -fsyntax-only -Wall` cleanly; a full gcc `-O2` compile takes 2 min 49 s on 16 threads. → T-2.8, T-2.9
+- Noted that the generated code needs GNU C, so clang-cl is required on Windows. → F-045
+- Fork commit: `01494dc` on `kzl`.
+
+## 2026-10-19 — Session 2: phase 1 tools, BOOT.BIN, PSP.DAT, codegen extensions
+
+**Phase 1 (T-1.1, T-1.2, T-1.6, T-1.7 done)**
+- [tools/kzl/iso9660.py](tools/kzl/iso9660.py): read-only ISO reader shared by the KZL tools.
+- [tools/kzl/extract.py](tools/kzl/extract.py): checks the ISO size and SHA-1, extracts the 7 files the build needs
+  plus the PSP.DAT TOC to `build/kzl/disc/`, and checks each file's SHA-1. → T-1.1
+- [config/kzl.toml](config/kzl.toml): disc and file hashes, load base, entry, start-thread params, boot argv,
+  PSP.DAT counts. → T-1.2
+- [tools/kzl/mipsdis.py](tools/kzl/mipsdis.py): an Allegrex disassembler with import-stub names, string xrefs and
+  call-site listings. [tools/kzl/nidnames.py](tools/kzl/nidnames.py) builds [research/nid_names.tsv](research/nid_names.tsv)
+  (1,759 NIDs from PPSSPP's HLE tables; all 300 KZL imports are named).
+- BOOT.BIN reversed: load path, retry thread, and `module_start(11, "modulename")`; `-patch_failed` is only passed
+  after a failed update load. → T-1.6, F-004
+- [tools/kzl/pspdat.py](tools/kzl/pspdat.py): PSP.DAT TOC fully decoded (5,005 records, depth-first tree with child
+  pointers). The tree validates, and 165 files are duplicated up to 40 times for seek locality. → T-1.7, F-020
+
+**Phase 2 groundwork (T-2.1 to T-2.6: logic done, integration pending as T-2.13)**
+- Counted the exact trapping sub-ops in KZL (F-016) and wrote `codegen_ext.py` (now [external/psp-recomp/tools/codegen_ext.py](external/psp-recomp/tools/codegen_ext.py)):
+  `bitrev`, `wsbw`, `cache`, `vf2i*`, `vi2f`, `vuc2i/vc2i/vus2i/vs2i`, `vfad`, `vsgn`, `vmscl`, `bv*` conditions, a
+  jump-table `switch` emitter and a `jal .+8` emitter. All 193 affected instructions in `.text` decode.
+- `external/psp-recomp/tools/tests/test_codegen_ext.py`: emits C, compiles it with gcc against a
+  stand-in CpuState and runs 195 cases against Python models of PPSSPP's interpreter. Mutation check: injected bugs in
+  `bv*`, `vf2in` rounding and `vus2i` are each caught.
+- [tools/kzl/jumptab.py](tools/kzl/jumptab.py): 240 of 243 computed `jr` recovered as switch tables (4,480 cases), with
+  a layout cross-check showing no over- or under-counted tables. → F-018
+- Found the native-call thunk with a `jal .+8` get-PC trick and `jr t4; addiu t4, t4, 8` ladders, which sal063
+  would mistranslate; recorded in [config/kzl_overrides.toml](config/kzl_overrides.toml). → F-019
+- Noted sal063 runtime limits at KZL scale (65,536-slot dispatch hash). → F-043
+
+**Toolchain:** MSVC 14.44, Windows SDK 10.0.26100 (dxc) and gcc 16.2 are now installed; clang-cl and PIX are not. → F-041
+
+**Not done:** T-0.3 (bringing sal063 into the repo) was held back for a decision, so nothing is wired into the codegen
+yet and the 77 trapping stubs are not regenerated. No PPSSPP install (T-0.5).
+
 ## 2026-10-19 — Repository created (T-0.2)
 - Ran `git init` (branch `main`) and added a `.gitignore` that excludes the ISO, PRX/BIN/DAT/PBP files, `CHAPTER5.BIN`, generated `*_recomp*.c` and build output.
 - Created the private GitHub repo `Tzeentchnet/KillzoneLiberation-Recomp` and pushed the initial commit.

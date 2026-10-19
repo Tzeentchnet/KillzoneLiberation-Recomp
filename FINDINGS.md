@@ -37,13 +37,18 @@ ISO may be that build (see the speedrun.com KZL guide).
 - **Impact:** the recompiler can read `KZL.PRX` directly. Before any team relies on the image, verify it against a
   known-good dump (Redump) so everyone targets the same bytes.
 
-### F-004 The bootloader is thin and can be skipped — Likely
-BOOT.BIN strings: `disc0:/PSP_GAME/USRDIR/`, `KZL.PRX`, `sceKernelLoadModule`, `sceKernelLoadModuleDNAS`,
-`ms0:/PSP/GAME/UCUS98646/KZL.PRX` (a development path), an inflate/Adler-32 routine, `-upload_dir`, `-upload_file`.
-KZL.PRX contains the strings `-patch_failed` and `DidPatchFailToLoad`.
-- **Impact:** the runtime should load `KZL.PRX` itself and not recompile the bootloader. **TODO T-1.6:** work out
-  exactly which argv/argp the bootloader passes to KZL's `module_start` (for example `-patch_failed`), and copy that
-  behavior.
+### F-004 The bootloader can be skipped; it passes a placeholder argv — Confirmed
+BOOT.BIN is not thin: it imports sceHttp/sceSsl/sceNet\*, 15 sceUtility functions, sceGe and sceDisplay, plus an
+inflate/Adler-32 routine. It checks for a downloaded update, loads it with `sceKernelLoadModuleDNAS` (with a key blob at
+0x09F0DF2F) and otherwise loads the disc module. From its disassembly (`tools/kzl/mipsdis.py`):
+- `sceKernelLoadModule("disc0:/PSP_GAME/USRDIR/KZL.PRX", 0, NULL)` at 0x09F0193C, run from a thread (prio 0x6F,
+  stack 0x800) that retries every 3 s on failure. The path comes from `0x09F00678("KZL.PRX")` plus a directory prefix.
+- `sceKernelStartModule(modid, args, argp, &status, NULL)` at 0x09F01C3C. `argp` is the literal placeholder
+  `"modulename"` (`args = 11`). Only when an update was present **and** failed to load does it pass
+  `"modulename\0-patch_failed\0"` (`args = 25`); KZL.PRX checks this through `DidPatchFailToLoad`.
+- BOOT.BIN's own options `-nopatch` and `-patch_binary` (strings at 0x09F026CC/0x09F02704) only steer the update step.
+- **Impact:** the runtime loads KZL.PRX directly and calls `module_start(11, "modulename")`. Recorded in
+  [config/kzl.toml](config/kzl.toml) `[boot]`. The update servers are gone (F-022), so the patch path never applies.
 
 ---
 
@@ -92,6 +97,11 @@ and **56 `.jsp` pages** in PSP.DAT (`svo/svml/kzpsp/…`: mainmenu, chapterselec
 
 ### F-015 Function inventory with the sal063 analyzer — Confirmed
 `tools/analyze.py --base=0x08804000` finds **42,641 functions** in 18 s. With no symbols, recall cannot be measured.
+- **Update (2026-10-19): 42,300 after a fix.** The analyzer's `lui`/`addiu` pointer heuristic never forgot a
+  register's `lui` value when the register was overwritten, so a later unrelated `addiu` "computed" a code address.
+  That produced **342 bogus entries**, all a 64 KB boundary plus a small offset (0x08810004, 0x08940004, ...). 48 sat in
+  delay slots, and 6 of those made the generated C jump to labels that do not exist. Fixed in the fork; the fix also
+  surfaced 3 real entries (two `b .` halt loops and the `jal .+8` target, which the codegen drops again).
 - **Impact:** this inventory is good enough to start from. Check it against PPSSPP runtime traces (T-2.7).
 
 ### F-016 sal063 codegen runs on KZL.PRX today — Confirmed
@@ -107,9 +117,18 @@ Unsupported encodings ([research/codegen_trapping_stubs.txt](research/codegen_tr
 | `VFPU4 jump 0x14` | 6 | `vi2f` |
 | `VFPU opcode 0x3c sub 0x4` | 3 | VFPU6 group, probably `vmscl` |
 | `opcode 0x2f` | 1 | `cache`: treat as a no-op |
-- **Impact:** about one to two weeks of codegen work closes this gap. The single 237 MB file **must be split** into
-  about 200 translation units (TUs). MSVC, clang-cl and MinGW `ld` all struggle with one file that size; the sal063
-  README already warns about `ld` crashing.
+Exact sub-ops present in KZL (all instances in `.text`, from `tools/kzl/mipsdis.py`):
+`bvf/bvt/bvfl/bvtl` 53 · `vi2f` 37 · `vfad` 37 · `bitrev` 22 · `vuc2i` 22 · `wsbw` 7 · `vus2i` 4 · `vs2i` 4 ·
+`vmscl` 4 · `vf2in` 1 · `vsgn` 1 · `cache` 1. "VFPU7" is `vuc2i/vus2i/vs2i` (no `vf2h`), and the BSHFL gap is
+`bitrev` + `wsbw` (`wsbh/seb/seh` were already handled).
+- **Status (2026-10-19): closed.** Emitters for all of these are in [external/psp-recomp/tools/codegen_ext.py](external/psp-recomp/tools/codegen_ext.py), checked against Python models of
+  PPSSPP's interpreter by a gcc-compiled test suite (`external/psp-recomp/tools/tests/test_codegen_ext.py`, 198 cases). Translating the switch cases (F-018) exposed
+  two more: `vasin` (13 functions, now a bit-exact port of PPSSPP's `vfpu_asin` in `src/rt/vfpu_asin.c`, checked on all
+  2,130,706,440 inputs in [-1, 1]) and `vnop`/`vflush` (18 functions, no-ops). The codegen now emits **42,300 of
+  42,300 functions with 0 trapping stubs**, split into 230 TUs (`tools/kzl/gen.py`). All of them pass
+  `gcc -fsyntax-only -Wall` without a warning, and an `-O2` build of all of them takes 2 min 49 s on 16 threads.
+- **Impact:** the single 237 MB file **must be split** into about 200 translation units (TUs). MSVC, clang-cl and MinGW
+  `ld` all struggle with one file that size; the sal063 README already warns about `ld` crashing.
 
 ### F-017 Jump tables are not recovered — Confirmed
 sal063 sends every computed `jr` through `dispatch()`, which only knows function entry points. A `switch`
@@ -118,6 +137,33 @@ KZL has **243** non-return `jr` sites. The generated C has about 25k `dispatch(s
 virtual calls, which do work.
 - **Impact:** add jump-table recovery (match the `lui/addiu base; sll; addu; lw; jr` pattern, bound the table with
   the preceding `sltiu`, then emit a C `switch` over local labels). Tail calls through `jr` must be told apart.
+  The analysis side is done: see F-018.
+
+### F-018 240 of the 243 computed jumps are switch tables — Confirmed
+`tools/kzl/jumptab.py` recovers **240 tables with 4,480 cases** into [research/kzl_jumptables.toml](research/kzl_jumptables.toml).
+Variants handled: `slti` and `sltiu` bounds; biased indices from sparse switches split into ranges
+(`addiu rI, rS, -LO` with the bound on `rS`, on a separately biased temp, or in the guard's delay slot, plus one
+positive bias); bound checks in a predecessor block; bounds on a copy of the index; table bases kept in an
+s-register since the prologue.
+- Cross-check: the tables sit back to back in `.rodata` with **no overlaps and no code pointers left in the gaps**
+  (so no count is too high or too low), every table has a default target, and 880 entries point at the default
+  (GCC's hole filling).
+- The 3 other sites: `0x08CC5B48` is a computed tail call through a handler table (stays on `dispatch()`), and
+  `0x08B219AC`/`0x08B219BC` are hand-written computed gotos in a native-call thunk (F-019). Their targets are in
+  [config/kzl_overrides.toml](config/kzl_overrides.toml).
+- **Impact:** the codegen can emit a `switch` for every computed jump. Unknown targets still fall to `dispatch()`,
+  so a wrong table fails loudly instead of silently.
+
+### F-019 Two codegen hazards in a hand-written thunk — Confirmed
+The routine around 0x08B218A0 (probably the script → C++ call bridge) walks a type string and loads arguments into
+`a1..t3` or `$f12..$f15` ('f' = 0x66) by jumping into two ladders of `b; move` pairs:
+- **Get-PC idiom:** `jal 0x08B21928` at 0x08B21920 jumps to its own return address to load the PC into `ra`. A naive
+  translation calls a phantom "function" that starts mid-routine. It is the only `jal/bal .+8` in the module.
+- **Delay slot writes the jump register:** `jr t4; addiu t4, t4, 8`. sal063 emits the delay slot *before* reading the
+  jump register for both `jr` and `jalr`, so it would jump to `t4 + 8`. The register must be captured first.
+  GCC code never does this, but the generic emitter should be fixed in the fork anyway.
+- **Impact:** both are handled by `codegen_ext.emit_jal_next()` / `emit_switch_jr()` and the overrides file. The fork's
+  `jr`/`jalr` emission now reads the jump register before the delay slot everywhere.
 
 ---
 
@@ -125,6 +171,8 @@ virtual calls, which do work.
 
 ### F-030 300 imported functions from 34 libraries — Confirmed
 See [research/kzl_imports.toml](research/kzl_imports.toml) and [research/kzl_prx_survey.txt](research/kzl_prx_survey.txt).
+All 300 NIDs have names in [research/nid_names.tsv](research/nid_names.tsv) (1,759 NIDs taken from PPSSPP's HLE tables
+by `tools/kzl/nidnames.py`).
 
 ### F-031 sal063 already implements 159 of the 300 imports — Confirmed
 See [research/hle_coverage_vs_sal063.txt](research/hle_coverage_vs_sal063.txt). The 141 missing imports split as follows:
@@ -158,17 +206,20 @@ display lists, using stall-address streaming (`ListUpdateStallAddr`).
 
 ## D. Assets and content
 
-### F-020 PSP.DAT archive — Partially reverse-engineered (Hypothesis on the TOC layout)
-- Header words: `[0]=0x14F78` (TOC size?), `[1]=0xF93` (3,987 entries), `[2]=0xFA3E01`, `[3]=0xFA3DB6` (two sector
-  counts or checksums?), `[6]=0x64D0` (size of the name pool). The name pool starts at offset 0x1C and holds 1,292
-  unique NUL-terminated names that entries share.
-- After the name pool come 12-byte records that look like `{u32 a, u32 b, u32 flags|name_off}`.
-  Bit 31 set means a directory, with `b` as its child count.
-- File types: `.luabin` 582, `.core` 216 (Guerrilla's level and resource "lumps"), `.at3` 58, `.jsp` 56,
-  `.xm/.xmb/.xmh` 30 each (probably sound banks), `.lua` 12, `.pmf` 6 (movies), `.png` 3.
-- **Impact:** the runtime does not need an unpacker, because the game reads PSP.DAT through `sceIo` from `disc0:`.
-  A tool that lists the archive is still worth building for debugging (mapping I/O traces to file names), and later
-  for asset replacement.
+### F-020 PSP.DAT archive — Confirmed (layout decoded, tree validates)
+[tools/kzl/pspdat.py](tools/kzl/pspdat.py) lists and extracts it. Layout (little-endian u32):
+- Header: `[0]` = TOC length after the first 0x18 bytes (TOC ends at 0x14F90), `[1]` = file records incl. duplicates
+  (3,987), `[2]/[3]` = 0xFA3E01/0xFA3DB6 (unknown; not sizes in sectors), `[6]` = name pool size. The pool starts at 0x1C.
+- After the pool: the root `{end, child_count}` with no name word, then 12-byte records `{name_off | 0x80000000 if dir, a, b}`.
+  Files: `a` = offset, `b` = size. Dirs: `a` points at the first child, `b` = child count. Pointers are byte offsets from
+  pool_end + 4, so record = (p - 4) / 12, and the root's `end` points one past the last record (5,005 records).
+  Children are contiguous and the tree is depth-first. The first file starts at 0x15000.
+- Contents: 1,018 dirs and 3,987 file records, but only **2,899 unique paths**: 165 files are stored 2–40 times at
+  different offsets (all copies byte-identical, checked by SHA-1) to cut UMD seeks. 518 MB of records, 350 MB unique.
+- File types (unique paths): `.luabin` 1,070, `.jsp` 655, `.core` 617, `.dat` 448, `.at3` 42, `.xm/.xmb/.xmh` 17 each,
+  `.lua` 7, `.pmf` 6, `.png` 3. (The session-1 counts came from the name pool, which shares names between paths.)
+- **Impact:** the runtime still reads PSP.DAT through `sceIo` and needs no unpacker. The lister maps I/O offsets in
+  traces to file names, and it is the basis for later asset replacement.
 
 ### F-021 Chapter 5 is not on the disc — Confirmed
 KZL.PRX references `CHAPTER5.BIN`, `HasChapter5`, `StartBrowserDownloadPatch`, `cache:lumps/Chapter5_Mission1.core`
@@ -186,7 +237,8 @@ Ad-hoc mode handled co-op and versus.
 
 ## E. Reference framework: sal063/PSP-recompilation-project
 
-### F-040 What it gives us — Confirmed (cloned 2026-10-19, HEAD `da17b0e`)
+### F-040 What it gives us — Confirmed (cloned 2026-10-19, HEAD `da17b0e`; forked as the private mirror
+`Tzeentchnet/psp-recomp`, our changes on branch `kzl`)
 - **Python tools:** `analyze.py` (function discovery), `prxload.py` (applies type-A PRX relocations),
   `imports.py` (NID map), `codegen.py` (MIPS→C, VFPU included, with trace hooks), and the verification tools
   `tracediff.py`, `ppmdiff.py`, `funcdiff_cmp.py`, `microtest_gate.py`, `vfpu_fuzz_gen.py`.
@@ -199,11 +251,35 @@ Ad-hoc mode handled co-op and versus.
 - **Impact:** the plan forks it. We reuse the tools and runtime, write **a new D3D12 backend behind `ge_shared.h`**,
   and keep the Vulkan backend as an A/B reference.
 
-### F-041 Toolchain gap on this machine — Confirmed
-Installed: Python 3.12.10, CMake, Git, gh. Missing from PATH: `cl`, `clang`, MSYS2/MinGW.
-D3D12 needs the Windows SDK, DXC and ideally PIX.
-- **Impact:** phase 0 installs VS 2022 Build Tools (MSVC + clang-cl), the Windows SDK and PIX. MSYS2 UCRT64 is
-  needed only to build the unmodified sal063 Vulkan reference.
+### F-041 Toolchain on this machine — Confirmed (updated 2026-10-19)
+Installed: Python 3.12.10, CMake, Ninja, Git, gh, **VS 2022 Build Tools 17.14 (MSVC 14.44)**, **Windows SDK 10.0.26100**
+(includes `dxc.exe`, `dxil.dll`, `fxc.exe`), and **WinLibs GCC 16.2 (UCRT)**. Only gcc is on the plain PATH;
+MSVC needs a developer prompt (`vcvars64`).
+**clang-cl 19.1.5** (with lld-link) was added to the Build Tools on 2026-10-19.
+Still missing: **PIX**, and MSYS2 with SDL3/Vulkan for the unmodified sal063 reference build.
+- **Impact:** the clang-cl CMake preset builds the game code (T-2.9). gcc runs the codegen unit tests.
+
+### F-043 sal063 runtime details that matter at KZL scale — Confirmed (read from `src/rt/recomp.c`)
+- The dispatch table is an open-addressing hash with a fixed **65,536 slots** ("homebrew has < a few thousand
+  functions"). KZL's 42,641 functions load it to 65%, and every `jalr` (16k sites) goes through it.
+- `sr_vwrite` saturates with float compares even when the lanes hold integer bit patterns. That matches PPSSPP for
+  `vx2i` ("saturation does in fact apply"); for `vf2i` the D-prefix saturate must be masked off, which
+  `codegen_ext` does.
+- PSP fonts: sal063 ships PPSSPP's replacement `ltn0.pgf`/`jpn0.pgf`. They are not copied into this repo; the
+  runtime should look for them in the user's PPSSPP install or ms0 folder.
+- **Impact:** T-2.8 replaces the hash with a sorted table or perfect hash generated at build time.
+
+### F-046 Odd code at 0x08804214 (near module_start) — Confirmed
+`f_08804214` calls three functions, then `jal 0x00000000` (a call through an unrelocated null, likely a weak symbol
+that was never linked), then `j 0x08804214` back to its own entry. sal063 emitted that `j` as a self tail call, which
+recurses forever without tail-call optimisation; it is now a yielding `goto` loop.
+- **Impact:** probably dead code, but if the runtime ever reaches it, the null call shows up as a dispatch miss at 0.
+
+### F-045 The generated C needs GNU C — Confirmed
+sal063's codegen emits `__builtin_clz` (clz/clo) and GNU statement expressions `({ ... })` (max/min), and the KZL
+extensions add `__builtin_bswap32`. gcc and clang (including clang-cl) accept all of it; MSVC `cl` does not.
+- **Impact:** D4's clang-cl is a requirement, not a preference. With it, all 231 TUs build at `-O2 -W3` with no
+  warnings; CMake configure + build takes 49 s (16 threads), against 2 min 49 s for gcc `-O2`.
 
 ### F-042 Other recomp frameworks considered
 - **N64Recomp / RT64** (Mr-Wiseguy): proven at scale, and its static-recomp pattern (lookup-table dispatch,

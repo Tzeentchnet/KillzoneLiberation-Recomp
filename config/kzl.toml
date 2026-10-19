@@ -1,0 +1,50 @@
+# Build configuration for Killzone: Liberation (UCUS-98646 v1.20).  -> T-1.2
+# Every address in FINDINGS/TODO refers to the image described here. Tools refuse to run on
+# a disc whose hashes do not match (override with --no-verify while experimenting).
+
+[disc]
+id = "UCUS98646"
+version = "1.20"
+iso_size = 568498176
+iso_sha1 = "5bc4fc8cd8d72c9c2e7c1c03a4325a29bed6e69a"     # F-001
+
+# Files pulled out of the ISO by tools/kzl/extract.py, with their expected SHA-1.
+[disc.files]
+"PSP_GAME/USRDIR/KZL.PRX"         = "6928a1479430e79b5b8181a914f7fbb2f8e76b01"  # the game (plaintext PRX, F-003)
+"PSP_GAME/USRDIR/KZL.PRX.100"     = "0222d8004fc501f4e2dcb6cc26d58bd5664599cc"  # v1.00 module, for T-1.8
+"PSP_GAME/SYSDIR/BOOT.BIN"        = "5dc7fea3b1e96130e7c390d1408211905db0ea0f"  # plaintext bootloader (F-004)
+"PSP_GAME/SYSDIR/EBOOT.BIN"       = "1e56479420c1e672d32e627f0f7a7224b343a871"  # ~PSP-wrapped bootloader
+"PSP_GAME/PARAM.SFO"              = "1a822a0af2842a12b09a0d0bc8a89c2294fbdc5f"
+"PSP_GAME/USRDIR/BINPSP/mpeg.prx" = "60bbd43418657c1e25b62ec98e64ab9e7d7c6f28"  # encrypted; fake-loaded (F-032)
+"UMD_DATA.BIN"                    = "d59716e4e7d2d8454a1bfdcc3fc7156b1e1087d7"
+
+[module]
+file = "PSP_GAME/USRDIR/KZL.PRX"
+name = "Guerrilla"
+base = 0x08804000            # load address used by every tool and by the runtime loader
+entry = 0x08804000           # module_start, module offset 0x0 (F-010)
+module_stop = 0x088043D0     # module offset 0x3D0
+text_size = 0x58AA58         # 1,453,294 instructions
+
+[module.start_thread]        # from the syslib export's module_start_thread_parameter
+priority = 0x20
+stack_size = 0x400
+attr = 0x80000000
+
+[boot]
+# What BOOT.BIN does, from its disassembly (T-1.6, F-004; tools/kzl/mipsdis.py):
+#   sceKernelLoadModule("disc0:/PSP_GAME/USRDIR/KZL.PRX", 0, NULL)   @0x09F0193C, from a thread
+#       (prio 0x6F, stack 0x800) that retries every 3 s on failure
+#   sceKernelStartModule(modid, args, argp, &status, NULL)           @0x09F01C3C
+# argp is the literal placeholder "modulename" (args = 11). Only when a downloaded patch was
+# present and failed to load does it pass "modulename\0-patch_failed\0" (args = 25). We never
+# have a patch, so the runtime passes the first form.
+module_path = "disc0:/PSP_GAME/USRDIR/KZL.PRX"
+argv = ["modulename"]                # argp = "modulename\0", args = 11
+
+[pspdat]                     # tools/kzl/pspdat.py validates against these (F-020)
+path = "PSP_GAME/USRDIR/PSP.DAT"
+records = 5005
+dirs = 1018
+files = 3987
+unique_paths = 2899

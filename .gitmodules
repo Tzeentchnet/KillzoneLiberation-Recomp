@@ -1,0 +1,4 @@
+[submodule "external/psp-recomp"]
+	path = external/psp-recomp
+	url = https://github.com/Tzeentchnet/psp-recomp.git
+	branch = kzl

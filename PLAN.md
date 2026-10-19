@@ -51,10 +51,10 @@ What is left is mostly **engineering work, not unknowns**. The largest new piece
 ### Key decisions
 | # | Decision | Reason |
 |---|---|---|
-| D1 | **Fork sal063** as the base (it stays GPL-2.0+) and keep it as an upstream remote | It already handles KZL at 99.8% function coverage. Rewriting it would cost months. |
+| D1 | **Fork sal063** as the base (it stays GPL-2.0+) and keep it as an upstream remote. The fork is the private mirror `Tzeentchnet/psp-recomp` (`main` = upstream, our work on `kzl`), used as the submodule `external/psp-recomp`. | It already handles KZL at 99.8% function coverage. Rewriting it would cost months. A private mirror keeps the work private until release. |
 | D2 | **Write a native D3D12 backend** behind the existing `ge_shared.h` boundary, without SDL_GPU | We need full control of VRAM aliasing, readback, depth and stencil tricks, logic ops and the PSO cache. The SDL_GPU D3D12 path stays a fallback idea. |
 | D3 | **Port sal063's GLSL `psp_vert`/`psp_frag` to HLSL, compiled with DXC (SM 6.0+)** | It keeps the GE semantics that sal063 validated against PPSSPP. |
-| D4 | **Build with CMake and clang-cl**, with codegen output split into about 200 TUs | 237 MB in one TU does not compile (F-016). clang-cl gives PDBs for PIX and VS debugging. |
+| D4 | **Build with CMake and clang-cl**, with codegen output split into about 200 TUs | 237 MB in one TU does not compile (F-016). clang-cl gives PDBs for PIX and VS debugging. The generated code uses GNU C (`__builtin_clz`, statement expressions), which MSVC `cl` rejects (F-045). |
 | D5 | **Skip the bootloader** and load KZL.PRX directly | It is a thin loader (F-004). We copy only the argv and memory layout it sets up. |
 | D6 | **Offline only for 1.0.** Networking reports "WLAN off". Ad-hoc over UDP is a stretch goal. | The servers are gone (F-022). It removes about 69 imports from the critical path. |
 | D7 | **The user supplies the ISO.** The runtime reads `disc0:` from it, with a hash check. | Legal hygiene, and no asset extraction pipeline to maintain. |
@@ -123,11 +123,12 @@ Mapping PSP GE features to D3D12 is where most of the risk sits:
 
 ```
 /                          plan docs (this file, TODO, WORK_DONE, FINDINGS)
-/external/psp-recomp       fork of sal063 (git submodule)
+/external/psp-recomp       fork of sal063 (submodule -> private mirror, branch kzl)
 /external/ppsspp           reference only (not linked), optional
 /tools/survey              reproducible static-survey scripts (done)
-/tools/kzl                 KZL-specific tools: PSP.DAT lister, jump-table pass, splitter
-/config/kzl.toml           ISO hash, load base, entry, overrides, function hints
+/tools/kzl                 KZL-specific tools: extract, PSP.DAT lister, disassembler, jump-table pass, gen
+/config/kzl.toml           ISO hash, load base, entry, boot argv
+/config/kzl_overrides.toml hand-checked codegen overrides
 /src/gpu_d3d12             new D3D12 GE backend + HLSL shaders
 /src/platform              window, input, config, paths (cache:/ms0: mapping)
 /research                  raw outputs of analysis runs (small text only)

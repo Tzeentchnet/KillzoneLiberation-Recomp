@@ -8,37 +8,47 @@ Priority: **P0** blocks the next milestone · **P1** is needed for 1.0 · **P2**
 ---
 
 ## Phase 0 — Environment and repo
-- [ ] **T-0.1 P0** Install VS 2022 Build Tools (MSVC v143 + clang-cl), Windows 11 SDK (d3d12, dxgi, DXC) and PIX for Windows. → F-041
+- [x] **T-0.1 P0** Install VS 2022 Build Tools (MSVC v143 + clang-cl), Windows 11 SDK (d3d12, dxgi, DXC) and PIX for Windows. → F-041
+  *2026-10-19: MSVC 14.44, clang-cl 19.1.5, SDK 10.0.26100 (with dxc) and Ninja are in. PIX moves to T-4.14 (needed only for GPU debugging).*
 - [x] **T-0.2 P0** `git init`, plus a `.gitignore` that excludes `*.ISO`, `*.PRX`, `*.DAT`, `CHAPTER5.BIN`, `/build`, `/gen` and `/external/*/build`.
-- [ ] **T-0.3 P0** Fork `sal063/PSP-recompilation-project` and add it as the submodule `external/psp-recomp`. Pin `da17b0e`. → F-040
+- [x] **T-0.3 P0** Fork `sal063/PSP-recompilation-project` and add it as the submodule `external/psp-recomp`. Pin `da17b0e`. → F-040
+  *Done as a private mirror, `Tzeentchnet/psp-recomp` (`main` = upstream `da17b0e`, our work on `kzl`).*
 - [ ] **T-0.4 P1** MSYS2 UCRT64 (gcc, sdl3, vulkan-loader, lld): build unmodified sal063 against one homebrew ELF to get a known-good baseline.
 - [ ] **T-0.5 P0** Get the PPSSPP desktop build and `PPSSPPHeadless.exe`. Confirm KZL boots there and capture a reference log.
 - [ ] **T-0.6 P1** Add `LICENSE` (GPL-2.0-or-later), `CREDITS.md` (PPSSPP, sal063) and a README stating that the user supplies the game.
 - [ ] **T-0.7 P1** CI skeleton (GitHub Actions, windows-latest): run the Python tools' unit tests and do a compile-only build of the runtime without game code.
 
 ## Phase 1 — Extraction and static analysis
-- [ ] **T-1.1 P0** `tools/kzl/extract.py`: check the ISO SHA-1 (F-001), then pull out KZL.PRX, BOOT.BIN, PARAM.SFO and the PSP.DAT header. Built from `tools/survey/isols.py`.
-- [ ] **T-1.2 P0** Pin `config/kzl.toml`: `base=0x08804000`, `entry=module_start=0x08804000`, the start-thread params and the ISO hash. → F-010
+- [x] **T-1.1 P0** `tools/kzl/extract.py`: check the ISO SHA-1 (F-001), then pull out KZL.PRX, BOOT.BIN, PARAM.SFO and the PSP.DAT header. Built from `tools/survey/isols.py`.
+- [x] **T-1.2 P0** Pin `config/kzl.toml`: `base=0x08804000`, `entry=module_start=0x08804000`, the start-thread params and the ISO hash. → F-010
 - [ ] **T-1.3 P1** Ghidra project: load KZL.PRX with the Allegrex/PSP loader (for example `pspsdk` or `ghidra-allegrex`). Apply NID names from `research/kzl_imports.toml`.
 - [ ] **T-1.4 P1** Identify statically linked libraries and label their functions: Havok (version string `** Havok libs built with version [`), Lua 4.0, libgu, SN runtime and libc. Use FLIRT-style signatures or PPSSPP's `knownfuncs`. → F-012, F-013
 - [ ] **T-1.5 P1** Recover the RTTI/vtable layout (`.data` pointer tables) to name C++ classes, starting with the SV* classes. → F-014
-- [ ] **T-1.6 P0** Reverse BOOT.BIN to find the exact `sceKernelLoadModule` path and flags, the `sceKernelStartModule` argp (`-patch_failed`?), and the memory layout it expects. → F-004
-- [ ] **T-1.7 P1** `tools/kzl/pspdat.py`: list the PSP.DAT TOC (dirs, names, offsets, sizes) and confirm the 12-byte record hypothesis. → F-020
+- [x] **T-1.6 P0** Reverse BOOT.BIN to find the exact `sceKernelLoadModule` path and flags, the `sceKernelStartModule` argp (`-patch_failed`?), and the memory layout it expects. → F-004
+- [x] **T-1.7 P1** `tools/kzl/pspdat.py`: list the PSP.DAT TOC (dirs, names, offsets, sizes) and confirm the 12-byte record hypothesis. → F-020
+- [ ] **T-1.10 P2** Work out PSP.DAT header words `[2]`/`[3]` (0xFA3E01/0xFA3DB6) and whether the game checks them. → F-020
+- [ ] **T-1.11 P2** Find the game's PSP.DAT reader (the function that opens `disc0:/PSP_GAME/USRDIR/PSP.DAT` and walks the TOC) and confirm which duplicate copy it picks. → F-020
 - [ ] **T-1.8 P2** Function-match KZL.PRX against KZL.PRX.100 to carry names between versions and see what 1.20 changed.
 - [ ] **T-1.9 P2** Check the plaintext-PRX provenance against Redump / a known-good retail dump. → F-003
 
 ## Phase 2 — Recompiler completion
-- [ ] **T-2.1 P0** Codegen: `bvf/bvt/bvfl/bvtl` (cop2 rs=8). 25 functions. → F-016
-- [ ] **T-2.2 P0** Codegen: `vfad` (VFPU9 0x06). 24 functions.
-- [ ] **T-2.3 P0** Codegen: the VFPU7 conversion group (VFPU4 jump 0x01). 9 functions.
-- [ ] **T-2.4 P0** Codegen: the remaining BSHFL sub-ops (SPECIAL3 0x20). 9 functions.
-- [ ] **T-2.5 P0** Codegen: `vi2f` (VFPU4 jump 0x14, 6 functions), VFPU6 sub 4 (probably `vmscl`, 3 functions), and `cache` as a no-op (1 function).
-- [ ] **T-2.6 P0** **Jump-table pass:** detect `sltiu/beqz … lui/addiu; sll; addu; lw; jr rX` at the 243 sites, then emit a `switch` with local labels. Separate tail calls from switches. → F-017
+- [x] **T-2.1 P0** Codegen: `bvf/bvt/bvfl/bvtl` (cop2 rs=8). 25 functions. → F-016
+- [x] **T-2.2 P0** Codegen: `vfad` (VFPU9 0x06). 24 functions.
+- [x] **T-2.3 P0** Codegen: the VFPU7 conversion group (VFPU4 jump 0x01). 9 functions.
+- [x] **T-2.4 P0** Codegen: the remaining BSHFL sub-ops (SPECIAL3 0x20). 9 functions.
+- [x] **T-2.5 P0** Codegen: `vi2f` (VFPU4 jump 0x14, 6 functions), VFPU6 sub 4 (probably `vmscl`, 3 functions), and `cache` as a no-op (1 function).
+- [x] **T-2.6 P0** **Jump-table pass:** detect `sltiu/beqz … lui/addiu; sll; addu; lw; jr rX` at the 243 sites, then emit a `switch` with local labels. Separate tail calls from switches. → F-017
+  *Analysis done: 240 tables / 4,480 cases in `research/kzl_jumptables.toml`, the rest in `config/kzl_overrides.toml` (F-018, F-019). `codegen_ext.emit_switch_jr()` is tested and wired in.*
 - [ ] **T-2.7 P0** Check function boundaries: run PPSSPPHeadless with a block trace, collect every executed `jal`/`jalr` target, then diff against the 42,641-entry inventory. Feed misses into `overrides.toml`. → F-015
-- [ ] **T-2.8 P0** **Split the output:** codegen writes `gen/kzl_recomp_NNN.c` (about 1 MB each, about 200 files) plus `gen/kzl_dispatch.c` (a sorted address→fn table with binary search or a perfect hash). → F-016
+- [x] **T-2.8 P0** **Split the output:** codegen writes `gen/kzl_recomp_NNN.c` (about 1 MB each, about 200 files) plus `gen/kzl_dispatch.c` (a sorted address→fn table with binary search or a perfect hash). → F-016
+  *Done: `codegen.py --split` (via `tools/kzl/gen.py`) writes `kzl_recomp.h`, 230 TUs and `kzl_recomp_register.c`. The sorted dispatch table is split out as T-2.14.*
+- [ ] **T-2.14 P1** Replace sal063's 65,536-slot dispatch hash with a table generated at build time (sorted array or perfect hash) in `kzl_recomp_register.c`. → F-043
 - [ ] **T-2.9 P1** Add a CMake target for the generated code: clang-cl `/O2` for hot code and `/O1` for the rest, no `/fp:fast`, `/fp:precise` with FTZ/DAZ set at startup. Target a full build in under 10 min on 8 cores. → F-013
+  *2026-10-19: `CMakeLists.txt` + `CMakePresets.json` (preset `clang-cl`, Ninja, Release) build `kzl_game.lib` from the 231 TUs in 49 s with 0 warnings. Still to do: the runtime target and the exe (with T-3.1), cold-code `/O1`, and FTZ/DAZ at startup.*
 - [ ] **T-2.10 P1** Link the interpreter fallback (`src/ref/interp.cpp`) for dispatch misses. Log every miss once and keep a regression list.
 - [ ] **T-2.11 P1** Trace-diff gate: `tracediff.py` against PPSSPP for the first 5M instructions after `module_start`, run in CI on a self-hosted runner with the user's ISO.
+- [x] **T-2.13 P0** Wire `codegen_ext.py` into the forked codegen: try `codegen_ext.effect()` before the base decoder; add `bv*` to `is_cond_branch/cond_expr/is_likely`; in `function_flow`, follow switch and computed-goto targets as intra-function labels; emit `jr` through `emit_switch_jr()`; treat `[[jal_next]]` as link-only; read the jump register before the delay slot for every `jr`/`jalr` (F-019). Exit: 0 trapping stubs and no `jr` to an unknown label. Needs T-0.3. → F-016, F-018, F-019
+  *Done: 42,300/42,300 functions, 0 stubs, all TUs pass `gcc -fsyntax-only -Wall` (also fixed the analyzer's stale-`lui` bug, F-015).*
 - [ ] **T-2.12 P2** Codegen performance: keep the GPRs in locals within a function, elide `sr_begin/sr_end` hooks in release builds, and turn constant-address `jalr` into direct calls.
 
 ## Phase 3 — Runtime and HLE bring-up (headless)
@@ -71,7 +81,7 @@ Priority: **P0** blocks the next milestone · **P1** is needed for 1.0 · **P2**
 - [ ] **T-4.11 P1** Blending: all GE equations, including absdiff and fixed colors. Logic ops through a shader path or a framebuffer copy.
 - [ ] **T-4.12 P1** Bezier/spline patches (CPU tessellation), morph weights and skinning (CPU).
 - [ ] **T-4.13 P0** Golden-frame harness: capture 50 frames (boot, menu, C1M1 gameplay, a cutscene and the HUD) from the PPSSPP software renderer, then `ppmdiff.py` against the D3D12 output in CI.
-- [ ] **T-4.14 P1** Debug tooling: PIX markers per list and draw, a GE state dump on hotkey, and a `SR_GPU_LOG` equivalent for D3D12.
+- [ ] **T-4.14 P1** Debug tooling (install PIX for Windows first): PIX markers per list and draw, a GE state dump on hotkey, and a `SR_GPU_LOG` equivalent for D3D12.
 ### 4c: performance
 - [ ] **T-4.15 P1** Async PSO compilation, an `ID3D12PipelineLibrary` disk cache and an ubershader fallback, so there are no first-use hitches.
 - [ ] **T-4.16 P2** Decode vertices in the shader from raw GE buffers, batch draws within a list, and cache constant-buffer state.

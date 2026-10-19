@@ -1,0 +1,22 @@
+{
+  "version": 6,
+  "configurePresets": [
+    {
+      "name": "clang-cl",
+      "displayName": "clang-cl (x64, Ninja, Release)",
+      "description": "VS 2022 Build Tools clang-cl. VS Code CMake Tools loads the MSVC environment itself; from a shell, run vcvars64.bat first.",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/out/build/${presetName}",
+      "architecture": { "value": "x64", "strategy": "external" },
+      "toolset": { "value": "host=x64", "strategy": "external" },
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "clang-cl",
+        "CMAKE_BUILD_TYPE": "Release"
+      },
+      "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Windows" }
+    }
+  ],
+  "buildPresets": [
+    { "name": "clang-cl", "configurePreset": "clang-cl" }
+  ]
+}

@@ -1,0 +1,29 @@
+# Hand-checked codegen overrides for KZL.PRX v1.20 (base 0x08804000).  -> T-2.6, F-017, F-018
+# Machine-recovered switch tables live in research/kzl_jumptables.toml; this file holds the
+# cases the pass cannot or should not decide.
+
+# Native-call thunk at ~0x08B218A0 (hand-written assembly; looks like the script -> C++ call
+# bridge). It walks a type string and loads each argument through two "ladders" of
+# `b 0x08B21994; <move>` pairs, jumping with `jr t4; addiu t4, t4, 8` (int args a1..t3) and
+# `jr t5; addiu t5, t5, 8` (float args $f12..$f15). The ladder bases come from the get-PC
+# idiom below: ra = 0x08B21928, t4 = ra + 20, t5 = ra + 76.
+# The jump register must be read BEFORE the delay slot (which advances it).
+[[computed_goto]]
+jr = 0x08b219ac
+reg = 12                                    # t4
+targets = [0x08b2193c, 0x08b21944, 0x08b2194c, 0x08b21954, 0x08b2195c, 0x08b21964, 0x08b2196c]
+
+[[computed_goto]]
+jr = 0x08b219bc
+reg = 13                                    # t5
+targets = [0x08b21974, 0x08b2197c, 0x08b21984, 0x08b2198c]
+
+# `jal .+8` used only to load the PC into ra: emit the link, not a call. The target must not
+# be treated as a function entry. This is the only jal/bal .+8 in the module.
+[[jal_next]]
+at = 0x08b21920
+
+# Computed tail call through a handler table (lw a0, 0(v1); jr a0), no bound check: stays on
+# dispatch(). Listed so the jump-table report has no unexplained sites.
+[[dispatch_ok]]
+jr = 0x08cc5b48
