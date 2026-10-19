@@ -5,6 +5,18 @@ findings or tasks it touched. Items move here from [TODO.md](TODO.md) when they 
 
 ---
 
+## 2026-10-19 — Session 2s: D3D12 root signature and sampler ring (T-4.4)
+- Added a serialized D3D12 1.0 root signature matching the reflected shader ABI: 16 pixel-stage root constants
+  at `b0`, a contiguous `t0` texture/`t1` CLUT SRV table, one dynamic `s0` sampler table, and static
+  clamp-nearest `s1` plus clamp-linear `s2`. The three parameters cost 18 root DWORDs.
+- Added a 768-entry shader-visible sampler heap partitioned into 256 descriptors per fenced frame, with the same
+  allocation lifetime contract as the SRV/upload rings. Command-list reset now binds both descriptor heaps and
+  the root signature, allocates safe null texture/CLUT descriptors, installs a default dynamic clamp sampler,
+  and initializes all 16 state constants.
+- Validation: clang-cl and MinGW C++17 compile cleanly, the D3D12 targets build, focused CTest passes 1/1, and
+  runtime creation/binding succeeds on both the RTX hardware adapter and WARP. A 10-frame hardware boot wrapped
+  all three sampler partitions without synchronization or presentation failure. T-4.4 is complete. → F-064
+
 ## 2026-10-19 — Session 2r: native HLSL GE shaders and embedded DXIL (T-4.3)
 - Ported the Vulkan GE vertex and fragment stages to `gpu_d3d12/shaders/psp_vs.hlsl` and `psp_ps.hlsl`.
   The vertex stage preserves the 32-byte pretransformed input and noperspective varyings while accounting for

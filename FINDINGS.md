@@ -656,6 +656,42 @@ the root signature and T-4.6 creates PSOs.
 - **Impact:** T-4.3 is complete with a reflected, reproducible shader ABI. T-4.4 can define one `b0` root-constant
   block, one `t0` descriptor table, and `s0` sampler without changing either shader.
 
+### F-064 The complete GE shader binding contract costs only 18 root DWORDs — Confirmed
+The reflected T-4.3 interface now has a live D3D12 1.0 root signature:
+
+| Root slot | Visibility | Binding | Purpose |
+|---|---|---|---|
+| 0 | pixel | 16 x 32-bit constants at `b0` | `cfg`, `texenv`, `fogcol`, `texsize` |
+| 1 | pixel | two contiguous SRVs at `t0..t1` | decoded texture and reserved CLUT |
+| 2 | pixel | one sampler descriptor at `s0` | per-draw filter/wrap state |
+
+The constants cost 16 DWORDs and each descriptor table costs one, for 18 of D3D12's 64-DWORD root-signature
+budget. Hull, domain, and geometry access are denied; input-assembler access remains enabled for the decoded
+vertex stream. Two clamp samplers are also embedded in the signature: point-filtered `s1` and linear-min/mag
+with point mip selection at `s2`. The shader currently reads dynamic `s0`; the static registers let later common
+paths avoid descriptor allocation without changing the root signature.
+
+Dynamic samplers use a new 768-entry shader-visible heap divided into 256 descriptors for each of the three
+fenced frame slots. `ged3d12_sampler_alloc()` has the same reset-after-fence lifetime as
+`ged3d12_srv_alloc()` and `ged3d12_upload_alloc()`. Every command-list reset now:
+1. resets that frame's SRV and sampler cursors;
+2. binds both shader-visible heaps and the GE root signature;
+3. allocates and binds a safe null RGBA texture at `t0`, null `R32_UINT` CLUT buffer at `t1`, and dynamic
+   clamp-point sampler at `s0`;
+4. writes zero to all 16 root constants.
+
+Those defaults make the binding state valid before the first native GE draw and actively exercise the
+descriptor rings/root tables now, rather than leaving them dormant until T-4.5. Later code replaces the null
+descriptors and constants per batch. Root-parameter and sampler-register enums are exported by `device.h` so
+callers cannot depend on unexplained numeric slots.
+
+Validation: both clang-cl targets build and focused CTest passes 1/1; the same device source compiles
+warning-free with MinGW C++17. The signature serializes, creates, binds, and cycles descriptor partitions on an
+NVIDIA GeForce RTX 5070 (10-frame run) and Microsoft WARP (frame-1 run), with the existing software framebuffer
+presentation unchanged.
+- **Impact:** T-4.4 is complete. T-4.5 can upload decoded vertices and bind real state/texture descriptors without
+  another root-signature revision.
+
 ---
 
 ## D. Assets and content
