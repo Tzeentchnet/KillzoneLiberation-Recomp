@@ -202,6 +202,28 @@ display lists, using stall-address streaming (`ListUpdateStallAddr`).
 - **Impact:** the GE command processor needs correct stall and signal semantics. The renderer works per
   display list, not per draw call.
 
+### F-047 PPSSPP boots KZL; the real boot-path HLE surface is 79 functions — Confirmed
+Reference runs on 2026-10-19 with PPSSPP 1.20.4: the desktop build (60 s, `-d` log) and a locally built
+PPSSPPHeadless (`-i --graphics=software --timeout=40`). Both boot to the front end and render (3,385 / 4,885 frame flips).
+- Confirms F-004 and F-010: `sceKernelStartModule(0x11b, 0xb, 0x09F0CE20 = "modulename", ...)`, and the export table
+  lands at 0x08D8F3BC, i.e. load base 0x08804000. The bootloader first tries `ms0:/PSP/GAME/UCUS98646/KZL.PRX`, and there
+  are about 9 s between loading and starting KZL.
+- The game opens exactly one file, `disc0:/PSP_GAME/USRDIR/PSP.DAT` (async I/O, sector 0x4819), so all assets go through
+  the archive (F-020).
+- At start-up it probes free memory with ~24 MB allocations that back off in halving steps (`BlockAllocator` errors in
+  the log are expected).
+- 79 HLE functions are called; **22 have no sal063 handler** ([research/ppsspp_boot_hle_60s.txt](research/ppsspp_boot_hle_60s.txt),
+  from `tools/kzl/hlesummary.py`): `sceKernelDelayThreadCB`, `sceGeListUpdateStallAddr`, `sceCtrlReadBufferPositive`,
+  `sceGeContinue`, `sceGeListSync`, `sceGeUnsetCallback`, Fpl (`Create/Delete/TryAllocate`), Vpl (`Create/Delete/TryAllocate`),
+  `sceKernelCheckCallback`, `sceKernelTerminateThread`, `sceUmdReplaceProhibit`, `sceImposeGetLanguageMode`,
+  `sceIoChangeAsyncPriority`, `sceKernelDcacheWritebackInvalidateAll`, `sceAudioOutput2Reserve/ChangeLength/OutputBlocking`,
+  `sceCtrlSetSamplingCycle`. A few may be bootloader-only calls, which our runtime never makes.
+- PPSSPP itself leaves only `sceKernelPowerTick` (harmless) and the bootloader's `sceKernelStopUnloadSelfModuleWithStatus`
+  unimplemented on this path.
+- **Impact:** these 22 are the P0 HLE work for the headless milestone (T-3.4, T-3.5, T-3.6, T-3.9, T-5.2). Stock
+  headless has no per-instruction trace; T-2.11 needs a small patch to the interpreter loop
+  (`RunUntilWithChecks` in `Core/MIPS/MIPSTables.cpp`).
+
 ---
 
 ## D. Assets and content

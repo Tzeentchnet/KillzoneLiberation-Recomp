@@ -5,6 +5,15 @@ findings or tasks it touched. Items move here from [TODO.md](TODO.md) when they 
 
 ---
 
+## 2026-10-19 — Session 2d: PPSSPP reference (T-0.5)
+- Installed PPSSPP 1.20.4 desktop from the official release zip (SHA-256 matched GitHub's digest) to
+  `D:\Tools\PPSSPP-1.20.4`.
+- Built PPSSPPHeadless from the v1.20.4 tag (`D:\Github\ppsspp`, MSBuild Release x64, 1 min 12 s, 0 errors).
+- Booted KZL in both (desktop 60 s with a debug log, headless 40 s on the interpreter with the software renderer).
+  Confirmed the start arguments and load base, and that the game reads only PSP.DAT. → F-047
+- [tools/kzl/hlesummary.py](tools/kzl/hlesummary.py) and [research/ppsspp_boot_hle_60s.txt](research/ppsspp_boot_hle_60s.txt):
+  79 HLE functions on the boot path, 22 without a sal063 handler. Logs are in `build/kzl/ref/` (not committed).
+
 ## 2026-10-19 — Session 2c: clang-cl build (T-0.1, T-2.9 started)
 - clang-cl 19.1.5 installed in the VS Build Tools. All 231 TUs compile with clang-cl `-O2 -W3`.
 - Codegen cleanups in the fork (`kzl` branch): a `j` to the function's own entry is a yielding loop instead of a self

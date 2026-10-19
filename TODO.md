@@ -14,7 +14,8 @@ Priority: **P0** blocks the next milestone · **P1** is needed for 1.0 · **P2**
 - [x] **T-0.3 P0** Fork `sal063/PSP-recompilation-project` and add it as the submodule `external/psp-recomp`. Pin `da17b0e`. → F-040
   *Done as a private mirror, `Tzeentchnet/psp-recomp` (`main` = upstream `da17b0e`, our work on `kzl`).*
 - [ ] **T-0.4 P1** MSYS2 UCRT64 (gcc, sdl3, vulkan-loader, lld): build unmodified sal063 against one homebrew ELF to get a known-good baseline.
-- [ ] **T-0.5 P0** Get the PPSSPP desktop build and `PPSSPPHeadless.exe`. Confirm KZL boots there and capture a reference log.
+- [x] **T-0.5 P0** Get the PPSSPP desktop build and `PPSSPPHeadless.exe`. Confirm KZL boots there and capture a reference log.
+  *Desktop 1.20.4 (official zip, SHA-256 checked) in `D:\Tools\PPSSPP-1.20.4`; PPSSPPHeadless built from the v1.20.4 tag in `D:\Github\ppsspp` (`Windows\x64\Release\PPSSPPHeadless.exe`). Both boot KZL (F-047).*
 - [ ] **T-0.6 P1** Add `LICENSE` (GPL-2.0-or-later), `CREDITS.md` (PPSSPP, sal063) and a README stating that the user supplies the game.
 - [ ] **T-0.7 P1** CI skeleton (GitHub Actions, windows-latest): run the Python tools' unit tests and do a compile-only build of the runtime without game code.
 
@@ -46,7 +47,7 @@ Priority: **P0** blocks the next milestone · **P1** is needed for 1.0 · **P2**
 - [ ] **T-2.9 P1** Add a CMake target for the generated code: clang-cl `/O2` for hot code and `/O1` for the rest, no `/fp:fast`, `/fp:precise` with FTZ/DAZ set at startup. Target a full build in under 10 min on 8 cores. → F-013
   *2026-10-19: `CMakeLists.txt` + `CMakePresets.json` (preset `clang-cl`, Ninja, Release) build `kzl_game.lib` from the 231 TUs in 49 s with 0 warnings. Still to do: the runtime target and the exe (with T-3.1), cold-code `/O1`, and FTZ/DAZ at startup.*
 - [ ] **T-2.10 P1** Link the interpreter fallback (`src/ref/interp.cpp`) for dispatch misses. Log every miss once and keep a regression list.
-- [ ] **T-2.11 P1** Trace-diff gate: `tracediff.py` against PPSSPP for the first 5M instructions after `module_start`, run in CI on a self-hosted runner with the user's ISO.
+- [ ] **T-2.11 P1** (first: patch PPSSPPHeadless's interpreter loop to write the sal063 trace format, kept as a patch file in this repo, F-047) Trace-diff gate: `tracediff.py` against PPSSPP for the first 5M instructions after `module_start`, run in CI on a self-hosted runner with the user's ISO.
 - [x] **T-2.13 P0** Wire `codegen_ext.py` into the forked codegen: try `codegen_ext.effect()` before the base decoder; add `bv*` to `is_cond_branch/cond_expr/is_likely`; in `function_flow`, follow switch and computed-goto targets as intra-function labels; emit `jr` through `emit_switch_jr()`; treat `[[jal_next]]` as link-only; read the jump register before the delay slot for every `jr`/`jalr` (F-019). Exit: 0 trapping stubs and no `jr` to an unknown label. Needs T-0.3. → F-016, F-018, F-019
   *Done: 42,300/42,300 functions, 0 stubs, all TUs pass `gcc -fsyntax-only -Wall` (also fixed the analyzer's stale-`lui` bug, F-015).*
 - [ ] **T-2.12 P2** Codegen performance: keep the GPRs in locals within a function, elide `sr_begin/sr_end` hooks in release builds, and turn constant-address `jalr` into direct calls.
@@ -55,6 +56,7 @@ Priority: **P0** blocks the next milestone · **P1** is needed for 1.0 · **P2**
 - [ ] **T-3.1 P0** Loader: map the image at 0x08804000, apply relocations at runtime (or use the prxload image), run `.ctors`/`.cplinit`, create the start thread (prio 0x20, stack 0x400) and call `module_start` with the T-1.6 argv.
 - [ ] **T-3.2 P0** Fake-load `BINPSP/mpeg.prx` through ModuleMgr and route sceMpeg to HLE. → F-032
 - [ ] **T-3.3 P0** VFS: `disc0:` → the ISO (`iso.c`); `ms0:`/`fatms0:` → `%LOCALAPPDATA%/KZLRecomp/ms0`; the game's `cache:` device → the same tree, so `CHAPTER5.BIN` can be found. → F-021
+*Boot-path priority for T-3.4 to T-3.9: the 22 functions marked MISSING in `research/ppsspp_boot_hle_60s.txt` (F-047).*
 - [ ] **T-3.4 P0** ThreadMan gaps: Fpl (`Create/Delete/TryAllocateFpl`), `DelayThreadCB`, `CheckCallback`, `DeleteCallback`, `ReferThreadStatus`, `GetThreadExitStatus`, `GetThreadmanIdList`, `SysClock2USec`. → F-031
 - [ ] **T-3.5 P0** IoFileMgr gaps: `Dopen/Dread/Dclose`, `Remove`, `Rmdir`, `ChangeAsyncPriority`.
 - [ ] **T-3.6 P0** GE list HLE: `ListSync`, `ListEnQueueHead`, `ListUpdateStallAddr`, `Break`, `Continue`, `UnsetCallback`, with correct signal/finish callback order. → F-033
