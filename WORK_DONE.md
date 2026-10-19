@@ -5,6 +5,17 @@ findings or tasks it touched. Items move here from [TODO.md](TODO.md) when they 
 
 ---
 
+## 2026-10-19 — Session 2n: trace-free standalone loader (T-3.1)
+- Added `kzl.exe --boot` for the normal runtime path. It maps the pre-relocated `kzl_image.bin`, reserves the
+  BOOT.BIN/kernel UID history, supplies `"modulename"`, enables scheduling, and enters the module's own constructor
+  and startup path without reading a PPSSPP trace.
+- The scheduler now creates `module_start` through the existing PPSSPP-compatible thread reset path with UID 0x11C,
+  a 0x400-byte high stack at 0x09FFFC00, k0 0x09FFFF00, sp 0x09FFFEB0, a0/a1 11/0x09FFFEF0, and the kernel return
+  trampoline at 0x08000030. Seeded differential mode still adopts and validates the oracle-provided thread.
+- Validation: both targets built and focused CTest passed 1/1. A strict trace-free run reached SELECT YOUR LANGUAGE
+  at frame 1,200 with no unimplemented NID and showed `user_main` as UID 0x11D. Legacy `--image` mode remains
+  instruction-identical to PPSSPP for its complete 71-step module-start trace. T-3.1 is complete. → F-059
+
 ## 2026-10-19 — Session 2m: MPEG intro completion and PPSSPP oracle (T-3.2)
 - Fork sceMpeg: fixed PPSSPP's six-byte PSMF timestamp layout, capped stream feeding at the declared packet count,
   and moved packet consumption from `sceMpegGetAvcAu` to timestamp-proportional AVC decode. MPEG-2 pack SCR tracking

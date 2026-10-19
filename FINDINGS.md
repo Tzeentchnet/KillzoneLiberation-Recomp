@@ -484,6 +484,36 @@ real ISO, and a strict turbo run completes the movie and resumes presentation wi
 - **Impact:** T-3.2 is complete. The blank-frame headless decoder now has PPSSPP-equivalent timing and EOF behavior;
   real H.264 output remains the SDL3/Media Foundation path.
 
+### F-059 Standalone boot reproduces the PPSSPP module-start contract without a trace — Confirmed
+The normal runtime no longer needs a PPSSPP trace header to initialize KZL. `kzl.exe --boot` maps the pre-relocated
+`kzl_image.bin` at 0x08804000, writes BOOT.BIN's 11-byte `"modulename\0"` argument into reserved usersystemlib
+memory, and lets the scheduler copy it onto a newly allocated start-thread stack. The pre-relocated image satisfies
+the loader's relocation requirement; `module_start` itself owns the weak constructor/cplinit checks on its startup
+path, so no out-of-band initializer call is required.
+
+The standalone path reserves the UIDs consumed before KZL was started, then reuses the existing
+PPSSPP-compatible `start_reset()` state builder. Its launch diagnostic matches the oracle exactly:
+
+| Field | Standalone value |
+|---|---:|
+| start-thread UID | 0x11C |
+| stack | 0x09FFFC00..0x0A000000 (0x400 bytes) |
+| k0 | 0x09FFFF00 |
+| sp/fp | 0x09FFFEB0 |
+| a0 | 11 |
+| a1 | 0x09FFFEF0 |
+| ra | 0x08000030 |
+
+This also preserves PPSSPP's poisoned GPR/FPR/VFPU defaults, stack fill, k0 control block, and argument-copy layout.
+The first game-created `user_main` thread receives UID 0x11D, as in the oracle.
+
+Validation: `kzl_driver` and `kzl_hle_tests` build, focused CTest passes 1/1 with the retail ISO, and a strict
+trace-free run reaches the SELECT YOUR LANGUAGE screen at frame 1,200 with no unimplemented NID. The legacy
+trace-seeded `--image` path remains identical to PPSSPP for all 71 available recompiled steps; its comparison ends
+only when that intentionally short runtime trace returns from `module_start`.
+- **Impact:** T-3.1 is complete. PPSSPP traces remain an optional differential oracle rather than a runtime boot
+  dependency; T-3.14 separately tracks the later BOOT.BIN unload-thread UID consumed after startup.
+
 ---
 
 ## D. Assets and content

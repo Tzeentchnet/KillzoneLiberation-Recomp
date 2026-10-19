@@ -530,7 +530,7 @@ static void test_async_io(CpuState *cpu, const char *root) {
     memset(cpu, 0, sizeof(*cpu));
     cpu->r[29] = 0x09ff0000u;
     sched_init(cpu);
-    sched_run(entry, 0, 0);
+    sched_run(entry, 0, 0, 1);
 
     guest_string(path_addr, "ms0:/PSP/ASYNC.DAT");
     check_u32("remove async test file",
