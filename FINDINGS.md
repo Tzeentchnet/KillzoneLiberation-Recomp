@@ -1279,6 +1279,25 @@ non-scheduler return.
 - **Impact:** T-2.14 is complete. Dispatch capacity is generated from the target rather than assumed by the
   generic runtime, and computed transfers have a deterministic logarithmic bound.
 
+### F-088 Hot/cold optimization must partition functions before chunking — Confirmed
+Simply marking every address-ordered TU that contains one observed call target as hot would keep 178 of 230 TUs
+at `/O2`, because hot and unobserved functions are interleaved by address. Partitioning functions first reduces
+the measured hot set to 20 approximately 1 MB TUs: 4,552 effective targets from the 90-second call audit plus
+`module_start`, versus 38,047 functions in 210 cold TUs. The generator deletes stale legacy parts and rejects a
+malformed or nonmatching report, so CMake cannot silently compile duplicated or accidentally all-cold output.
+
+Inspected Ninja commands show Release's default `/O2` followed by `/O2` for hot sources and by `/O1` for cold and
+registration sources; every generated command also retains `/fp:precise /clang:-ffp-contract=off` and none uses
+`/fp:fast`. A full 252-action executable build with exactly eight workers took 79.15 seconds. All 231 generated C
+files also pass strict GCC syntax/warning checks.
+
+Precise compiler flags do not select the PSP's denormal behavior by themselves. The runtime now sets MXCSR DAZ
+(bit 6) and FTZ (bit 15) from `sr_mem_init`, before guest execution. A focused test first clears both bits, then
+observes `0x00009fc0` and verifies in real SSE arithmetic that a denormal input and an underflow result both become
+zero under GCC and clang-cl.
+- **Impact:** T-2.9 is complete. The generated target builds well inside the ten-minute budget without applying
+  maximum optimization to unobserved code, and host floating-point denormal behavior now matches the PSP.
+
 ---
 
 ## D. Assets and content

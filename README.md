@@ -56,6 +56,11 @@ python tools\kzl\extract.py C:\path\to\Killzone_Liberation_v1.20_US.ISO
 python tools\kzl\gen.py
 ```
 
+Generation uses the measured boot call-target audit to place observed functions
+in `/O2` translation units and all other game functions in `/O1` units. Release
+builds retain precise, non-contracting floating point; startup enables x86
+flush-to-zero and denormals-are-zero to match the PSP's single-precision mode.
+
 From a Visual Studio x64 developer shell, configure the native D3D12 build.
 Point `CMAKE_PREFIX_PATH` at the SDL3 package directory containing
 `SDL3Config.cmake`:

@@ -5,6 +5,21 @@ findings or tasks it touched. Items move here from [TODO.md](TODO.md) when they 
 
 ---
 
+## 2026-10-20 — Session 3p: measured hot/cold build and PSP float mode (T-2.9)
+- Extended split codegen with a strict `--hot-functions` report. The committed 90-second call-target audit maps
+  4,552 effective observed functions plus `module_start` into 20 hot TUs; the remaining 38,047 functions go into
+  210 cold TUs. Regeneration removes stale legacy parts, rejects malformed/nonmatching reports, emits all 42,600
+  functions once and still produces zero trapping stubs.
+- CMake applies trailing `/O2` to hot TUs and `/O1` to cold/registration TUs in Release while preserving
+  `/fp:precise`, `-ffp-contract=off` and no fast-math. Inspected Ninja commands confirm all three cases. A complete
+  252-action `kzl.exe` build with exactly 8 workers took 79.15 seconds, far below the 10-minute gate.
+- Added central x86 MXCSR setup from `sr_mem_init`: DAZ bit 6 and FTZ bit 15 are enabled before guest execution.
+  The focused test clears both, observes configured MXCSR `0x00009fc0`, and proves both an underflow result and a
+  denormal input become zero under GCC and clang-cl.
+- All 231 generated C files pass strict GCC; runtime-only/default/D3D12 clang-cl builds, 26 public Python tests,
+  the 204-file content audit, 6/6 default and 7/7 D3D12 CTests, and the full 71-step `module_start` oracle prefix
+  pass. Fork commit `7bc78e2`. → F-088
+
 ## 2026-10-20 — Session 3o: generated immutable dispatch table (T-2.14)
 - Replaced the runtime's mutable 65,536-slot open-addressing hash with a target-generated, immutable sorted
   `SrDispatchEntry` array. Codegen emits the table and installs it once; the generic runtime validates alignment,

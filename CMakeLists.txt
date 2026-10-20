@@ -57,9 +57,26 @@ else()
 endif()
 
 if(NOT KZL_RUNTIME_ONLY)
-  file(GLOB KZL_GEN_SRCS CONFIGURE_DEPENDS
-       "${KZL_GEN_DIR}/kzl_recomp_[0-9][0-9][0-9].c"
-       "${KZL_GEN_DIR}/kzl_recomp_register.c")
+  file(GLOB KZL_HOT_GEN_SRCS CONFIGURE_DEPENDS
+       "${KZL_GEN_DIR}/kzl_recomp_hot_[0-9][0-9][0-9].c")
+  file(GLOB KZL_COLD_GEN_SRCS CONFIGURE_DEPENDS
+       "${KZL_GEN_DIR}/kzl_recomp_cold_[0-9][0-9][0-9].c")
+  file(GLOB KZL_LEGACY_GEN_SRCS CONFIGURE_DEPENDS
+       "${KZL_GEN_DIR}/kzl_recomp_[0-9][0-9][0-9].c")
+  set(KZL_REGISTER_SRC "${KZL_GEN_DIR}/kzl_recomp_register.c")
+  if(KZL_HOT_GEN_SRCS OR KZL_COLD_GEN_SRCS)
+    if(KZL_LEGACY_GEN_SRCS)
+      message(FATAL_ERROR "Mixed legacy and hot/cold generated files in ${KZL_GEN_DIR}; rerun tools/kzl/gen.py")
+    endif()
+    set(KZL_GEN_SRCS ${KZL_HOT_GEN_SRCS} ${KZL_COLD_GEN_SRCS} "${KZL_REGISTER_SRC}")
+    set(_KZL_OPTIMIZED_SPLIT ON)
+  else()
+    set(KZL_GEN_SRCS ${KZL_LEGACY_GEN_SRCS} "${KZL_REGISTER_SRC}")
+    set(_KZL_OPTIMIZED_SPLIT OFF)
+  endif()
+  if(NOT EXISTS "${KZL_REGISTER_SRC}")
+    set(KZL_GEN_SRCS)
+  endif()
   if(NOT KZL_GEN_SRCS)
     message(FATAL_ERROR "No generated code in ${KZL_GEN_DIR}. Run tools/kzl/extract.py <ISO> and tools/kzl/gen.py first.")
   endif()
@@ -69,6 +86,22 @@ if(NOT KZL_RUNTIME_ONLY)
   # Recompiled game code. Float behaviour must match the PSP: no FMA contraction, no fast-math (F-013).
   add_library(kzl_game STATIC ${KZL_GEN_SRCS})
   target_include_directories(kzl_game PRIVATE "${PSP_RECOMP_DIR}/src/rt" "${KZL_GEN_DIR}")
+  if(_KZL_OPTIMIZED_SPLIT)
+    if(CMAKE_C_SIMULATE_ID STREQUAL "MSVC")
+      set(_KZL_HOT_OPT /O2)
+      set(_KZL_COLD_OPT /O1)
+    else()
+      set(_KZL_HOT_OPT -O2)
+      set(_KZL_COLD_OPT -O1)
+    endif()
+    set_source_files_properties(${KZL_HOT_GEN_SRCS}
+      PROPERTIES COMPILE_OPTIONS "$<$<CONFIG:Release>:${_KZL_HOT_OPT}>")
+    set_source_files_properties(${KZL_COLD_GEN_SRCS} "${KZL_REGISTER_SRC}"
+      PROPERTIES COMPILE_OPTIONS "$<$<CONFIG:Release>:${_KZL_COLD_OPT}>")
+    list(LENGTH KZL_HOT_GEN_SRCS _hot_n)
+    list(LENGTH KZL_COLD_GEN_SRCS _cold_n)
+    message(STATUS "KZL generated optimization: ${_hot_n} hot TUs at O2, ${_cold_n} cold TUs at O1")
+  endif()
   if(CMAKE_C_SIMULATE_ID STREQUAL "MSVC")
     target_compile_options(kzl_game PRIVATE /W3 ${KZL_FP_FLAGS})
   else()
@@ -104,7 +137,7 @@ else()
 endif()
 
 set(KZL_RUNTIME_SRCS
-  ${RT}/recomp.c ${RT}/dispatch_table.c ${RT}/vfpu_interp.c ${RT}/vfpu_asin.c ${RT}/hle.c ${RT}/net.c ${RT}/kmem.c ${RT}/intr.c ${RT}/gelist.c ${RT}/callback.c ${RT}/sched.c
+  ${RT}/recomp.c ${RT}/dispatch_table.c ${RT}/fpu_mode.c ${RT}/vfpu_interp.c ${RT}/vfpu_asin.c ${RT}/hle.c ${RT}/net.c ${RT}/kmem.c ${RT}/intr.c ${RT}/gelist.c ${RT}/callback.c ${RT}/sched.c
   ${RT}/iso.c ${RT}/mpeg.c ${RT}/pgf.c ${RT}/gui.c ${RT}/input_config.c ${RT}/startup_check.c
   ${RT}/audio_mixer.c ${RT}/audio_xaudio2.cpp ${RT}/sas_reverb.c ${RT}/h264_mf.c ${RT}/savedata.c
   ${RT}/osk_win.c ${RT}/ge.c)
@@ -194,6 +227,13 @@ if(BUILD_TESTING)
   target_include_directories(kzl_dispatch_tests PRIVATE "${RT}")
   target_compile_options(kzl_dispatch_tests PRIVATE ${KZL_FP_FLAGS})
   add_test(NAME kzl_dispatch_table COMMAND kzl_dispatch_tests)
+
+  add_executable(kzl_fpu_mode_tests EXCLUDE_FROM_ALL
+    ${PSP_RECOMP_DIR}/tools/tests/fpu_mode_test.c
+    ${RT}/fpu_mode.c)
+  target_include_directories(kzl_fpu_mode_tests PRIVATE "${RT}")
+  target_compile_options(kzl_fpu_mode_tests PRIVATE ${KZL_FP_FLAGS})
+  add_test(NAME kzl_fpu_mode COMMAND kzl_fpu_mode_tests)
 
   add_executable(kzl_hle_tests EXCLUDE_FROM_ALL tools/tests/hle_smoke.c ${KZL_RUNTIME_SRCS})
   kzl_configure_runtime_target(kzl_hle_tests)

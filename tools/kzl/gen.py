@@ -5,9 +5,11 @@
 
 Runs external/psp-recomp/tools/codegen.py on build/kzl/disc/KZL.PRX (run extract.py first)
 with the load base from config/kzl.toml, the recovered jump tables and the overrides, and
-writes split translation units (kzl_recomp.h, kzl_recomp_NNN.c, kzl_recomp_register.c).
---single writes one kzl_recomp.c instead. Fails if any function had to become a trapping stub.
+writes split translation units (kzl_recomp.h, hot/cold kzl_recomp TUs, and
+kzl_recomp_register.c). --single writes one kzl_recomp.c instead. Fails if any function
+had to become a trapping stub.
 """
+import glob
 import os
 import subprocess
 import sys
@@ -31,10 +33,18 @@ def main(argv):
     cmd = [sys.executable, os.path.join(ROOT, "external", "psp-recomp", "tools", "codegen.py"), prx,
            os.path.join(out, "kzl_recomp.c"), f"--base={cfg['module']['base']:#x}",
            f"--jumptables={os.path.join(ROOT, 'research', 'kzl_jumptables.toml')}",
-           f"--overrides={os.path.join(ROOT, 'config', 'kzl_overrides.toml')}"]
+           f"--overrides={os.path.join(ROOT, 'config', 'kzl_overrides.toml')}",
+           f"--hot-functions={os.path.join(ROOT, 'research', 'kzl_calltargets.txt')}"]
     if "single" not in opts:
         cmd.append("--split")
     os.makedirs(out, exist_ok=True)
+    for pattern in (
+        "kzl_recomp_[0-9][0-9][0-9].c",
+        "kzl_recomp_hot_[0-9][0-9][0-9].c",
+        "kzl_recomp_cold_[0-9][0-9][0-9].c",
+    ):
+        for path in glob.glob(os.path.join(out, pattern)):
+            os.remove(path)
     with open(os.path.join(out, "codegen.log"), "w") as log:
         r = subprocess.run(cmd, stderr=log)
     if r.returncode:
