@@ -105,7 +105,7 @@ endif()
 
 set(KZL_RUNTIME_SRCS
   ${RT}/recomp.c ${RT}/vfpu_interp.c ${RT}/vfpu_asin.c ${RT}/hle.c ${RT}/net.c ${RT}/kmem.c ${RT}/intr.c ${RT}/gelist.c ${RT}/callback.c ${RT}/sched.c
-  ${RT}/iso.c ${RT}/mpeg.c ${RT}/pgf.c ${RT}/gui.c ${RT}/input_config.c
+  ${RT}/iso.c ${RT}/mpeg.c ${RT}/pgf.c ${RT}/gui.c ${RT}/input_config.c ${RT}/startup_check.c
   ${RT}/audio_mixer.c ${RT}/audio_xaudio2.cpp ${RT}/sas_reverb.c ${RT}/h264_mf.c ${RT}/savedata.c
   ${RT}/osk_win.c ${RT}/ge.c)
 if(KZL_ENABLE_D3D12)
@@ -141,7 +141,7 @@ function(kzl_configure_runtime_target target)
   target_include_directories(${target} PRIVATE "${RT}")
   target_compile_definitions(${target} PRIVATE _CRT_SECURE_NO_WARNINGS)
   target_compile_options(${target} PRIVATE ${KZL_FP_FLAGS})
-  target_link_libraries(${target} PRIVATE kzl_game kzl_at3 mfplat mfuuid gdi32 user32 dinput8 dxguid ole32 winmm xaudio2)
+  target_link_libraries(${target} PRIVATE kzl_game kzl_at3 mfplat mfuuid gdi32 user32 dinput8 dxguid ole32 winmm xaudio2 bcrypt)
   if(KZL_ENABLE_D3D12)
     target_compile_definitions(${target} PRIVATE SR_D3D12)
     target_compile_features(${target} PRIVATE cxx_std_17)
@@ -154,10 +154,25 @@ endfunction()
 
 add_executable(kzl_driver ${RT}/driver.c ${KZL_RUNTIME_SRCS})
 kzl_configure_runtime_target(kzl_driver)
+target_compile_definitions(kzl_driver PRIVATE
+  SR_EXPECTED_ISO_SIZE=568498176
+  SR_EXPECTED_ISO_SHA1="5bc4fc8cd8d72c9c2e7c1c03a4325a29bed6e69a")
 set_target_properties(kzl_driver PROPERTIES OUTPUT_NAME kzl)
 
 include(CTest)
 if(BUILD_TESTING)
+  add_executable(kzl_startup_tests EXCLUDE_FROM_ALL
+    ${PSP_RECOMP_DIR}/tools/tests/startup_check_test.c
+    ${RT}/startup_check.c)
+  target_include_directories(kzl_startup_tests PRIVATE "${RT}")
+  target_compile_definitions(kzl_startup_tests PRIVATE
+    _CRT_SECURE_NO_WARNINGS
+    SR_EXPECTED_ISO_SIZE=3
+    SR_EXPECTED_ISO_SHA1="a9993e364706816aba3e25717850c26c9cd0d89d")
+  target_compile_options(kzl_startup_tests PRIVATE ${KZL_FP_FLAGS})
+  target_link_libraries(kzl_startup_tests PRIVATE bcrypt)
+  add_test(NAME kzl_startup_check COMMAND kzl_startup_tests)
+
   add_executable(kzl_audio_mixer_tests EXCLUDE_FROM_ALL
     ${PSP_RECOMP_DIR}/tools/tests/audio_mixer_test.c
     ${RT}/audio_mixer.c)

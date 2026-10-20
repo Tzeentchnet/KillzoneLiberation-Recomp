@@ -18,7 +18,9 @@ assets. Users must supply their own supported disc image.
   [`external/psp-recomp/CREDITS.md`](external/psp-recomp/CREDITS.md).
 - **PPSSPP** by Henrik Rydgård and contributors is the behavioral oracle for
   PSP HLE, scheduler, memory, VFPU, GE, ATRAC, and MPEG semantics. Ported and
-  derived runtime code remains GPL-2.0-or-later.
+  derived runtime code remains GPL-2.0-or-later. The two PGF files in the
+  runtime fork are PPSSPP's free replacement fonts (not fonts dumped from PSP
+  firmware); the content audit pins their SHA-256 identities.
 - **FFmpeg ATRAC3/ATRAC3+ decoder code**, extracted into a standalone library
   by PPSSPP, is LGPL-2.1-or-later. Its source, notices, modifications, and
   license are under

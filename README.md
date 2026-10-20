@@ -79,6 +79,9 @@ out\build\d3d12\kzl.exe --boot `
   build\kzl\gen\kzl_image.bin 08804000 08804000 none --gui
 ```
 
+Standalone boot rechecks the ISO size and SHA-1 before allocating guest memory;
+a missing or different image exits with an explicit supported-version error.
+
 The first windowed run writes the rebinding/analog configuration to
 `%LOCALAPPDATA%\KZLRecomp\input.ini`. Detailed controls and runtime environment
 settings are documented in
@@ -104,8 +107,10 @@ The Python tools' public unit tests likewise use synthetic inputs:
 ```powershell
 python -m unittest `
   tools\tests\test_calltargets.py `
+  tools\tests\test_content_audit.py `
   tools\tests\test_golden_frames.py `
   external\psp-recomp\tools\tests\test_ppmdiff.py
+python tools\kzl\content_audit.py
 ```
 
 Full HLE, renderer, movie/audio, and protected 50-frame comparison tests require

@@ -19,7 +19,7 @@ Priority: **P0** blocks the next milestone · **P1** is needed for 1.0 · **P2**
 - [x] **T-0.6 P1** Add `LICENSE` (GPL-2.0-or-later), `CREDITS.md` (PPSSPP, sal063) and a README stating that the user supplies the game.
   *Done 2026-10-20: root GPL-2.0-or-later license and attribution now cover the psp-recomp/PPSSPP relationship, standalone LGPL ATRAC decoder, SDL3 and platform tools. The README identifies the one supported disc by size/SHA-1, explicitly excludes every game payload/generated source, and documents extraction, D3D12 build/run, input config, public verification and project status (F-083).*
 - [x] **T-0.7 P1** CI skeleton (GitHub Actions, windows-latest): run the Python tools' unit tests and do a compile-only build of the runtime without game code.
-  *Done 2026-10-20: `KZL_RUNTIME_ONLY=ON` skips generated-source discovery and compiles all redistributable runtime/decoder sources into `kzl_runtime_compile`. Public Windows CI runs 16 synthetic Python tests and a clean clang-cl/Ninja runtime-only build with recursive submodules; actionlint validates both workflows with the protected runner label declared (F-083).*
+  *Done 2026-10-20: `KZL_RUNTIME_ONLY=ON` skips generated-source discovery and compiles all redistributable runtime/decoder sources into `kzl_runtime_compile`. Public Windows CI runs 19 synthetic Python tests, the tracked-content audit, and a clean clang-cl/Ninja runtime-only build with recursive submodules; actionlint validates both workflows with the protected runner label declared (F-083).*
 
 ## Phase 1 — Extraction and static analysis
 - [x] **T-1.1 P0** `tools/kzl/extract.py`: check the ISO SHA-1 (F-001), then pull out KZL.PRX, BOOT.BIN, PARAM.SFO and the PSP.DAT header. Built from `tools/survey/isols.py`.
@@ -149,6 +149,8 @@ Priority: **P0** blocks the next milestone · **P1** is needed for 1.0 · **P2**
 - [ ] **T-7.5 P2** Config UI (an ImGui overlay): graphics, input, paths and the Chapter 5 file picker.
 
 ## Phase 8 — Release
-- [ ] **T-8.1 P1** Startup check: SHA-1 of the ISO, with a clear error if the ISO is missing or wrong.
-- [ ] **T-8.2 P1** Audit that no copyrighted payloads are in the repo or releases (no ISO, PRX, DAT, generated C from the game, or fonts we can't redistribute).
+- [x] **T-8.1 P1** Startup check: SHA-1 of the ISO, with a clear error if the ISO is missing or wrong.
+  *Done 2026-10-20: the KZL root target injects the supported 568,498,176-byte size and SHA-1 into the generic startup checker. Standalone `--boot` streams SHA-1 through Windows CNG before guest allocation and reports distinct missing setting, open, size and hash failures. Focused `abc` SHA-1 tests plus real missing, wrong-size, same-size/wrong-hash and valid-disc process checks pass (F-084).*
+- [x] **T-8.2 P1** Audit that no copyrighted payloads are in the repo or releases (no ISO, PRX, DAT, generated C from the game, or fonts we can't redistribute).
+  *Done 2026-10-20: `content_audit.py` scans tracked and pending files in the root and submodule, rejecting game/container paths, ELF/PSP/PSMF/ISO signatures, generated images/C, unexpected DAT/DLL/PGF files and any renamed file matching the pinned game SHA-1 inventory. The only fonts are PPSSPP v1.20.4's two free replacements, pinned by SHA-256. Three synthetic audit tests, the live 196-file audit and public CI step pass (F-085).*
 - [ ] **T-8.3 P1** GPL source bundle published with every binary.

@@ -5,6 +5,21 @@ findings or tasks it touched. Items move here from [TODO.md](TODO.md) when they 
 
 ---
 
+## 2026-10-20 — Session 3m: startup disc verification and content audit (T-8.1, T-8.2)
+- Added a game-agnostic startup-check module whose KZL target definitions pin the supported 568,498,176-byte ISO
+  and SHA-1. Standalone `--boot` validates `PSP_ISO` with streaming Windows CNG SHA-1 before allocating guest
+  memory; differential/image tooling remains generic.
+- Focused checks cover SHA-1 itself plus missing setting, missing file, wrong size, same-size wrong hash and the
+  real supported disc. Every failure names the exact problem and supported release; the valid disc reports its
+  verified hash before normal startup.
+- Added `tools/kzl/content_audit.py`. It audits tracked and pending root/submodule files by prohibited paths,
+  extensions, generated-code patterns, ELF/`~PSP`/PSMF/ISO signatures, and every game-file SHA-1 from `kzl.toml`.
+  DAT/DLL allowlists are narrow. Any PGF outside the two approved PPSSPP free replacements fails; those two are
+  pinned by SHA-256 and documented as non-firmware fonts.
+- Added three synthetic policy tests and the audit to public CI; corrected stale fork license/credit claims about
+  bundled PPSSPP source. Final evidence: 19 Python tests, 196-file content audit, actionlint, a generated-code-free
+  runtime build, strict startup compile and 5/5 CTests all pass. → F-084, F-085
+
 ## 2026-10-20 — Session 3l: root licensing, user build guide and public CI (T-0.6, T-0.7)
 - Added the root GPL-2.0-or-later license and project credits covering sal063's recompiler, the pinned runtime fork,
   PPSSPP-derived behavior, the separately licensed standalone FFmpeg ATRAC decoder, SDL3 and Windows SDK tooling.
@@ -14,7 +29,7 @@ findings or tasks it touched. Items move here from [TODO.md](TODO.md) when they 
 - Added `KZL_RUNTIME_ONLY=ON`. It bypasses generated-game discovery and the `kzl_game` target, then compiles every
   redistributable C/C++ runtime and decoder source into `kzl_runtime_compile`; a clean build passed while
   `KZL_GEN_DIR` pointed at a nonexistent directory.
-- Added `.github/workflows/ci.yml`: recursive checkout, Python 3.12, 16 synthetic tool tests, VS x64 environment,
+- Added `.github/workflows/ci.yml`: recursive checkout, Python 3.12, 19 synthetic tool tests plus the tracked-content audit, VS x64 environment,
   clang-cl/Ninja runtime-only configure and compile on `windows-latest`. Added actionlint's declared
   `kzl-golden` runner label; actionlint passes both public and protected workflows. → F-083
 

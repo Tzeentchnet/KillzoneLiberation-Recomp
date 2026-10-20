@@ -1208,7 +1208,7 @@ redistributable runtime source plus the complete standalone ATRAC decoder into a
 `KZL_GEN_DIR` at a deliberately nonexistent path still produced all 34 runtime/decoder objects and the archive.
 
 The public workflow can therefore exercise a real Windows clang-cl/Ninja compile without protected inputs. It
-also runs 16 synthetic Python tests for call-target parsing, golden manifests/comparison and pixel diffs. The
+also runs 19 synthetic Python tests for call-target parsing, content policy, golden manifests/comparison and pixel diffs. The
 existing self-hosted workflow remains the only job allowed to consume an ISO, generated image, savedata templates,
 PPSSPP executable or SDL/DXC machine paths. Both workflows pass actionlint after declaring the private
 `kzl-golden` runner label.
@@ -1218,6 +1218,35 @@ supported, all game/generated payloads are user supplied and ignored, and the GP
 the build instructions.
 - **Impact:** T-0.6 and T-0.7 are complete. Pull requests can validate tools and runtime compilation publicly
   without weakening content hygiene or pretending generated game code is redistributable.
+
+### F-084 Extraction-time verification is not a startup guarantee — Confirmed
+`extract.py` already pinned the supported disc, but a built runtime accepted whatever `PSP_ISO` named later. That
+allowed a missing, renamed or different release to fail deep inside sceIo with misleading file/format symptoms.
+The root target now injects the supported size and SHA-1 into a generic runtime startup module. Only standalone
+`--boot` enforces it, preserving game-agnostic differential/image modes in the recompiler fork.
+
+The checker opens the file read-only/sequentially, rejects the size before hashing, then streams SHA-1 through
+Windows CNG in 1 MiB chunks before guest memory or threads exist. Process-level tests distinguish unset,
+unopenable, wrong-size and same-size/wrong-hash inputs; the real disc verifies as
+`5bc4fc8cd8d72c9c2e7c1c03a4325a29bed6e69a`.
+- **Impact:** T-8.1 is complete. Unsupported media cannot masquerade as an HLE, renderer or archive bug.
+
+### F-085 Content hygiene needs hash and signature checks, not only `.gitignore` — Confirmed
+Ignore rules prevent the normal ISO/extraction workflow from staging payloads, but they do not catch a forced add,
+renamed PRX, generated C under another directory, or a firmware font substituted for a replacement. The content
+audit therefore walks both Git indexes plus nonignored pending files and combines:
+
+- prohibited game/container names and extensions;
+- generated KZL C/image patterns and tracked build roots;
+- ELF, `~PSP`, PSMF and ISO9660 signatures;
+- SHA-1 equality with the ISO and every extracted game file pinned in `kzl.toml`;
+- narrow VFPU DAT and SDL DLL allowlists; and
+- exact SHA-256 pins for PPSSPP v1.20.4's free `jpn0.pgf`/`ltn0.pgf` replacements.
+
+The current root/submodule set passes all rules across 196 files. Synthetic tests prove renamed known hashes and
+binary signatures are rejected. Public CI runs the audit before the runtime compile.
+- **Impact:** T-8.2 is complete. A release/source-bundle job can use the same gate instead of relying on developer
+  memory or file extensions alone.
 
 ---
 
