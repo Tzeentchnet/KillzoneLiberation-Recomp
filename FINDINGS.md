@@ -1163,6 +1163,25 @@ against the protected PPSSPP oracle after enabling real movie decode.
 - **Impact:** T-5.4 is complete. Intro, attract and credits assets all have verified native video/audio decode, and
   movie PTS cannot drift unbounded even when the game polls audio and video at different rates.
 
+### F-081 Input policy belonged above the three presenter implementations — Confirmed
+GDI, SDL3/Vulkan and SDL3/D3D12 each hard-coded the same nominal controls but already disagreed in details:
+XInput and DirectInput used different dead-zones, SDL had its own threshold, and keyboard exposed only D-pad bits,
+so a keyboard-only player could navigate menus but not move with the analog stick. Any per-backend rebinding would
+have multiplied those differences.
+
+`input_config.c` now owns the PSP action map and analog transform. The presenters expose only physical key/button
+state and a normalized signed left-stick vector. One strict `input.ini` overlay supports keyboard and semantic SDL
+gamepad names, up to four alternatives per PSP action, four keyboard analog directions, a radial dead-zone,
+power-curve response and optional Y inversion. Arrow keys intentionally bind both D-pad and analog movement by
+default. XInput/DirectInput and SDL use the same configured action list, including shoulder/trigger alternatives.
+
+The default file is created at `%LOCALAPPDATA%\KZLRecomp\input.ini`; an explicit `SR_INPUT_CONFIG` path must exist
+and parse, while `SR_INPUT_CONFIG=0` selects built-in defaults without file IO. Invalid files report the exact line
+and stop window startup rather than silently changing controls. Deterministic `SR_PADSCRIPT` input remains above
+this layer in sceCtrl and is ORed with configured live input, which the unchanged 50-frame script verified.
+- **Impact:** T-5.5 is complete. Keyboard and gamepad controls are persistent and backend-consistent, keyboard
+  gameplay has analog movement, and analog tuning is measurable/tested rather than presenter-specific magic.
+
 ---
 
 ## D. Assets and content

@@ -95,7 +95,7 @@ endif()
 
 set(KZL_RUNTIME_SRCS
   ${RT}/recomp.c ${RT}/vfpu_interp.c ${RT}/vfpu_asin.c ${RT}/hle.c ${RT}/net.c ${RT}/kmem.c ${RT}/intr.c ${RT}/gelist.c ${RT}/callback.c ${RT}/sched.c
-  ${RT}/iso.c ${RT}/mpeg.c ${RT}/pgf.c ${RT}/gui.c ${RT}/audio.c ${RT}/sas_reverb.c ${RT}/h264_mf.c ${RT}/savedata.c
+  ${RT}/iso.c ${RT}/mpeg.c ${RT}/pgf.c ${RT}/gui.c ${RT}/input_config.c ${RT}/audio.c ${RT}/sas_reverb.c ${RT}/h264_mf.c ${RT}/savedata.c
   ${RT}/osk_win.c ${RT}/ge.c)
 if(KZL_ENABLE_D3D12)
   list(APPEND KZL_RUNTIME_SRCS
@@ -133,6 +133,14 @@ set_target_properties(kzl_driver PROPERTIES OUTPUT_NAME kzl)
 
 include(CTest)
 if(BUILD_TESTING)
+  add_executable(kzl_input_tests EXCLUDE_FROM_ALL
+    ${PSP_RECOMP_DIR}/tools/tests/input_config_test.c
+    ${RT}/input_config.c)
+  target_include_directories(kzl_input_tests PRIVATE "${RT}")
+  target_compile_definitions(kzl_input_tests PRIVATE _CRT_SECURE_NO_WARNINGS)
+  target_compile_options(kzl_input_tests PRIVATE ${KZL_FP_FLAGS})
+  add_test(NAME kzl_input_config COMMAND kzl_input_tests)
+
   add_executable(kzl_hle_tests EXCLUDE_FROM_ALL tools/tests/hle_smoke.c ${KZL_RUNTIME_SRCS})
   kzl_configure_runtime_target(kzl_hle_tests)
   add_test(NAME kzl_hle_smoke COMMAND kzl_hle_tests)

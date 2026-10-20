@@ -5,6 +5,21 @@ findings or tasks it touched. Items move here from [TODO.md](TODO.md) when they 
 
 ---
 
+## 2026-10-20 — Session 3j: configurable keyboard and gamepad input (T-5.5)
+- Replaced three divergent hard-coded maps with `input_config.c`: GDI's Win32/XInput/DirectInput path and the
+  D3D12/Vulkan SDL3 paths now translate physical state through the same PSP bindings. Keyboard directions drive
+  both the D-pad and analog stick by default, making gameplay possible without a controller.
+- First windowed launch writes `%LOCALAPPDATA%\KZLRecomp\input.ini`. Each PSP action accepts up to four
+  comma-separated keyboard/gamepad inputs or `none`; keyboard analog directions are independently bindable.
+  `SR_INPUT_CONFIG=<path>` selects another file and `0` selects immutable defaults.
+- Analog input uses a shared radial transform with configurable dead-zone `[0, 0.95]`, curve `[0.1, 4]` and Y
+  inversion. The parser rejects unknown/duplicate settings, bad tokens, mixed `none`, nonfinite/out-of-range
+  numbers and oversized files with line-specific diagnostics; an explicitly invalid config exits startup.
+- Focused tests cover defaults, multi-device remaps, keyboard analog movement, radial clamping, quadratic curves,
+  inversion, error diagnostics and real file loading. Strict MinGW, default/D3D12 builds and 3/3 CTests pass.
+  A custom-config WARP boot consumed the unchanged pad script through C1M1 and passed all 50 protected frames
+  (peak 5,149 pixels over delta 64); isolated first-launch config creation also passed. → F-081
+
 ## 2026-10-20 — Session 3i: real PMF video/audio and sync (T-5.4)
 - Enabled the existing Media Foundation H.264 path for D3D12; it had been compiled but guarded exclusively by
   `SR_SDL3VK`, leaving native D3D12 movie buffers blank. `sceMpegAvcDecodeMode` now has focused address/handle and
