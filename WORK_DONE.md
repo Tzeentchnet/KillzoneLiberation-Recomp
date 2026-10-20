@@ -5,6 +5,19 @@ findings or tasks it touched. Items move here from [TODO.md](TODO.md) when they 
 
 ---
 
+## 2026-10-19 — Session 3c: D3D12 PIX and diagnostics (T-4.14)
+- Installed PIX for Windows 2603.25 and used D3D12's PIX-compatible ANSI command-list event ABI directly, so
+  clang-cl and MinGW builds need neither the PIX header nor a WinPixEventRuntime DLL.
+- Added immutable list ID/address and logical draw serial/PC/opcode metadata to every deferred D3D12 batch. Command
+  recording emits balanced nested `GE list`/`GE draw` PIX events even on binding failure; repeated primitives from
+  one PRIM/BEZIER/SPLINE command stay under one draw event.
+- Added F10 state capture. Each uniquely named text dump records backend/frame/list/draw context, decoded
+  framebuffer, raster, texture, geometry and transfer state, exact matrix values, and the complete raw `GeState`;
+  open/write failures are explicit.
+- Implemented the D3D12 side of `SR_GPU_LOG=1`: list-aware flush diagnostics, one aggregate line per logical draw,
+  present hashes and targets, and shutdown totals. Default/D3D12 builds and CTests, strict MinGW C/C++ checks, and
+  live WARP boots (including injected F10) all pass without D3D12 errors. → F-074
+
 ## 2026-10-19 — Session 3b: protected golden-frame harness (T-4.13)
 - Added a strict 50-frame manifest with independent PPSSPP/runtime presentation indices for the title, Continue
   menu, Chapter 1 Visari storyboard, C1M1 tutorial gameplay, and HUD. The orchestrator validates exact capture

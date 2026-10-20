@@ -1009,6 +1009,28 @@ workflow uploads only `ppmdiff.json` and removes captures after every run.
   savedata, generated payload, or screenshots. Presentation-timed input and fence-scoped upload overflow are the
   reusable contracts for future protected gameplay scenarios.
 
+### F-074 Deferred D3D12 recording requires immutable GE debug identity — Confirmed
+The runtime captures decoded vertices while the PSP display list executes, but it records the D3D12 command list
+later at presentation. The live list manager and `GeState` may have advanced through many lists and draws by then,
+so PIX labels or logs derived during command recording would misidentify nearly every batch. A monotonically
+increasing logical-draw serial plus list ID/address and command PC/opcode must be snapshotted beside each batch,
+just like its PSO, texture, framebuffer and shader state. Contiguous primitives from one PRIM, BEZIER or SPLINE
+command can then be grouped under one draw event even when a single command expands to many captured triangles.
+
+PIX recognizes ANSI events emitted directly through `ID3D12GraphicsCommandList::BeginEvent`/`EndEvent`; no PIX
+header or redistributable event-runtime DLL is needed, which keeps both clang-cl and MinGW builds portable.
+Balanced nested list/draw events survive binding failures because both open scopes close on the common exit path.
+The same captured identity drives `SR_GPU_LOG=1`, which now reports D3D12 flushes, aggregate logical draws,
+presents and totals.
+
+An F10 hotkey writes a versioned text snapshot at the next SDL event poll. It includes the current backend,
+frame/list/draw identity, readable raster/texture/geometry/transfer fields, exact hexadecimal floats for matrices,
+and a full raw byte image of `GeState`. Focused tests verify the dump contract and batch metadata; a live WARP boot
+produced list-aware logs and a valid F10 dump without D3D12 errors.
+- **Impact:** T-4.14 gives PIX captures and text logs stable PSP-side identity despite deferred GPU recording.
+  Future native draw submission and PSO work can diagnose one logical GE draw without reconstructing context from
+  mutable state or command addresses after the fact.
+
 ---
 
 ## D. Assets and content

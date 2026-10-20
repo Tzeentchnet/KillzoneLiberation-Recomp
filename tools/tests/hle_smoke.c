@@ -21,6 +21,21 @@ static int backend_triangle_perspective;
 static int backend_line_count;
 static int backend_point_count;
 
+static int file_contains(const char *path, const char *needle) {
+    FILE *file = fopen(path, "rb");
+    if (!file) return 0;
+    char line[1024];
+    int found = 0;
+    while (fgets(line, sizeof(line), file)) {
+        if (strstr(line, needle)) {
+            found = 1;
+            break;
+        }
+    }
+    fclose(file);
+    return found;
+}
+
 static void fail_u32(const char *what, uint32_t got, uint32_t expected) {
     fprintf(stderr, "FAIL: %s: got 0x%08x, expected 0x%08x\n", what, got, expected);
     failures++;
@@ -105,6 +120,30 @@ static int test_backend_point(const GeVtx *a, int perspective) {
     (void)perspective;
     backend_point_count++;
     return 1;
+}
+
+static void test_ge_state_dump(void) {
+    char path[128];
+    snprintf(
+        path, sizeof(path), "kzl_ge_state_test_%lu.txt",
+        (unsigned long)GetCurrentProcessId());
+    ge_debug_set_list(7, 0x08123400u);
+    ge_execute_op(0x9c001234u, 0x08123420u);
+    ge_execute_op(0x04030000u, 0x08123440u);
+    if (!ge_debug_dump(path)) {
+        fprintf(stderr, "FAIL: GE state dump could not be written\n");
+        failures++;
+        return;
+    }
+    if (!file_contains(path, "KZL_GE_STATE_V1") ||
+        !file_contains(path, "list_id=7") ||
+        !file_contains(path, "draw_pc=0x08123440") ||
+        !file_contains(path, "framebuffer=0x00001234") ||
+        !file_contains(path, "[raw-state]")) {
+        fprintf(stderr, "FAIL: GE state dump is missing required context\n");
+        failures++;
+    }
+    remove(path);
 }
 
 static void test_ge_fragment_state(void) {
@@ -1830,6 +1869,7 @@ int main(void) {
 
     sr_mem_init();
     CpuState cpu;
+    test_ge_state_dump();
     test_ge_backend_interface();
     test_ge_fragment_state();
     test_ge_fragment_writes();
