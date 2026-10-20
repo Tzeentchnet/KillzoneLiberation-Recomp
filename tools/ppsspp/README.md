@@ -4,10 +4,12 @@
 psp-recomp toolkit (`external/psp-recomp/tools/TRACE_FORMAT.md`), so a run of PPSSPP's
 interpreter can be diffed against our recompiled code with `tools/tracediff.py`. It can also
 write a compact, deduplicated stream of executed `jal`/`jalr` edges for function-boundary audits.
-It applies to PPSSPP **v1.20.4** and touches four files:
+It applies to PPSSPP **v1.20.4** and touches six files:
 
 - `Core/MIPS/MIPSTables.cpp`: the instruction and call-edge writers in the interpreter's checked loop.
 - `Core/HLE/sceKernel.h`: a read-only accessor for the next kernel object handle.
+- `Core/HLE/sceRtc.cpp`: an optional fixed current tick for deterministic scheduler traces.
+- `GPU/GPUCommon.h`: a read-only accessor for the next display-list ID.
 - `Core/HLE/sceCtrl.cpp`: optional backend-specific, frame-based scripted controller input for
   reproducible UI paths.
 - `headless/Headless.cpp`: turns off function replacements while tracing (they skip guest
@@ -42,9 +44,17 @@ it in a `ppsspp` checkout next to this repo, or wherever `PPSSPP_HEADLESS` point
 | `PSPRECOMP_CAPTURE_MANIFEST` | strict 50-frame golden manifest |
 | `PSPRECOMP_CAPTURE_DIR` | output directory for the 50 PPMs and `capture.complete` |
 | `PSPRECOMP_MEMSTICK` | isolated PPSSPP memstick root (must contain `PSP/SAVEDATA`) |
+| `PSPRECOMP_RTC_TICK` | optional fixed `sceRtcGetCurrentTick` value for differential traces |
 
 Run with the interpreter (`-i`). The JIT never reaches the traced loop. When the trace is complete
 the build writes `<trace>.done`, which `ppsspp_trace.py` uses to stop the emulator.
+
+`tools/kzl/scheduler_trace.py` runs the protected multi-start gate. It captures
+5,000,000 steps from `module_start` plus 200,000 at the first post-sort
+constructor and `user_main`, then compares them with a constant-memory streaming diff. PPSSPP's
+kernel trampoline and skipped BOOT.BIN instruction ranges are omitted, as are
+cross-thread deltas on the syscall instruction itself; all game instructions
+and subsequent uses of HLE results remain exact.
 
 ## Trace header
 

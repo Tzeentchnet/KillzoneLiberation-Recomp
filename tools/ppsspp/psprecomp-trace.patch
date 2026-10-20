@@ -95,6 +95,28 @@ index b1d79f9..2bec8c5 100644
  
  	enum {
  		maxCount = 4096,
+diff --git a/Core/HLE/sceRtc.cpp b/Core/HLE/sceRtc.cpp
+index 12a2c0a..72a7c71 100644
+--- a/Core/HLE/sceRtc.cpp
++++ b/Core/HLE/sceRtc.cpp
+@@ -24,6 +24,7 @@
+ #endif
+ 
+ #include <time.h>
++#include <cstdlib>
+ 
+ #include "Common/Serialize/Serializer.h"
+ #include "Common/Serialize/SerializeFuncs.h"
+@@ -279,7 +280,8 @@ static u32 sceRtcGetCurrentTick(u32 tickPtr)
+ {
+ 	VERBOSE_LOG(Log::sceRtc, "sceRtcGetCurrentTick(%08x)", tickPtr);
+ 
+-	u64 curTick = __RtcGetCurrentTick();
++	const char *fixedTick = getenv("PSPRECOMP_RTC_TICK");
++	u64 curTick = fixedTick && *fixedTick ? strtoull(fixedTick, nullptr, 0) : __RtcGetCurrentTick();
+ 	if (Memory::IsValidAddress(tickPtr))
+ 		Memory::Write_U64(curTick, tickPtr);
+ 	hleEatCycles(300);
 diff --git a/Core/MIPS/MIPSTables.cpp b/Core/MIPS/MIPSTables.cpp
 index 4e3e820..8311840 100644
 --- a/Core/MIPS/MIPSTables.cpp

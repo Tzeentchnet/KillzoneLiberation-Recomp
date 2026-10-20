@@ -114,9 +114,11 @@ python -m unittest `
   tools\tests\test_calltargets.py `
   tools\tests\test_content_audit.py `
   tools\tests\test_golden_frames.py `
+  tools\tests\test_scheduler_trace.py `
   tools\tests\test_source_bundle.py `
   external\psp-recomp\tools\tests\test_codegen_dispatch.py `
-  external\psp-recomp\tools\tests\test_ppmdiff.py
+  external\psp-recomp\tools\tests\test_ppmdiff.py `
+  external\psp-recomp\tools\tests\test_tracediff.py
 python tools\kzl\content_audit.py
 ```
 
@@ -126,6 +128,10 @@ trusted self-hosted workflow.
 That workflow also compares the runtime's unique interpreter-fallback targets
 against `config/kzl_dispatch_misses.txt`; the supported capture currently
 allows no generated-dispatch misses.
+Three scheduler CPU windows are also compared instruction-for-instruction
+against the patched PPSSPP interpreter using
+`config/kzl_scheduler_trace_points.txt`; trace files remain protected and only
+the JSON pass/fail summary is retained.
 
 ## Repository layout
 

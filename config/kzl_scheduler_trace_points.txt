@@ -1,0 +1,6 @@
+# KZL scheduler trace points v1
+#
+# name              first guest PC   compared steps
+module_start        0x08804000       5000000
+post_static_sort    0x088265ec       200000
+user_main           0x0880410c       200000

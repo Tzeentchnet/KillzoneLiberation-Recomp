@@ -5,6 +5,25 @@ findings or tasks it touched. Items move here from [TODO.md](TODO.md) when they 
 
 ---
 
+## 2026-10-20 — Session 3s: protected multi-start scheduler trace gate (T-2.11)
+- Added deferred runtime traces: `--trace-start=<pc>` runs normally until the selected guest instruction,
+  `SR_TRACE_STEPS` bounds output to 50 million, and exact completion writes `<trace>.done` before clean exit.
+  This reaches code after the 5-million-step static sort without seeding an incomplete late memory snapshot.
+- Reworked `tracediff.py` as a constant-memory iterator. A self-comparison of the existing 229 MB/5M-step oracle
+  retained 4,999,995 steps in 13.44 MiB observed working set. Scheduler mode filters PPSSPP's 0x08000000 kernel
+  trampolines and 0x09F00000 skipped BOOT.BIN code, and ignores only syscall-line deltas that span native context
+  switches; every retained game PC/op/register/memory delta and every later use of HLE output remains exact.
+- The first real post-sort comparison found two genuine alignment issues: PPSSPP's delay-thread reschedule calls
+  `hleSkipDeadbeef`, and sequential launches return different `sceRtcGetCurrentTick` values. The runtime now skips
+  poisoning after delay reschedules; both sides accept one trace-only fixed RTC tick, with focused HLE coverage.
+- Added `config/kzl_scheduler_trace_points.txt` and `tools/kzl/scheduler_trace.py`. The protected local run passed
+  4,999,995 comparable module-start steps, 199,859 post-sort steps and 200,000 `user_main` steps: 5,399,854 total,
+  zero divergences, zero interpreter fallbacks. The self-hosted workflow builds all eight native tests, runs the
+  three windows, and preserves only schema-1 JSON before deleting protected traces.
+- The final PPSSPP v1.20.4 patch is 23,703 bytes, matches the rebuilt oracle worktree exactly and applies cleanly
+  to `fa50bb1`. Runtime-only/default/D3D12 builds, 7/7 and 8/8 CTests, 40 public Python tests, actionlint and the
+  211-file content audit pass. Fork `f352a93`. → F-091
+
 ## 2026-10-20 — Session 3r: bootloader UID and GE counter alignment (T-3.14)
 - Added target-defined skipped-boot state without making the generic runtime KZL-specific. Scheduler runs beginning
   at KZL's `module_start` arm one pending UID; the first `sceKernelDelayThread` consumes it exactly once, modelling

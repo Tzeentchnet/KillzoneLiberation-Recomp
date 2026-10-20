@@ -66,7 +66,9 @@ jobs:
         run: >-
           python -m unittest
           external\psp-recomp\tools\tests\test_ppmdiff.py
+          external\psp-recomp\tools\tests\test_tracediff.py
           tools\tests\test_golden_frames.py
+          tools\tests\test_scheduler_trace.py
 
       - name: Configure D3D12 runtime
         shell: pwsh
@@ -84,8 +86,22 @@ jobs:
         shell: pwsh
         run: |
           cmake --build out\build\golden --target `
-            kzl_driver kzl_hle_tests kzl_d3d12_vertex_tests kzl_d3d12_shaders_check
+            kzl_driver kzl_startup_tests kzl_audio_mixer_tests kzl_input_tests `
+            kzl_dispatch_tests kzl_fpu_mode_tests kzl_interp_tests kzl_hle_tests `
+            kzl_d3d12_vertex_tests kzl_d3d12_shaders_check
           ctest --test-dir out\build\golden --output-on-failure
+
+      - name: Compare scheduler CPU traces
+        shell: pwsh
+        run: |
+          python tools\kzl\scheduler_trace.py `
+            --iso "$env:KZL_ISO" `
+            --ppsspp "$env:PPSSPP_HEADLESS" `
+            --runtime "$PWD\out\build\golden\kzl.exe" `
+            --image "$env:KZL_GEN_DIR\kzl_image.bin" `
+            --ppsspp-memstick-template "$env:KZL_GOLDEN_PPSSPP_MEMSTICK" `
+            --runtime-memstick-template "$env:KZL_GOLDEN_RUNTIME_MEMSTICK" `
+            --output "$PWD\build\kzl\scheduler_trace"
 
       - name: Compare WARP golden frames
         shell: pwsh
@@ -115,7 +131,12 @@ jobs:
           if (Test-Path -LiteralPath $misses -PathType Leaf) {
             Copy-Item -LiteralPath $misses -Destination 'artifacts\dispatch_misses.txt'
           }
+          $traceReport = 'build\kzl\scheduler_trace\scheduler_trace.json'
+          if (Test-Path -LiteralPath $traceReport -PathType Leaf) {
+            Copy-Item -LiteralPath $traceReport -Destination 'artifacts\scheduler_trace.json'
+          }
           Remove-Item -LiteralPath 'build\kzl\golden_frames' -Recurse -Force -ErrorAction SilentlyContinue
+          Remove-Item -LiteralPath 'build\kzl\scheduler_trace' -Recurse -Force -ErrorAction SilentlyContinue
 
       - uses: actions/upload-artifact@v4
         if: always()

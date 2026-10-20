@@ -1336,6 +1336,30 @@ PPSSPPHeadless target compiles.
 - **Impact:** T-3.14 is complete. Scheduler traces can compare real handles and GE IDs directly rather than carrying
   known offsets, and later trace start points can restore the counters they actually observed.
 
+### F-091 Late trace starts must replay boot, not restore a partial snapshot — Confirmed
+The trace header captures registers, counters and only the top 4 KB of RAM. That is enough to reproduce
+`module_start`, but not to start directly at a later PC after heaps, globals and thread stacks have changed.
+The runtime therefore always seeds and schedules from `module_start`, while its trace writer remains dormant until
+`--trace-start=<pc>` first executes. `SR_TRACE_STEPS` then writes an exact bounded window and a completion marker.
+
+PPSSPP exposes two instruction streams the runtime intentionally replaces natively: kernel trampolines below
+0x08800000 and the skipped BOOT.BIN at 0x09F00000+. Its syscall line can also begin on one thread and end after a
+context switch. The streaming comparator omits those two PC ranges and syscall-line deltas, but compares every
+retained game instruction and all later uses of syscall results. This immediately found real differences rather
+than hiding them:
+
+- PPSSPP calls `hleSkipDeadbeef` when `sceKernelDelayThread` reschedules; poisoning runtime caller-saved registers
+  produced a visible `move r6, zero` delta and is now skipped for the same call.
+- Sequential PPSSPP/runtime processes naturally returned different wall-clock `sceRtcGetCurrentTick` values.
+  Both trace paths now use one fixed tick; normal runtime behavior remains host-time based.
+
+The final windows compare 4,999,995 retained instructions from the original 5M module trace, 199,859 after the
+static sort, and 200,000 from `user_main`: **5,399,854 exact game steps with zero divergences**. Streaming the 229 MB
+5M trace against itself used an observed 13.44 MiB working set, so larger traces no longer scale memory with file
+size.
+- **Impact:** T-2.11 is complete. The protected self-hosted job now gates scheduler/HLE/CPU state across three
+  useful phases and retains only a non-copyrighted JSON summary.
+
 ---
 
 ## D. Assets and content

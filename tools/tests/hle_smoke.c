@@ -1627,6 +1627,19 @@ static void test_time(CpuState *cpu) {
               hle_call(cpu, 0xba6b92e2u, clock_addr, seconds_addr, usec_addr, 0), 0);
     check_u32("SysClock2USec seconds", MEM_R32(seconds_addr), 1);
     check_u32("SysClock2USec remainder", MEM_R32(usec_addr), 234567);
+
+    const uint64_t fixed_tick = 62135596923456789ull;
+    _putenv_s("SR_RTC_FIXED_TICK", "62135596923456789");
+    check_u32(
+        "RTC fixed tick",
+        hle_call(cpu, 0x3f7ad767u, clock_addr, 0, 0, 0),
+        0);
+    _putenv_s("SR_RTC_FIXED_TICK", "");
+    check_u32("RTC fixed tick low", MEM_R32(clock_addr), (uint32_t)fixed_tick);
+    check_u32(
+        "RTC fixed tick high",
+        MEM_R32(clock_addr + 4),
+        (uint32_t)(fixed_tick >> 32));
 }
 
 static void test_io(CpuState *cpu, const char *root) {
@@ -2190,6 +2203,21 @@ static void test_boot_seed_state(CpuState *cpu) {
     check_u32("bootloader following GE list", sr_ge_get_next_list_id(), 42);
 }
 
+static void test_hle_deadbeef_policy(CpuState *cpu) {
+    memset(cpu, 0, sizeof(*cpu));
+    cpu->r[4] = 0x03080010u;
+    cpu->r[5] = 0x12345678u;
+    sr_syscall(cpu, 0x7591c7dbu);
+    check_u32("ordinary HLE deadbeef fill", cpu->r[5], 0xdeadbeefu);
+
+    memset(cpu, 0, sizeof(*cpu));
+    cpu->r[4] = 10000;
+    cpu->r[5] = 0x12345678u;
+    sr_syscall(cpu, 0xceadeb47u);
+    check_u32("rescheduled HLE keeps a0", cpu->r[4], 10000);
+    check_u32("rescheduled HLE keeps a1", cpu->r[5], 0x12345678u);
+}
+
 int main(void) {
     char root[128], local_app_data[128];
     snprintf(root, sizeof(root), "kzl_hle_test_fs_%lu", (unsigned long)GetCurrentProcessId());
@@ -2226,6 +2254,7 @@ int main(void) {
     test_async_io(&cpu, root);
     test_offline_network(&cpu);
     test_boot_seed_state(&cpu);
+    test_hle_deadbeef_policy(&cpu);
 
     if (failures) {
         fprintf(stderr, "HLE smoke tests: %d failure(s)\n", failures);
