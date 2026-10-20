@@ -83,7 +83,10 @@ def _extract_git_archive(repo, ref, destination):
                 destination_real + os.sep
             ):
                 raise BundleError(f"unsafe archive path: {member.name}")
-        stream.extractall(destination)
+        if hasattr(tarfile, "fully_trusted_filter"):
+            stream.extractall(destination, filter="fully_trusted")
+        else:
+            stream.extractall(destination)
 
 
 def _manifest(version, parent_commit, submodule_commit):

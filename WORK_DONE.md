@@ -5,6 +5,19 @@ findings or tasks it touched. Items move here from [TODO.md](TODO.md) when they 
 
 ---
 
+## 2026-10-20 — Session 3n: deterministic GPL release source bundles (T-8.3)
+- Added `tools/kzl/source_bundle.py`, which rejects dirty trees, requires the selected parent ref to be checked out,
+  verifies that `external/psp-recomp` is exactly the gitlink pinned there, and runs the full content audit before
+  archiving. It combines both Git trees under one versioned root and records both commits and license locations in
+  `SOURCE-BUNDLE-MANIFEST.txt`; ignored output, Git metadata and user-provided/generated game payloads stay out.
+- Zip paths, ordering, timestamps, compression and permission metadata are stable. Two independent archives from
+  parent `52f5577` and runtime `e497ddb` were each 6,430,293 bytes with SHA-256
+  `db8ca350ee71edbcd0143af6c7d51f99850eb2296e1040d73bc76f1f35b69ebe`.
+- Added a `v*` tag workflow that checks out recursive submodules, builds the gated bundle and attaches it to the
+  GitHub release. The repository still publishes no game executable; any future binary shares this release path
+  and cannot bypass source-bundle creation. Determinism/version/manifest tests bring the public suite to 22 tests;
+  the 199-file content audit and actionlint across all three workflows pass. → F-086
+
 ## 2026-10-20 — Session 3m: startup disc verification and content audit (T-8.1, T-8.2)
 - Added a game-agnostic startup-check module whose KZL target definitions pin the supported 568,498,176-byte ISO
   and SHA-1. Standalone `--boot` validates `PSP_ISO` with streaming Windows CNG SHA-1 before allocating guest

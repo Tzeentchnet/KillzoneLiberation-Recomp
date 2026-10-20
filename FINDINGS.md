@@ -1248,6 +1248,21 @@ binary signatures are rejected. Public CI runs the audit before the runtime comp
 - **Impact:** T-8.2 is complete. A release/source-bundle job can use the same gate instead of relying on developer
   memory or file extensions alone.
 
+### F-086 A parent Git archive does not contain submodule corresponding source — Confirmed
+`git archive` records the `external/psp-recomp` gitlink but omits that tree's files, so publishing the default
+GitHub tag archives alone would not provide the runtime/decoder source corresponding to a release. The release
+builder now resolves the gitlink from the selected parent commit, requires the checked-out submodule HEAD to
+match it, independently archives both trees, and writes both full commit IDs into the bundle manifest. A dirty
+tree or non-HEAD ref is rejected so the content audit and archived bytes cannot describe different revisions.
+
+Zip entry order, timestamps, compression settings and permission metadata are fixed. Two independent builds from
+parent `52f5577` and runtime `e497ddb` each produced 6,430,293 bytes and the same SHA-256
+`db8ca350ee71edbcd0143af6c7d51f99850eb2296e1040d73bc76f1f35b69ebe`. The `v*` tag workflow runs this gate
+before creating/updating the GitHub release, making the complete parent-plus-runtime source zip part of the sole
+automated publication path.
+- **Impact:** T-8.3 is complete. Every automated release carries audited corresponding source even though a
+  redistributable game binary is intentionally not published today.
+
 ---
 
 ## D. Assets and content
