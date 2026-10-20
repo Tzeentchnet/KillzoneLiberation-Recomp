@@ -952,6 +952,36 @@ An RTX destination-safe frame-10 capture remains byte-identical to the saved ref
   submission must call the destination snapshot API immediately before each ordered draw and suppress the
   matching software rasterization in the same ownership transition.
 
+### F-072 PSP patches require quantized scalar evaluation after morph-before-skin decoding — Confirmed
+A PSP logical vertex with morphing is not one ordinary record selected at draw time. Its vertex type declares up
+to eight aligned target records stored consecutively, so its effective stride is one decoded target size times the
+morph count. Position, UV, color, normal, and every bone weight are blended independently with
+`MORPHWEIGHT0..7`. Skinning then consumes that single morphed model vertex: each enabled 4×3 bone matrix transforms
+the morphed position, each 3×3 portion transforms its normal, and the weighted result enters the ordinary
+world/view/projection and lighting pipeline. A test with target-dependent positions, weights, and bone scale proves
+the order rather than only testing a commutative translation case.
+
+Bezier and B-spline surfaces likewise cannot use ordinary Bernstein/Cox-de Boor floating-point weights when exact
+GE behavior matters. Each tessellation step is first rounded toward the patch center to `k/256`. The GE evaluates
+control columns before rows with fixed-grid de Casteljau/de Boor lerps; colors use `(channel << 7) | 0x7f` and
+integer lerps before shifting back to eight bits. Normals come from the last two intermediate points along each
+axis using GE-style products and row sums. At one-third and two-thirds these rules produce observable position,
+UV, and color differences from textbook polynomial evaluation.
+
+The command path now implements those rules for indexed or sequential controls, open spline edges, generated or
+interpolated UVs, patch-facing normals, and the PSP's triangle, three-edge zigzag-line, and duplicated-point cell
+orders. Bezier patches are submitted U-major; splines share one global segment grid. Commands with fewer than four
+controls on either axis draw nothing but still advance the declared controls, matching ordinary GE pointer
+consumption. Excessive subdivisions reduce the larger factor until no more than 65,536 output vertices are needed.
+
+Focused tests cover exact thirds, explicit float UV/fixed RGBA interpolation, morph and morph-before-skin results,
+two-bone normal rotation through environment-map UVs, all patch primitive topologies, reversed 8-bit indices,
+invalid dimensions, logical/index pointer advancement, and the tessellation cap. Default and D3D12 builds/CTests,
+Make/DXC verification, strict MinGW, RTX/WARP boots, and saved pre-change GE/frame hashes pass.
+- **Impact:** T-4.12 closes the remaining CPU geometry features needed by the shared software oracle and the staged
+  D3D12 backend. Future shader-side vertex decoding can compare against one authoritative logical-vertex and patch
+  contract instead of inventing separate morph, skin, or curve behavior.
+
 ---
 
 ## D. Assets and content

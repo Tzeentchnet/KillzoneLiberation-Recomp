@@ -18,6 +18,8 @@ static uint32_t backend_write_bytes;
 static GeVtx backend_triangle[3];
 static int backend_triangle_count;
 static int backend_triangle_perspective;
+static int backend_line_count;
+static int backend_point_count;
 
 static void fail_u32(const char *what, uint32_t got, uint32_t expected) {
     fprintf(stderr, "FAIL: %s: got 0x%08x, expected 0x%08x\n", what, got, expected);
@@ -86,6 +88,22 @@ static int test_backend_triangle(const GeVtx *a, const GeVtx *b,
     backend_triangle[2] = *c;
     backend_triangle_count++;
     backend_triangle_perspective = perspective;
+    return 1;
+}
+
+static int test_backend_line(
+    const GeVtx *a, const GeVtx *b, int perspective) {
+    (void)a;
+    (void)b;
+    (void)perspective;
+    backend_line_count++;
+    return 1;
+}
+
+static int test_backend_point(const GeVtx *a, int perspective) {
+    (void)a;
+    (void)perspective;
+    backend_point_count++;
     return 1;
 }
 
@@ -402,6 +420,12 @@ static void guest_float(uint32_t addr, float value) {
     MEM_W32(addr, bits);
 }
 
+static uint32_t float24_data(float value) {
+    uint32_t bits;
+    memcpy(&bits, &value, sizeof(bits));
+    return bits >> 8;
+}
+
 static uint32_t write_test_vertex(uint32_t addr, int tc_format, int color_format,
                                   int position_format, int vertex_index) {
     uint32_t tc_size = 1u << (tc_format - 1);
@@ -539,6 +563,411 @@ static void test_ge_decoded_vertex_boundary(void) {
         check_u32("decoded color alpha", (uint32_t)backend_triangle[0].a, 255);
     }
     ge_set_backend(NULL);
+}
+
+static void write_morph_target(
+    uint32_t address, int vertex, int target) {
+    float offset = target ? 20.0f : 0.0f;
+    guest_float(address, (float)(vertex * 2) + offset);
+    guest_float(address + 4, (float)(vertex * 3 + 10) + offset);
+    uint32_t color = target
+        ? 0x806400c8u
+        : 0xffc86400u;
+    MEM_W32(address + 8, color);
+    guest_float(address + 12, (float)(vertex * 4 + 10) + offset);
+    guest_float(address + 16, (float)(vertex * 5 + 20) + offset);
+    guest_float(address + 20, (float)(vertex * 6 + 30) + offset);
+}
+
+static void test_ge_morph_vertices(void) {
+    const uint32_t vertex_addr = 0x08822000u;
+    const uint32_t one_size = 24;
+    const uint32_t logical_stride = one_size * 2;
+    GeState *state = ge_state_ptr();
+    GeState saved = *state;
+    memset(state, 0, sizeof(*state));
+
+    for (int vertex = 0; vertex < 3; vertex++) {
+        uint32_t address =
+            vertex_addr + (uint32_t)vertex * logical_stride;
+        write_morph_target(address, vertex, 0);
+        write_morph_target(address + one_size, vertex, 1);
+    }
+
+    GeBackend backend;
+    memset(&backend, 0, sizeof(backend));
+    backend.name = "morph-test";
+    backend.tri = test_backend_triangle;
+    ge_set_backend(&backend);
+    backend_triangle_count = 0;
+
+    ge_execute_op(0x10080000u, 0);
+    ge_execute_op(0x01000000u | (vertex_addr & 0x00ffffffu), 0);
+    ge_execute_op(
+        0x12000000u | 3u | (7u << 2) | (3u << 7) |
+        (1u << 18) | (1u << 23),
+        0);
+    ge_execute_op(0x2c000000u | float24_data(0.25f), 0);
+    ge_execute_op(0x2d000000u | float24_data(0.75f), 0);
+    ge_execute_op(0x04030003u, 0);
+
+    check_u32("morph triangle callback count", backend_triangle_count, 1);
+    check_float("morph position x", backend_triangle[0].x, 25.0f);
+    check_float("morph position y", backend_triangle[0].y, 35.0f);
+    check_float("morph position z", backend_triangle[0].z, 45.0f);
+    check_float("morph texture u", backend_triangle[0].u, 15.0f);
+    check_float("morph texture v", backend_triangle[0].v, 25.0f);
+    check_u32("morph color red", (uint32_t)backend_triangle[0].r, 150);
+    check_u32("morph color green", (uint32_t)backend_triangle[0].g, 25);
+    check_u32("morph color blue", (uint32_t)backend_triangle[0].b, 125);
+    check_u32("morph color alpha", (uint32_t)backend_triangle[0].a, 159);
+    check_u32(
+        "morph logical vertex stride", state->vaddr,
+        vertex_addr + 3u * logical_stride);
+    check_float("morph weight command 0", state->morph_weight[0], 0.25f);
+    check_float("morph weight command 1", state->morph_weight[1], 0.75f);
+
+    ge_set_backend(NULL);
+    *state = saved;
+}
+
+static void set_identity_transform(GeState *state) {
+    memset(state->world, 0, sizeof(state->world));
+    memset(state->view, 0, sizeof(state->view));
+    memset(state->proj, 0, sizeof(state->proj));
+    state->world[0] = state->world[4] = state->world[8] = 1.0f;
+    state->view[0] = state->view[4] = state->view[8] = 1.0f;
+    state->proj[0] = state->proj[5] = state->proj[10] =
+        state->proj[15] = 1.0f;
+    state->viewport_raw[0] = float24_data(1.0f);
+    state->viewport_raw[1] = float24_data(1.0f);
+    state->viewport_raw[2] = float24_data(0.0f);
+    state->viewport_raw[3] = float24_data(100.0f);
+    state->viewport_raw[4] = float24_data(100.0f);
+    state->viewport_raw[5] = float24_data(100.0f);
+    state->scis_x2 = 511;
+    state->scis_y2 = 271;
+    state->maxz = 65535;
+    state->tex_scale_u = 1.0f;
+    state->tex_scale_v = 1.0f;
+}
+
+static void write_morph_skin_vertex(
+    uint32_t address, float x, float y) {
+    guest_float(address, 1.0f);
+    guest_float(address + 4, 0.0f);
+    guest_float(address + 8, x);
+    guest_float(address + 12, y);
+    guest_float(address + 16, 0.0f);
+    guest_float(address + 20, 0.0f);
+    guest_float(address + 24, 1.0f);
+    guest_float(address + 28, x + 4.0f);
+    guest_float(address + 32, y);
+    guest_float(address + 36, 0.0f);
+}
+
+static void write_skin_normal_vertex(
+    uint32_t address, float x, float y) {
+    guest_float(address, 0.25f);
+    guest_float(address + 4, 0.75f);
+    guest_float(address + 8, 1.0f);
+    guest_float(address + 12, 0.0f);
+    guest_float(address + 16, 0.0f);
+    guest_float(address + 20, x);
+    guest_float(address + 24, y);
+    guest_float(address + 28, 0.0f);
+}
+
+static void test_ge_skinning_normal(void) {
+    const uint32_t vertex_addr = 0x08822000u;
+    GeState *state = ge_state_ptr();
+    GeState saved = *state;
+    memset(state, 0, sizeof(*state));
+    set_identity_transform(state);
+    state->bone[0] = state->bone[4] = state->bone[8] = 1.0f;
+    state->bone[12 + 1] = 1.0f;
+    state->bone[12 + 3] = -1.0f;
+    state->bone[12 + 8] = 1.0f;
+    state->tex_map_mode = 2;
+    state->tex_w = state->tex_h = 1;
+    state->tex_shade_ls = 1u << 8;
+    state->light_pos[0][0] = 1.0f;
+    state->light_pos[1][1] = 1.0f;
+    write_skin_normal_vertex(vertex_addr, 0.0f, 0.0f);
+    write_skin_normal_vertex(vertex_addr + 32u, 1.0f, 0.0f);
+    write_skin_normal_vertex(vertex_addr + 64u, 0.0f, 1.0f);
+
+    GeBackend backend;
+    memset(&backend, 0, sizeof(backend));
+    backend.name = "skin-normal-test";
+    backend.tri = test_backend_triangle;
+    ge_set_backend(&backend);
+    backend_triangle_count = 0;
+    ge_execute_op(0x10080000u, 0);
+    ge_execute_op(0x01000000u | (vertex_addr & 0x00ffffffu), 0);
+    ge_execute_op(
+        0x12000000u | (3u << 5) | (3u << 7) |
+        (3u << 9) | (1u << 14),
+        0);
+    ge_execute_op(0x04030003u, 0);
+
+    check_u32("skin normal triangle count", backend_triangle_count, 1);
+    check_float(
+        "skin normal environment u", backend_triangle[0].u,
+        0.658113883f);
+    check_float(
+        "skin normal environment v", backend_triangle[0].v,
+        0.974341631f);
+    check_u32(
+        "skin normal vertex advance", state->vaddr,
+        vertex_addr + 3u * 32u);
+
+    ge_set_backend(NULL);
+    *state = saved;
+}
+
+static void test_ge_morph_skinning(void) {
+    const uint32_t vertex_addr = 0x08823000u;
+    const uint32_t logical_stride = 40;
+    GeState *state = ge_state_ptr();
+    GeState saved = *state;
+    memset(state, 0, sizeof(*state));
+    set_identity_transform(state);
+    for (int bone = 0; bone < 2; bone++) {
+        float *matrix = &state->bone[bone * 12];
+        matrix[0] = matrix[4] = matrix[8] = 1.0f;
+    }
+    state->bone[9] = 10.0f;
+    state->bone[12] = 2.0f;
+    state->bone[12 + 10] = 20.0f;
+    state->morph_weight[0] = 0.25f;
+    state->morph_weight[1] = 0.75f;
+    write_morph_skin_vertex(vertex_addr, 0.0f, 0.0f);
+    write_morph_skin_vertex(
+        vertex_addr + logical_stride, 1.0f, 0.0f);
+    write_morph_skin_vertex(
+        vertex_addr + logical_stride * 2u, 0.0f, 1.0f);
+
+    GeBackend backend;
+    memset(&backend, 0, sizeof(backend));
+    backend.name = "morph-skin-test";
+    backend.tri = test_backend_triangle;
+    ge_set_backend(&backend);
+    backend_triangle_count = 0;
+    ge_execute_op(0x10080000u, 0);
+    ge_execute_op(0x01000000u | (vertex_addr & 0x00ffffffu), 0);
+    ge_execute_op(
+        0x12000000u | (3u << 7) | (3u << 9) |
+        (1u << 14) | (1u << 18),
+        0);
+    ge_execute_op(0x04030003u, 0);
+
+    check_u32("morph skin triangle count", backend_triangle_count, 1);
+    check_u32("morph skin perspective", backend_triangle_perspective, 1);
+    check_float("morph skin position x", backend_triangle[0].x, 107.75f);
+    check_float("morph skin position y", backend_triangle[0].y, 115.0f);
+    check_float("morph skin depth", backend_triangle[0].z, 100.0f);
+    check_u32(
+        "morph skin logical stride", state->vaddr,
+        vertex_addr + logical_stride * 3u);
+
+    ge_set_backend(NULL);
+    *state = saved;
+}
+
+static void write_patch_control_grid(
+    uint32_t address, int width, int height) {
+    for (int v = 0; v < height; v++) {
+        for (int u = 0; u < width; u++) {
+            uint32_t point =
+                address + (uint32_t)(v * width + u) * 12u;
+            guest_float(point, 20.0f + (float)u * 10.0f);
+            guest_float(point + 4, 30.0f + (float)v * 10.0f);
+            guest_float(point + 8, 100.0f);
+        }
+    }
+}
+
+static void write_patch_attribute_grid(uint32_t address) {
+    for (int v = 0; v < 4; v++) {
+        for (int u = 0; u < 4; u++) {
+            uint32_t point =
+                address + (uint32_t)(v * 4 + u) * 24u;
+            guest_float(point, 100.0f + (float)u * 30.0f);
+            guest_float(point + 4, 200.0f + (float)v * 20.0f);
+            MEM_W32(
+                point + 8,
+                (uint32_t)(u * 60) |
+                ((uint32_t)(v * 50) << 8) |
+                (20u << 16) | (255u << 24));
+            guest_float(point + 12, 20.0f + (float)u * 10.0f);
+            guest_float(point + 16, 30.0f + (float)v * 10.0f);
+            guest_float(point + 20, 100.0f);
+        }
+    }
+}
+
+static void test_ge_patch_tessellation(void) {
+    const uint32_t vertex_addr = 0x08824000u;
+    const uint32_t index_addr = 0x08825000u;
+    const uint32_t large_vertex_addr = 0x08826000u;
+    const uint32_t attribute_vertex_addr = 0x08828000u;
+    GeState *state = ge_state_ptr();
+    GeState saved = *state;
+    memset(state, 0, sizeof(*state));
+    state->patch_division = 2u | (2u << 8);
+    state->patch_primitive = 0;
+    state->scis_x2 = 511;
+    state->scis_y2 = 271;
+    state->maxz = 65535;
+    write_patch_control_grid(vertex_addr, 4, 4);
+
+    GeBackend backend;
+    memset(&backend, 0, sizeof(backend));
+    backend.name = "patch-test";
+    backend.tri = test_backend_triangle;
+    backend.line = test_backend_line;
+    backend.point = test_backend_point;
+    ge_set_backend(&backend);
+    ge_execute_op(0x10080000u, 0);
+    ge_execute_op(
+        0x12000000u | (3u << 7) | (1u << 23), 0);
+
+    backend_triangle_count = 0;
+    ge_execute_op(0x01000000u | (vertex_addr & 0x00ffffffu), 0);
+    ge_execute_op(0x05000404u, 0);
+    check_u32("Bezier triangle count", backend_triangle_count, 8);
+    check_float("Bezier final triangle ax", backend_triangle[0].x, 50.0f);
+    check_float("Bezier final triangle ay", backend_triangle[0].y, 45.0f);
+    check_float("Bezier final triangle bx", backend_triangle[1].x, 35.0f);
+    check_float("Bezier final triangle by", backend_triangle[1].y, 60.0f);
+    check_float("Bezier final triangle cx", backend_triangle[2].x, 50.0f);
+    check_float("Bezier final triangle cy", backend_triangle[2].y, 60.0f);
+    check_u32(
+        "Bezier vertex advance", state->vaddr,
+        vertex_addr + 16u * 12u);
+
+    backend_triangle_count = 0;
+    ge_execute_op(0x01000000u | (vertex_addr & 0x00ffffffu), 0);
+    ge_execute_op(
+        0x06000000u | 4u | (4u << 8) | (3u << 16) | (3u << 18),
+        0);
+    check_u32("spline triangle count", backend_triangle_count, 8);
+    check_float("spline final triangle ax", backend_triangle[0].x, 50.0f);
+    check_float("spline final triangle ay", backend_triangle[0].y, 45.0f);
+    check_float("spline final triangle bx", backend_triangle[1].x, 35.0f);
+    check_float("spline final triangle by", backend_triangle[1].y, 60.0f);
+    check_float("spline final triangle cx", backend_triangle[2].x, 50.0f);
+    check_float("spline final triangle cy", backend_triangle[2].y, 60.0f);
+
+    backend_line_count = 0;
+    ge_execute_op(0x37000001u, 0);
+    ge_execute_op(0x01000000u | (vertex_addr & 0x00ffffffu), 0);
+    ge_execute_op(0x05000404u, 0);
+    check_u32("Bezier line count", backend_line_count, 12);
+    backend_point_count = 0;
+    ge_execute_op(0x37000002u, 0);
+    ge_execute_op(0x01000000u | (vertex_addr & 0x00ffffffu), 0);
+    ge_execute_op(0x05000404u, 0);
+    check_u32("Bezier point count", backend_point_count, 24);
+    check_u32("patch primitive command", state->patch_primitive, 2);
+
+    backend_triangle_count = 0;
+    ge_execute_op(0x36000303u, 0);
+    ge_execute_op(0x37000000u, 0);
+    ge_execute_op(0x01000000u | (vertex_addr & 0x00ffffffu), 0);
+    ge_execute_op(0x05000404u, 0);
+    check_u32("exact Bezier triangle count", backend_triangle_count, 18);
+    check_float(
+        "exact Bezier quantized v", backend_triangle[0].v,
+        171.0f / 256.0f);
+    check_float(
+        "exact Bezier quantized u", backend_triangle[1].u,
+        171.0f / 256.0f);
+    check_float(
+        "exact Bezier position y", backend_triangle[0].y,
+        50.0390625f);
+    check_float(
+        "exact Bezier position x", backend_triangle[1].x,
+        40.0390625f);
+
+    write_patch_attribute_grid(attribute_vertex_addr);
+    backend_triangle_count = 0;
+    ge_execute_op(0x36000202u, 0);
+    ge_execute_op(
+        0x12000000u | 3u | (7u << 2) |
+        (3u << 7) | (1u << 23),
+        0);
+    ge_execute_op(
+        0x01000000u | (attribute_vertex_addr & 0x00ffffffu), 0);
+    ge_execute_op(0x05000404u, 0);
+    check_u32("attribute Bezier triangle count", backend_triangle_count, 8);
+    check_float("attribute Bezier final au", backend_triangle[0].u, 190.0f);
+    check_float("attribute Bezier final av", backend_triangle[0].v, 230.0f);
+    check_float("attribute Bezier final bu", backend_triangle[1].u, 145.0f);
+    check_float("attribute Bezier final bv", backend_triangle[1].v, 260.0f);
+    check_u32(
+        "attribute Bezier final ar", (uint32_t)backend_triangle[0].r, 180);
+    check_u32(
+        "attribute Bezier final ag", (uint32_t)backend_triangle[0].g, 75);
+    check_u32(
+        "attribute Bezier final ab", (uint32_t)backend_triangle[0].b, 20);
+    check_u32(
+        "attribute Bezier final aa", (uint32_t)backend_triangle[0].a, 255);
+    check_u32(
+        "attribute Bezier final br", (uint32_t)backend_triangle[1].r, 90);
+    check_u32(
+        "attribute Bezier final bg", (uint32_t)backend_triangle[1].g, 150);
+    check_u32(
+        "attribute Bezier vertex advance", state->vaddr,
+        attribute_vertex_addr + 16u * 24u);
+
+    for (int i = 0; i < 16; i++)
+        MEM_W8(index_addr + (uint32_t)i, 15 - i);
+    backend_triangle_count = 0;
+    ge_execute_op(0x36000202u, 0);
+    ge_execute_op(
+        0x12000000u | (3u << 7) | (1u << 11) | (1u << 23), 0);
+    ge_execute_op(0x01000000u | (vertex_addr & 0x00ffffffu), 0);
+    ge_execute_op(0x02000000u | (index_addr & 0x00ffffffu), 0);
+    ge_execute_op(0x05000404u, 0);
+    check_u32("indexed Bezier triangle count", backend_triangle_count, 8);
+    check_float("indexed Bezier final ax", backend_triangle[0].x, 20.0f);
+    check_float("indexed Bezier final ay", backend_triangle[0].y, 45.0f);
+    check_u32("indexed Bezier vertex pointer", state->vaddr, vertex_addr);
+    check_u32(
+        "indexed Bezier index advance", state->iaddr, index_addr + 16u);
+
+    ge_execute_op(
+        0x12000000u | (3u << 7) | (1u << 23), 0);
+    backend_triangle_count = 0;
+    ge_execute_op(0x01000000u | (vertex_addr & 0x00ffffffu), 0);
+    ge_execute_op(0x05000403u, 0);
+    check_u32("invalid Bezier triangle count", backend_triangle_count, 0);
+    check_u32(
+        "invalid Bezier vertex advance", state->vaddr,
+        vertex_addr + 12u * 12u);
+    ge_execute_op(0x01000000u | (vertex_addr & 0x00ffffffu), 0);
+    ge_execute_op(0x06000403u, 0);
+    check_u32("invalid spline triangle count", backend_triangle_count, 0);
+    check_u32(
+        "invalid spline vertex advance", state->vaddr,
+        vertex_addr + 12u * 12u);
+
+    write_patch_control_grid(large_vertex_addr, 10, 10);
+    backend_triangle_count = 0;
+    ge_execute_op(0x36007f7fu, 0);
+    ge_execute_op(
+        0x01000000u | (large_vertex_addr & 0x00ffffffu), 0);
+    ge_execute_op(0x05000a0au, 0);
+    check_u32(
+        "capped Bezier triangle count", backend_triangle_count, 127008);
+    check_u32(
+        "large Bezier vertex advance", state->vaddr,
+        large_vertex_addr + 100u * 12u);
+
+    ge_set_backend(NULL);
+    *state = saved;
 }
 
 static void set_texture_level(GeState *state, int level, uint32_t address,
@@ -1293,6 +1722,10 @@ int main(void) {
     test_ge_fragment_state();
     test_ge_fragment_writes();
     test_ge_decoded_vertex_boundary();
+    test_ge_morph_vertices();
+    test_ge_skinning_normal();
+    test_ge_morph_skinning();
+    test_ge_patch_tessellation();
     test_ge_texture_decode();
     test_default_vfs_root(&cpu, local_app_data);
     _putenv_s("SR_FSDIR", root);

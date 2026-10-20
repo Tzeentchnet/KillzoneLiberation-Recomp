@@ -5,6 +5,31 @@ findings or tasks it touched. Items move here from [TODO.md](TODO.md) when they 
 
 ---
 
+## 2026-10-19 — Session 3a: CPU morphing, skinning, and patch tessellation (T-4.12)
+- Extended the shared GE vertex decoder with the PSP logical morph layout: one aligned target record repeated up
+  to eight times per logical vertex. Positions, texture coordinates, colors, normals, and bone weights are blended
+  by `MORPHWEIGHT0..7`; the complete morphed model vertex is then transformed by up to eight weighted 4×3 bone
+  matrices. Ordinary, morphed, skinned, and generated patch vertices now share one transform, texgen, environment,
+  lighting, fog, clipping, and projection path.
+- Implemented `BEZIER` and `SPLINE` command execution for indexed and non-indexed controls. CPU tessellation honors
+  both patch-division fields, open spline edges, patch-facing/reverse-normal state, and PSP triangle, zigzag-line,
+  and repeated-point index order. Invalid dimensions draw nothing but still consume their declared controls;
+  pointer advancement follows the active 8/16/32-bit index format or the full logical morph stride.
+- Ported the scalar GE curve arithmetic rather than retaining textbook polynomial weights. Parameters use the
+  hardware's `k/256` quantization; positions and UVs use fixed-grid de Casteljau/de Boor lerps, colors use the
+  15-bit fixed representation, and generated normals use GE-style tangent subtraction and row products. Generated
+  UVs retain patch/segment coordinates. A 65,536-output-vertex bound reduces only the larger subdivision factor.
+- Added focused HLE coverage for two-target morph attributes and command state, morph-before-skin ordering with
+  differing bone transforms, two-bone normal rotation observed through environment-map UVs, planar
+  Bezier/open-spline positions, generated and explicit UVs, fixed-point RGBA, perspective mode,
+  triangle/line/point counts, reversed indexed controls, invalid commands, pointer advancement, exact thirds,
+  and oversized tessellation.
+- Explicit default and D3D12 clang-cl builds/CTests, D3D12 Make/DXC checks, and strict MinGW C compilation pass.
+  RTX and WARP boots accept the unchanged staged-native D3D12 path. WARP's GE content snapshot remains exactly
+  `60C8F7DE4EB25E0375366F8A3AC7DA481D13554490FDCE292EB5477A1F187B35`; a captured hardware frame remains
+  byte-identical to saved pre-change frame hash `DC3D24633E93978FA5A675244BA448B69B97ACADE4D971032331AB661339EB9F`.
+  T-4.12 is complete. → F-072
+
 ## 2026-10-19 — Session 2z: D3D12 destination-aware fragment path (T-4.11)
 - Added exact PSP blending to the shared software GE, including signed doubled-alpha factors, source/destination
   and inverse-color factors, independent fixed colors, add/reverse-subtract/subtract, min/max/absolute-difference,
