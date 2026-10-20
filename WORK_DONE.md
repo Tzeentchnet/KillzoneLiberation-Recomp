@@ -5,6 +5,18 @@ findings or tasks it touched. Items move here from [TODO.md](TODO.md) when they 
 
 ---
 
+## 2026-10-20 — Session 3w: reproducible Ghidra/Allegrex project (T-1.3)
+- Installed a portable, version-matched analysis stack: Ghidra 12.1.3, ghidra-allegrex v21.4 and Microsoft
+  OpenJDK 21.0.12. The PSP loader identified `KZL.PRX` automatically as Allegrex little-endian ELF.
+- Established that headless auto-import alone incorrectly uses base zero for this relocatable PRX. Reimporting with
+  `-loader PspElfLoader -loader-imagebase 08804000` applied PSP relocations at the canonical runtime base and
+  completed Allegrex constant-reference, disassembly, switch, stack, exception and shared-return analysis in 106 s.
+- Added `ghidra_symbols.py` plus headless Java scripts. They resolve `research/kzl_imports.toml` through the checked-in
+  NID name table, fail if any name is missing, and applied all 300 import functions plus `module_start`/`module_stop`.
+  Ghidra found 22,378 functions; the ignored project/report CSVs can be regenerated from exact documented commands.
+- Added optional PPSSPP-known-function matcher scaffolding and public parser/normalization tests for the next static
+  analysis task. The expanded public suite passes 46 tests; no protected project database is committed. → F-095
+
 ## 2026-10-20 — Session 3v: prove SVBrowser local-page I/O (T-3.12)
 - Audited all five KZL `sceHttp` imports: LoadDefaultCert, HttpInit/End and HttpsInit/End. The executable imports no
   template, connection, request, send, receive or read-data function, so its local browser cannot fetch JSP pages

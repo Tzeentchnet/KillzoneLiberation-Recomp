@@ -39,6 +39,8 @@ jobs:
           tools\tests\test_calltargets.py
           tools\tests\test_content_audit.py
           tools\tests\test_golden_frames.py
+          tools\tests\test_ghidra_symbols.py
+          tools\tests\test_knownfuncs.py
           tools\tests\test_scheduler_trace.py
           tools\tests\test_source_bundle.py
           tools\tests\test_svbrowser_io.py

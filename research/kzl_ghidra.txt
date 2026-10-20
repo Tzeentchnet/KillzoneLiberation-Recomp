@@ -1,0 +1,23 @@
+# KZL Ghidra/Allegrex analysis
+#
+# Target: UCUS-98646 v1.20, KZL.PRX SHA-1 pinned in config/kzl.toml
+# Measured: 2026-10-20
+
+ghidra_version=12.1.3
+ghidra_allegrex_version=21.4
+java_version=21.0.12
+loader=PSP Executable (ELF)
+language=Allegrex:LE:32:default
+compiler=default
+image_base=0x08804000
+analysis_seconds=106
+ghidra_functions=22378
+applied_export_labels=2
+applied_import_labels=300
+
+# Auto-analysis included Allegrex constant references, relocation-aware
+# disassembly, decompiler switch recovery, stack analysis, GCC exception
+# handlers, shared-return calls, and generic C data types.
+#
+# The ignored project is reproducible using tools/ghidra/README.md,
+# tools/kzl/ghidra_symbols.py, and the Java scripts in tools/ghidra/.

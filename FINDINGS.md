@@ -1420,6 +1420,23 @@ in `research/kzl_svbrowser_io.txt`.
 - **Impact:** T-3.12 is complete with no runtime change. Local menus already use
   sceIo → PSP.DAT → game archive reader → SVBrowser; sceHttp remains online-service lifecycle only.
 
+### F-095 ghidra-allegrex needs an explicit headless image base for relocatable PRXs — Confirmed
+Ghidra 12.1.3 with ghidra-allegrex v21.4 recognizes KZL.PRX as `PSP Executable (ELF)` and selects
+`Allegrex:LE:32:default`, but an automatic headless import placed the image at zero. The extension's GUI offers an
+Image Base option; the equivalent reproducible command is:
+
+`-loader PspElfLoader -loader-imagebase 08804000`
+
+With that option, PSP relocations land at the canonical runtime addresses. Auto-analysis completed in 106 seconds
+and produced 22,378 functions. A generated CSV resolved all 300 import stubs from `research/kzl_imports.toml`
+through the checked-in PPSSPP-derived NID name table, and headless scripts applied those names plus
+`module_start`/`module_stop` without failures.
+
+The Ghidra project and imported PRX remain ignored because they contain derived game code. Committed scripts export
+only names, counts and addresses, and `tools/ghidra/README.md` contains the exact tool versions and commands.
+- **Impact:** T-1.3 is complete. Static analysis now has a correctly relocated, named, reproducible Allegrex project
+  without adding copyrighted program databases to the repository.
+
 ---
 
 ## D. Assets and content

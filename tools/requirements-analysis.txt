@@ -1,0 +1,2 @@
+# Optional static-analysis tooling; not needed for builds or public CI.
+cityhash==0.4.10

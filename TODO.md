@@ -24,7 +24,8 @@ Priority: **P0** blocks the next milestone · **P1** is needed for 1.0 · **P2**
 ## Phase 1 — Extraction and static analysis
 - [x] **T-1.1 P0** `tools/kzl/extract.py`: check the ISO SHA-1 (F-001), then pull out KZL.PRX, BOOT.BIN, PARAM.SFO and the PSP.DAT header. Built from `tools/survey/isols.py`.
 - [x] **T-1.2 P0** Pin `config/kzl.toml`: `base=0x08804000`, `entry=module_start=0x08804000`, the start-thread params and the ISO hash. → F-010
-- [ ] **T-1.3 P1** Ghidra project: load KZL.PRX with the Allegrex/PSP loader (for example `pspsdk` or `ghidra-allegrex`). Apply NID names from `research/kzl_imports.toml`.
+- [x] **T-1.3 P1** Ghidra project: load KZL.PRX with the Allegrex/PSP loader (for example `pspsdk` or `ghidra-allegrex`). Apply NID names from `research/kzl_imports.toml`.
+  *Done 2026-10-20: Ghidra 12.1.3 + ghidra-allegrex v21.4 imported the PRX as `PSP Executable (ELF)` / `Allegrex:LE:32:default` at explicit base 0x08804000 and completed auto-analysis in 106 s, recovering 22,378 functions. `ghidra_symbols.py` resolves the canonical TOML NIDs through the runtime's PPSSPP-derived name table; headless Java scripts applied all 300 import stubs plus module_start/module_stop and exported reproducible reports. The protected project remains ignored; scripts, instructions, a 46-test public suite and non-copyrighted metrics are committed (F-095).*
 - [ ] **T-1.4 P1** Identify statically linked libraries and label their functions: Havok (version string `** Havok libs built with version [`), Lua 4.0, libgu, SN runtime and libc. Use FLIRT-style signatures or PPSSPP's `knownfuncs`. → F-012, F-013
 - [ ] **T-1.5 P1** Recover the RTTI/vtable layout (`.data` pointer tables) to name C++ classes, starting with the SV* classes. → F-014
 - [x] **T-1.6 P0** Reverse BOOT.BIN to find the exact `sceKernelLoadModule` path and flags, the `sceKernelStartModule` argp (`-patch_failed`?), and the memory layout it expects. → F-004
