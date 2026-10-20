@@ -11,6 +11,7 @@
       "toolset": { "value": "host=x64", "strategy": "external" },
       "cacheVariables": {
         "CMAKE_C_COMPILER": "clang-cl",
+        "CMAKE_CXX_COMPILER": "clang-cl",
         "CMAKE_BUILD_TYPE": "Release"
       },
       "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Windows" }

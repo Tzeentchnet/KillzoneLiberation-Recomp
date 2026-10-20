@@ -1112,6 +1112,27 @@ explicit. The pre-existing Output2 SRC channel is unchanged but now has end-to-e
 regression coverage.
 - **Impact:** T-5.2 is complete without microphone permissions, privacy exposure or host-device nondeterminism.
 
+### F-079 KZL restarts non-looped BGM and uses RIFF loop metadata for looped tracks — Confirmed
+The previous Atrac HLE advanced a sample counter but wrote stereo zeroes, so a clean `finishFlag` did not prove
+that music worked. A neutral title hold exposed the actual control contract: the first track has no explicit
+`SetLoopNum`, reaches its 2,750,521-sample end after 1,344 decode calls, is released, and is allocated again by the
+game. Other resident tracks carry `smpl` loop points and are configured with loop count `-1`. KZL also opens the
+860,972-byte C1M1 intro through a 98,304-byte buffer, then seeks to sample 1,323,000 using the reset-buffer API.
+
+The runtime now parses the RIFF `fmt `, `fact`, `smpl` and `data` chunks and decodes their blocks through PPSSPP's
+standalone FFmpeg-derived ATRAC3/ATRAC3+ implementation. That LGPL-2.1-or-later code is kept under
+`third_party/at3_standalone` with its license and local portability changes documented. Resident data decodes
+directly; partial data uses a bounded circular buffer whose write pointer, writable span and file offset are
+reported to the game. Reset-buffer queries request the encoded span preceding the target frame so decoder overlap
+state is primed before the requested sample. `GetInternalErrorInfo` now returns the decoder's actual status.
+
+The protected gameplay run produced nonzero PCM from all resident tracks and a peak of 2,246 after the streamed
+C1M1 seek. An independently extracted local mission track decoded all 1,157 frames twice with the identical
+`ceedd60e454922cd` PCM hash and a 32,767 peak, proving deterministic decoder restart rather than control-only
+looping. All 50 graphics frames remain below the existing comparison gate.
+- **Impact:** T-5.3 is complete: music data is decoded, loop/restart paths are exercised, streaming seeks retain
+  sound, and codec failures are observable instead of being converted into successful silence.
+
 ---
 
 ## D. Assets and content

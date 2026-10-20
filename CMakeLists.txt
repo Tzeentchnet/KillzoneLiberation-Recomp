@@ -7,7 +7,7 @@
 # Windows: configure with the "clang-cl" preset (CMakePresets.json). The generated code uses GNU C
 # (__builtin_clz, statement expressions), which MSVC cl rejects, so clang-cl is required (F-045).
 cmake_minimum_required(VERSION 3.25)
-project(KZLRecomp LANGUAGES C)
+project(KZLRecomp LANGUAGES C CXX)
 
 set(KZL_GEN_DIR "${CMAKE_SOURCE_DIR}/build/kzl/gen" CACHE PATH "Directory written by tools/kzl/gen.py")
 set(PSP_RECOMP_DIR "${CMAKE_SOURCE_DIR}/external/psp-recomp" CACHE PATH "sal063 fork (submodule)")
@@ -17,7 +17,6 @@ if(KZL_ENABLE_D3D12)
   if(NOT WIN32)
     message(FATAL_ERROR "KZL_ENABLE_D3D12 requires Windows")
   endif()
-  enable_language(CXX)
   find_package(SDL3 CONFIG REQUIRED COMPONENTS SDL3-shared)
   find_package(Python3 REQUIRED COMPONENTS Interpreter)
   set(KZL_DXC_EXECUTABLE "" CACHE FILEPATH "Optional explicit path to dxc.exe")
@@ -70,6 +69,30 @@ endif()
 # sal063 runtime (HLE kernel, scheduler, ISO, media, GDI window, software GE) plus its
 # bring-up driver. SDL3/D3D12 is optional; SDL3/Vulkan remains outside the root build.  -> T-3.1, T-4.2
 set(RT "${PSP_RECOMP_DIR}/src/rt")
+set(AT3 "${PSP_RECOMP_DIR}/third_party/at3_standalone")
+set(KZL_AT3_SRCS
+  ${AT3}/atrac.cpp
+  ${AT3}/atrac3.cpp
+  ${AT3}/atrac3plus.cpp
+  ${AT3}/atrac3plusdec.cpp
+  ${AT3}/atrac3plusdsp.cpp
+  ${AT3}/get_bits.cpp
+  ${AT3}/compat.cpp
+  ${AT3}/fft.cpp
+  ${AT3}/mem.cpp
+  ${RT}/atrac_decode.cpp)
+add_library(kzl_at3 STATIC ${KZL_AT3_SRCS})
+target_include_directories(kzl_at3 PRIVATE "${AT3}" "${RT}")
+target_compile_features(kzl_at3 PRIVATE cxx_std_17)
+if(MSVC)
+  target_compile_options(kzl_at3 PRIVATE /W3 /fp:precise)
+  if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    target_compile_options(kzl_at3 PRIVATE /clang:-ffp-contract=off)
+  endif()
+else()
+  target_compile_options(kzl_at3 PRIVATE -Wall -Wextra -ffp-contract=off)
+endif()
+
 set(KZL_RUNTIME_SRCS
   ${RT}/recomp.c ${RT}/vfpu_interp.c ${RT}/vfpu_asin.c ${RT}/hle.c ${RT}/net.c ${RT}/kmem.c ${RT}/intr.c ${RT}/gelist.c ${RT}/callback.c ${RT}/sched.c
   ${RT}/iso.c ${RT}/mpeg.c ${RT}/pgf.c ${RT}/gui.c ${RT}/audio.c ${RT}/sas_reverb.c ${RT}/h264_mf.c ${RT}/savedata.c
@@ -93,7 +116,7 @@ function(kzl_configure_runtime_target target)
   target_include_directories(${target} PRIVATE "${RT}")
   target_compile_definitions(${target} PRIVATE _CRT_SECURE_NO_WARNINGS)
   target_compile_options(${target} PRIVATE ${KZL_FP_FLAGS})
-  target_link_libraries(${target} PRIVATE kzl_game mfplat mfuuid gdi32 user32 dinput8 dxguid ole32 winmm)
+  target_link_libraries(${target} PRIVATE kzl_game kzl_at3 mfplat mfuuid gdi32 user32 dinput8 dxguid ole32 winmm)
   if(KZL_ENABLE_D3D12)
     target_compile_definitions(${target} PRIVATE SR_D3D12)
     target_compile_features(${target} PRIVATE cxx_std_17)

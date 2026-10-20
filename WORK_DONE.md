@@ -5,6 +5,22 @@ findings or tasks it touched. Items move here from [TODO.md](TODO.md) when they 
 
 ---
 
+## 2026-10-20 — Session 3h: real ATRAC3+ music and streaming (T-5.3)
+- Replaced the silence-only Atrac control model with PPSSPP's standalone FFmpeg-derived ATRAC3/ATRAC3+ decoder,
+  retained under LGPL-2.1-or-later with its license and attribution. A small C ABI keeps the C runtime independent
+  of decoder internals and supports mono/stereo ATRAC3 as well as ATRAC3+.
+- Extended RIFF handling across `fmt `, `fact`, `smpl` and `data`: codec/channel/frame geometry, first-sample
+  trimming, playable loop points, exact final-frame clamping, real internal codec status, decoder recreation on
+  seek/loop, and sample-position errors. Partial files use a bounded circular buffer with explicit
+  `GetStreamDataInfo`/`AddStreamData` refill state; reset-buffer info requests the correct file span for a seek.
+- A neutral 1,344-decode-call title hold reached `finishFlag` and observed KZL allocate the track again, confirming
+  its application-level BGM restart. Separately, all 1,157 frames of a local mission track decoded to nonzero PCM
+  twice with the identical `ceedd60e454922cd` restart hash. The live golden path reported nonzero PCM for every
+  resident track and again after the 1,323,000-sample streamed mission seek.
+- Synthetic RIFF tests cover metadata, buffer-info errors, internal error reporting, finite/infinite loop state,
+  circular refill accounting and streamed reset geometry. Strict GCC/G++ warning-as-error checks, default and
+  D3D12 clang-cl builds, both CTests, and the protected 50-frame WARP comparison pass. → F-079
+
 ## 2026-10-20 — Session 3g: SRC audio and no-device microphone (T-5.2)
 - Registered KZL's three missing microphone imports. `sceAudioInputInitEx` resets one global request,
   `sceAudioInput` validates its bounded mono range and fills it with deterministic silence without touching a host

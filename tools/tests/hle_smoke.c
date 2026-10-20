@@ -1502,15 +1502,41 @@ static void test_utility_system_params(CpuState *cpu) {
 static void test_atrac_reset_buffer_info(CpuState *cpu) {
     const uint32_t data_addr = 0x08812300u;
     const uint32_t info_addr = 0x08812400u;
+    const uint32_t error_addr = 0x08812440u;
+    const uint32_t loop_addr = 0x08812450u;
+    const uint32_t status_addr = 0x08812454u;
     const uint32_t end_sample = 8192u;
+    const uint32_t fmt_offset = 12u;
+    const uint32_t fact_offset = 72u;
+    const uint32_t smpl_offset = 88u;
+    const uint32_t data_offset = 156u;
+    const uint32_t file_size = 188u;
 
-    for (uint32_t i = 0; i < 44; i++) MEM_W8(data_addr + i, 0);
+    for (uint32_t i = 0; i < file_size; i++) MEM_W8(data_addr + i, 0);
     MEM_W32(data_addr + 0, 0x46464952u);
-    MEM_W32(data_addr + 12, 0x74636166u);
-    MEM_W32(data_addr + 16, 4);
-    MEM_W32(data_addr + 20, end_sample);
+    MEM_W32(data_addr + 4, file_size - 8u);
+    MEM_W32(data_addr + 8, 0x45564157u);
+    MEM_W32(data_addr + fmt_offset, 0x20746d66u);
+    MEM_W32(data_addr + fmt_offset + 4, 52);
+    MEM_W16(data_addr + fmt_offset + 8, 0xfffeu);
+    MEM_W16(data_addr + fmt_offset + 10, 2);
+    MEM_W32(data_addr + fmt_offset + 12, 44100);
+    MEM_W32(data_addr + fmt_offset + 16, 44100);
+    MEM_W16(data_addr + fmt_offset + 20, 8);
+    MEM_W32(data_addr + fact_offset, 0x74636166u);
+    MEM_W32(data_addr + fact_offset + 4, 8);
+    MEM_W32(data_addr + fact_offset + 8, end_sample);
+    MEM_W32(data_addr + fact_offset + 12, 0);
+    MEM_W32(data_addr + smpl_offset, 0x6c706d73u);
+    MEM_W32(data_addr + smpl_offset + 4, 60);
+    MEM_W32(data_addr + smpl_offset + 8 + 28, 1);
+    MEM_W32(data_addr + smpl_offset + 8 + 44, 0);
+    MEM_W32(data_addr + smpl_offset + 8 + 48, end_sample - 1u);
+    MEM_W32(data_addr + data_offset, 0x61746164u);
+    MEM_W32(data_addr + data_offset + 4, 24);
 
-    uint32_t atrac_id = hle_call(cpu, 0x7a20e7afu, data_addr, 44, 0, 0);
+    uint32_t atrac_id =
+        hle_call(cpu, 0x7a20e7afu, data_addr, file_size, 0, 0);
     check_u32("ATRAC allocated ID", atrac_id, 0);
 
     for (uint32_t i = 0; i < 32; i++) MEM_W8(info_addr + i, 0xcc);
@@ -1531,7 +1557,62 @@ static void test_atrac_reset_buffer_info(CpuState *cpu) {
               hle_call(cpu, 0x2dd3e298u, atrac_id, 0, 0, 0), 0x800200d3u);
     check_u32("ATRAC reset invalid ID",
               hle_call(cpu, 0x2dd3e298u, 7, 0, info_addr, 0), 0x80630002u);
+
+    MEM_W32(error_addr, 0xccccccccu);
+    check_u32("ATRAC internal error",
+              hle_call(cpu, 0xe88f759bu, atrac_id, error_addr, 0, 0), 0);
+    check_u32("ATRAC internal codec status", MEM_R32(error_addr), 0);
+    check_u32("ATRAC internal error ignored output",
+              hle_call(cpu, 0xe88f759bu, atrac_id, 0x0bffffffu, 0, 0), 0);
+    MEM_W32(error_addr, 0xccccccccu);
+    check_u32("ATRAC internal error invalid ID",
+              hle_call(cpu, 0xe88f759bu, 7, error_addr, 0, 0), 0x80630002u);
+    check_u32("ATRAC invalid ID leaves status", MEM_R32(error_addr), 0xccccccccu);
+
+    check_u32("ATRAC set one loop",
+              hle_call(cpu, 0x868120b5u, atrac_id, 1, 0, 0), 0);
+    check_u32("ATRAC loop status",
+              hle_call(cpu, 0xfaa4f89bu, atrac_id, loop_addr, status_addr, 0), 0);
+    check_u32("ATRAC finite loop retained", MEM_R32(loop_addr), 1);
+    check_u32("ATRAC loop metadata present", MEM_R32(status_addr), 1);
+    check_u32("ATRAC set infinite loop",
+              hle_call(cpu, 0x868120b5u, atrac_id, 0xffffffffu, 0, 0), 0);
+    check_u32("ATRAC infinite loop status",
+              hle_call(cpu, 0xfaa4f89bu, atrac_id, loop_addr, status_addr, 0), 0);
+    check_u32("ATRAC infinite loop retained", MEM_R32(loop_addr), 0xffffffffu);
+
     check_u32("ATRAC release ID",
+              hle_call(cpu, 0x61eb33f5u, atrac_id, 0, 0, 0), 0);
+
+    MEM_W32(data_addr + 4, data_offset + 8u + 1024u - 8u);
+    MEM_W32(data_addr + data_offset + 4, 1024);
+    atrac_id = hle_call(cpu, 0x7a20e7afu, data_addr, file_size, 0, 0);
+    check_u32("ATRAC streamed ID", atrac_id, 0);
+    check_u32("ATRAC streamed remain",
+              hle_call(cpu, 0x9ae849a7u, atrac_id, info_addr, 0, 0), 0);
+    check_u32("ATRAC streamed initial frames", MEM_R32(info_addr), 3);
+    check_u32("ATRAC stream data info",
+              hle_call(cpu, 0x5d268707u, atrac_id, info_addr,
+                       info_addr + 4, info_addr + 8), 0);
+    check_u32("ATRAC stream write pointer", MEM_R32(info_addr), data_addr);
+    check_u32("ATRAC stream writable bytes", MEM_R32(info_addr + 4), 164);
+    check_u32("ATRAC stream read offset", MEM_R32(info_addr + 8), file_size);
+    check_u32("ATRAC add stream data",
+              hle_call(cpu, 0x7db31251u, atrac_id, 32, 0, 0), 0);
+    check_u32("ATRAC add without query",
+              hle_call(cpu, 0x7db31251u, atrac_id, 1, 0, 0), 0x80630018u);
+    check_u32("ATRAC streamed remain after add",
+              hle_call(cpu, 0x9ae849a7u, atrac_id, info_addr, 0, 0), 0);
+    check_u32("ATRAC streamed added frames", MEM_R32(info_addr), 7);
+    check_u32("ATRAC streamed reset info",
+              hle_call(cpu, 0x2dd3e298u, atrac_id, 4096, info_addr, 0), 0);
+    check_u32("ATRAC streamed reset pointer", MEM_R32(info_addr), data_addr);
+    check_u32("ATRAC streamed reset bytes", MEM_R32(info_addr + 4), file_size);
+    check_u32("ATRAC streamed reset minimum", MEM_R32(info_addr + 8), 8);
+    check_u32("ATRAC streamed reset file offset", MEM_R32(info_addr + 12), 180);
+    check_u32("ATRAC streamed reset position",
+              hle_call(cpu, 0x644e5607u, atrac_id, 4096, file_size, 0), 0);
+    check_u32("ATRAC release streamed ID",
               hle_call(cpu, 0x61eb33f5u, atrac_id, 0, 0, 0), 0);
 }
 
