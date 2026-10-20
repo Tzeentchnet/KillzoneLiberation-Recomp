@@ -84,7 +84,8 @@ Priority: **P0** blocks the next milestone · **P1** is needed for 1.0 · **P2**
   *Done 2026-10-19 (F-053): the UMD calls with the UMD callback, `sceCtrlPeekBufferPositive`/`SetSamplingCycle`, `sceRtcGetCurrentTick`/`GetTime_t`, the Dcache and GPI calls, `sceImpose{Get,Set}LanguageMode`, the scePower callbacks.*
 - [x] **T-3.10 P0** Headless milestone: boot to the main-menu loop, dump GE display lists to disk, and record that no unimplemented NID was hit.
   *Done 2026-10-19 (F-053): strict mode reaches SELECT YOUR LANGUAGE and, with `SR_PADSCRIPT`, the PLAY A GAME main menu (~6,800 vblanks, no unimplemented NID). `SR_DLDUMP=<vblank>` dumps a frame's display lists.*
-- [ ] **T-3.11 P1** Savedata: check that sal063's `savedata.c` handles KZL's `SaveableData` header and hash (see the "SaveableData" error strings). Saves should round-trip with PSP/PPSSPP saves.
+- [x] **T-3.11 P1** Savedata: check that sal063's `savedata.c` handles KZL's `SaveableData` header and hash (see the "SaveableData" error strings). Saves should round-trip with PSP/PPSSPP saves.
+  *Done 2026-10-20: the runtime preserves KZL's 1,664-byte plaintext `SaveableData` payload (`KZPP_`, internal size/hash) while implementing the outer retail savedata envelope with PPSSPP's Chnnlsv/libkirk path. Secure modes encrypt/decrypt with the request key, verify the file-list MAC, and generate/verify mode-5 `SAVEDATA_PARAMS`/SFO hashes; tampering returns `0x80110306`. `SR_SAVEDATA_MIGRATE=1` converts old plaintext runtime saves. A real 1,680-byte PPSSPP save decrypted to `KZPP_`; a migrated runtime save had flag `0x41` and completed PPSSPP's full 50-frame path. Synthetic secure/nonsecure/migration/tamper tests, strict builds, 8/8 and 9/9 CTests pass (F-093).*
 - [ ] **T-3.12 P1** Make sure the SVBrowser reads local `.jsp` pages through sceIo and not sceHttp. → F-014
 
 ## Phase 4 — D3D12 GE backend

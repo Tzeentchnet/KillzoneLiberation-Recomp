@@ -21,6 +21,9 @@ assets. Users must supply their own supported disc image.
   derived runtime code remains GPL-2.0-or-later. The two PGF files in the
   runtime fork are PPSSPP's free replacement fonts (not fonts dumped from PSP
   firmware); the content audit pins their SHA-256 identities.
+- **libkirk / PPSSPP Chnnlsv savedata crypto** is vendored under
+  [`external/psp-recomp/third_party/ppsspp_savedata/`](external/psp-recomp/third_party/ppsspp_savedata/).
+  PPSSPP's Chnnlsv subset is GPL-2.0-or-later; libkirk is GPL-3.0-or-later.
 - **FFmpeg ATRAC3/ATRAC3+ decoder code**, extracted into a standalone library
   by PPSSPP, is LGPL-2.1-or-later. Its source, notices, modifications, and
   license are under
@@ -48,5 +51,7 @@ the checked-in tests and reproducible validation described in
 
 ## License
 
-The combined project is GPL-2.0-or-later; see [`LICENSE`](LICENSE). Third-party
-components retain the licenses identified above.
+Project-authored and PPSSPP-derived code is GPL-2.0-or-later; see
+[`LICENSE`](LICENSE). Vendored libkirk remains GPL-3.0-or-later, so binaries
+linking the secure-savedata path must comply with GPL-3.0-or-later.
+Other third-party components retain the licenses identified above.

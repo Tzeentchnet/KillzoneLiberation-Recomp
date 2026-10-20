@@ -100,7 +100,8 @@ def _manifest(version, parent_commit, submodule_commit):
         "including the exact runtime submodule tree. It intentionally contains no\n"
         "game disc, executable, generated game C/image, save data, or game assets.\n"
         "\n"
-        "Combined license: GPL-2.0-or-later (LICENSE).\n"
+        "Project license: GPL-2.0-or-later (LICENSE).\n"
+        "Secure-savedata libkirk subset: GPL-3.0-or-later.\n"
         "Third-party terms and LGPL decoder source: CREDITS.md and\n"
         "external/psp-recomp/CREDITS.md.\n"
     )

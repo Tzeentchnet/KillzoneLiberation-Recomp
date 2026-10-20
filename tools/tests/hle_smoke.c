@@ -1598,6 +1598,189 @@ static void test_utility_dialogs(CpuState *cpu) {
         0);
 }
 
+static int test_sfo_crypto(const char *path, int *hash_nonzero) {
+    FILE *file = fopen(path, "rb");
+    if (!file) return -1;
+    uint8_t buffer[8192];
+    size_t length = fread(buffer, 1, sizeof(buffer), file);
+    fclose(file);
+    if (length < 20 || memcmp(buffer, "\0PSF", 4) != 0) return -1;
+    uint32_t key_start, data_start, count;
+    memcpy(&key_start, buffer + 8, 4);
+    memcpy(&data_start, buffer + 12, 4);
+    memcpy(&count, buffer + 16, 4);
+    int mode = -1;
+    *hash_nonzero = 0;
+    for (uint32_t i = 0; i < count && 20 + 16 * (i + 1) <= length; i++) {
+        const uint8_t *index = buffer + 20 + 16 * i;
+        uint16_t key_offset;
+        uint32_t value_length, data_offset;
+        memcpy(&key_offset, index, 2);
+        memcpy(&value_length, index + 4, 4);
+        memcpy(&data_offset, index + 12, 4);
+        if (key_start + key_offset >= length ||
+            data_start + data_offset + value_length > length) {
+            continue;
+        }
+        const char *key = (const char *)buffer + key_start + key_offset;
+        const uint8_t *value = buffer + data_start + data_offset;
+        if (!strcmp(key, "SAVEDATA_PARAMS") && value_length >= 1)
+            mode = value[0];
+        if (!strcmp(key, "SAVEDATA_FILE_LIST") && value_length >= 32)
+            for (int j = 13; j < 29; j++) *hash_nonzero |= value[j] != 0;
+    }
+    return mode;
+}
+
+static void test_savedata_secure_roundtrip(CpuState *cpu, const char *root) {
+    const uint32_t param = 0x08818000u;
+    const uint32_t data = 0x08819000u;
+    static const uint8_t key[16] = {
+        0x10, 0x32, 0x54, 0x76, 0x98, 0xba, 0xdc, 0xfe,
+        0xef, 0xcd, 0xab, 0x89, 0x67, 0x45, 0x23, 0x01,
+    };
+    _putenv_s("SR_MEMSTICK", root);
+    uint8_t expected[64];
+    for (uint32_t i = 0; i < sizeof(expected); i++) {
+        expected[i] = (uint8_t)(i * 13u + 7u);
+        MEM_W8(data + i, expected[i]);
+    }
+    memcpy(expected, "KZPP_", 5);
+    for (uint32_t i = 0; i < 5; i++) MEM_W8(data + i, expected[i]);
+
+    for (uint32_t i = 0; i < 0x600; i++) MEM_W8(param + i, 0);
+    MEM_W32(param + 0, 0x600);
+    MEM_W32(param + 0x30, 3);
+    guest_string(param + 0x3c, "TEST98646");
+    guest_string(param + 0x4c, "DATA00");
+    guest_string(param + 0x64, "DATA.BIN");
+    MEM_W32(param + 0x74, data);
+    MEM_W32(param + 0x78, sizeof(expected));
+    MEM_W32(param + 0x7c, sizeof(expected));
+    guest_string(param + 0x80, "Savedata Crypto Test");
+    guest_string(param + 0x100, "Round Trip");
+    guest_string(param + 0x180, "Synthetic secure savedata");
+    for (uint32_t i = 0; i < sizeof(key); i++) MEM_W8(param + 0x5dc + i, key[i]);
+    hle_call(cpu, 0x7591c7dbu, 0x03080010u, 0, 0, 0);
+
+    check_u32(
+        "secure savedata save init",
+        hle_call(cpu, 0x50c4cd57u, param, 0, 0, 0),
+        0);
+    check_u32(
+        "secure savedata save initialize",
+        hle_call(cpu, 0x8874dbe0u, 0, 0, 0, 0),
+        1);
+    check_u32(
+        "secure savedata save update",
+        hle_call(cpu, 0xd4b95ffbu, 1, 0, 0, 0),
+        0);
+    check_u32("secure savedata save result", MEM_R32(param + 0x1c), 0);
+
+    char directory[512], data_path[512], sfo_path[512];
+    snprintf(
+        directory, sizeof(directory),
+        "%s\\PSP\\SAVEDATA\\TEST98646DATA00", root);
+    snprintf(data_path, sizeof(data_path), "%s\\DATA.BIN", directory);
+    snprintf(sfo_path, sizeof(sfo_path), "%s\\PARAM.SFO", directory);
+    struct _stat status;
+    check_u32(
+        "secure savedata encrypted size",
+        _stat(data_path, &status) == 0 ? (uint32_t)status.st_size : 0,
+        sizeof(expected) + 16);
+    int hash_nonzero = 0;
+    check_u32(
+        "secure savedata SFO mode",
+        (uint32_t)test_sfo_crypto(sfo_path, &hash_nonzero),
+        0x41);
+    check_u32("secure savedata file hash", (uint32_t)hash_nonzero, 1);
+
+    check_u32(
+        "secure savedata save shutdown",
+        hle_call(cpu, 0x9790b33cu, 0, 0, 0, 0),
+        0);
+    (void)hle_call(cpu, 0x8874dbe0u, 0, 0, 0, 0);
+    for (uint32_t i = 0; i < sizeof(expected); i++) MEM_W8(data + i, 0);
+    MEM_W32(param + 0x30, 2);
+    check_u32(
+        "secure savedata load init",
+        hle_call(cpu, 0x50c4cd57u, param, 0, 0, 0),
+        0);
+    (void)hle_call(cpu, 0x8874dbe0u, 0, 0, 0, 0);
+    (void)hle_call(cpu, 0xd4b95ffbu, 1, 0, 0, 0);
+    check_u32("secure savedata load result", MEM_R32(param + 0x1c), 0);
+    check_u32("secure savedata load size", MEM_R32(param + 0x7c), sizeof(expected));
+    check_guest_bytes("secure savedata payload", data, expected, sizeof(expected));
+
+    FILE *file = fopen(data_path, "r+b");
+    if (file) {
+        fseek(file, 20, SEEK_SET);
+        int value = fgetc(file);
+        fseek(file, 20, SEEK_SET);
+        fputc(value ^ 1, file);
+        fclose(file);
+    }
+    (void)hle_call(cpu, 0x9790b33cu, 0, 0, 0, 0);
+    (void)hle_call(cpu, 0x8874dbe0u, 0, 0, 0, 0);
+    MEM_W32(param + 0x30, 2);
+    (void)hle_call(cpu, 0x50c4cd57u, param, 0, 0, 0);
+    (void)hle_call(cpu, 0x8874dbe0u, 0, 0, 0, 0);
+    (void)hle_call(cpu, 0xd4b95ffbu, 1, 0, 0, 0);
+    check_u32(
+        "secure savedata tamper result",
+        MEM_R32(param + 0x1c),
+        0x80110306u);
+
+    (void)hle_call(cpu, 0x9790b33cu, 0, 0, 0, 0);
+    (void)hle_call(cpu, 0x8874dbe0u, 0, 0, 0, 0);
+    for (uint32_t i = 0; i < sizeof(expected); i++) MEM_W8(data + i, expected[i]);
+    MEM_W32(param + 0x30, 14);
+    MEM_W32(param + 0x7c, sizeof(expected));
+    (void)hle_call(cpu, 0x50c4cd57u, param, 0, 0, 0);
+    (void)hle_call(cpu, 0x8874dbe0u, 0, 0, 0, 0);
+    (void)hle_call(cpu, 0xd4b95ffbu, 1, 0, 0, 0);
+    check_u32("legacy plaintext save result", MEM_R32(param + 0x1c), 0);
+    check_u32(
+        "legacy plaintext size",
+        _stat(data_path, &status) == 0 ? (uint32_t)status.st_size : 0,
+        sizeof(expected));
+    hash_nonzero = 0;
+    check_u32(
+        "legacy plaintext SFO mode",
+        (uint32_t)test_sfo_crypto(sfo_path, &hash_nonzero),
+        0);
+
+    (void)hle_call(cpu, 0x9790b33cu, 0, 0, 0, 0);
+    (void)hle_call(cpu, 0x8874dbe0u, 0, 0, 0, 0);
+    for (uint32_t i = 0; i < sizeof(expected); i++) MEM_W8(data + i, 0);
+    MEM_W32(param + 0x30, 2);
+    _putenv_s("SR_SAVEDATA_MIGRATE", "1");
+    (void)hle_call(cpu, 0x50c4cd57u, param, 0, 0, 0);
+    _putenv_s("SR_SAVEDATA_MIGRATE", "");
+    (void)hle_call(cpu, 0x8874dbe0u, 0, 0, 0, 0);
+    (void)hle_call(cpu, 0xd4b95ffbu, 1, 0, 0, 0);
+    check_u32("legacy migration load result", MEM_R32(param + 0x1c), 0);
+    check_guest_bytes("legacy migration payload", data, expected, sizeof(expected));
+    check_u32(
+        "legacy migration encrypted size",
+        _stat(data_path, &status) == 0 ? (uint32_t)status.st_size : 0,
+        sizeof(expected) + 16);
+    hash_nonzero = 0;
+    check_u32(
+        "legacy migration SFO mode",
+        (uint32_t)test_sfo_crypto(sfo_path, &hash_nonzero),
+        0x41);
+
+    _unlink(data_path);
+    _unlink(sfo_path);
+    _rmdir(directory);
+    snprintf(directory, sizeof(directory), "%s\\PSP\\SAVEDATA", root);
+    _rmdir(directory);
+    snprintf(directory, sizeof(directory), "%s\\PSP", root);
+    _rmdir(directory);
+    _putenv_s("SR_MEMSTICK", "");
+}
+
 static void test_atrac_reset_buffer_info(CpuState *cpu) {
     const uint32_t data_addr = 0x08812300u;
     const uint32_t info_addr = 0x08812400u;
@@ -2343,6 +2526,7 @@ int main(void) {
     test_threadman(&cpu);
     test_utility_system_params(&cpu);
     test_utility_dialogs(&cpu);
+    test_savedata_secure_roundtrip(&cpu, root);
     test_atrac_reset_buffer_info(&cpu);
     test_sas(&cpu);
     test_audio_input(&cpu);

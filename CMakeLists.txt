@@ -136,6 +136,33 @@ else()
   target_compile_options(kzl_at3 PRIVATE -Wall -Wextra -ffp-contract=off)
 endif()
 
+set(SAVEDATA_CRYPTO "${PSP_RECOMP_DIR}/third_party/ppsspp_savedata")
+set(KZL_SAVEDATA_CRYPTO_SRCS
+  ${SAVEDATA_CRYPTO}/AES.c
+  ${SAVEDATA_CRYPTO}/SHA1.c
+  ${SAVEDATA_CRYPTO}/bn.c
+  ${SAVEDATA_CRYPTO}/ec.c
+  ${SAVEDATA_CRYPTO}/kirk_engine.c
+  ${SAVEDATA_CRYPTO}/chnnlsv.cpp
+  ${RT}/savedata_crypto.cpp)
+add_library(kzl_savedata_crypto STATIC ${KZL_SAVEDATA_CRYPTO_SRCS})
+target_include_directories(kzl_savedata_crypto PRIVATE
+  "${SAVEDATA_CRYPTO}" "${RT}")
+target_compile_features(kzl_savedata_crypto PRIVATE cxx_std_17)
+if(MSVC)
+  target_compile_options(kzl_savedata_crypto PRIVATE /W1)
+  if(CMAKE_C_COMPILER_ID MATCHES "Clang")
+    target_compile_options(kzl_savedata_crypto PRIVATE
+      /clang:-Wno-unused-const-variable
+      /clang:-Wno-unused-parameter)
+  endif()
+else()
+  target_compile_options(kzl_savedata_crypto PRIVATE
+    -Wall -Wextra
+    -Wno-unused-parameter
+    -Wno-unused-const-variable)
+endif()
+
 set(KZL_RUNTIME_SRCS
   ${RT}/recomp.c ${RT}/dispatch_table.c ${RT}/fpu_mode.c ${RT}/interp_runtime.cpp
   ${PSP_RECOMP_DIR}/src/ref/interp.cpp
@@ -160,7 +187,8 @@ endif()
 
 if(KZL_RUNTIME_ONLY)
   add_library(kzl_runtime_compile STATIC ${KZL_RUNTIME_SRCS})
-  add_dependencies(kzl_runtime_compile kzl_at3)
+  add_dependencies(kzl_runtime_compile kzl_at3 kzl_savedata_crypto)
+  target_link_libraries(kzl_runtime_compile PRIVATE kzl_savedata_crypto)
   target_include_directories(kzl_runtime_compile PRIVATE "${RT}")
   target_compile_definitions(kzl_runtime_compile PRIVATE _CRT_SECURE_NO_WARNINGS)
   target_compile_features(kzl_runtime_compile PRIVATE cxx_std_17)
@@ -176,7 +204,9 @@ function(kzl_configure_runtime_target target)
   target_include_directories(${target} PRIVATE "${RT}")
   target_compile_definitions(${target} PRIVATE _CRT_SECURE_NO_WARNINGS)
   target_compile_options(${target} PRIVATE ${KZL_FP_FLAGS})
-  target_link_libraries(${target} PRIVATE kzl_game kzl_at3 mfplat mfuuid gdi32 user32 dinput8 dxguid ole32 winmm xaudio2 bcrypt)
+  target_link_libraries(${target} PRIVATE
+    kzl_game kzl_at3 kzl_savedata_crypto
+    mfplat mfuuid gdi32 user32 dinput8 dxguid ole32 winmm xaudio2 bcrypt)
   if(KZL_ENABLE_D3D12)
     target_compile_definitions(${target} PRIVATE SR_D3D12)
     target_compile_features(${target} PRIVATE cxx_std_17)
@@ -239,6 +269,14 @@ if(BUILD_TESTING)
   target_include_directories(kzl_fpu_mode_tests PRIVATE "${RT}")
   target_compile_options(kzl_fpu_mode_tests PRIVATE ${KZL_FP_FLAGS})
   add_test(NAME kzl_fpu_mode COMMAND kzl_fpu_mode_tests)
+
+  add_executable(kzl_savedata_crypto_tests EXCLUDE_FROM_ALL
+    ${PSP_RECOMP_DIR}/tools/tests/savedata_crypto_test.cpp)
+  target_include_directories(kzl_savedata_crypto_tests PRIVATE "${RT}")
+  target_compile_features(kzl_savedata_crypto_tests PRIVATE cxx_std_17)
+  target_compile_options(kzl_savedata_crypto_tests PRIVATE ${KZL_FP_FLAGS})
+  target_link_libraries(kzl_savedata_crypto_tests PRIVATE kzl_savedata_crypto)
+  add_test(NAME kzl_savedata_crypto COMMAND kzl_savedata_crypto_tests)
 
   add_executable(kzl_interp_tests EXCLUDE_FROM_ALL
     ${PSP_RECOMP_DIR}/tools/tests/interp_fallback_test.cpp

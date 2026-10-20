@@ -5,6 +5,24 @@ findings or tasks it touched. Items move here from [TODO.md](TODO.md) when they 
 
 ---
 
+## 2026-10-20 — Session 3u: PSP/PPSSPP secure savedata round-trip (T-3.11)
+- Confirmed the two-layer format. KZL owns a 1,664-byte plaintext `SaveableData` payload beginning `KZPP_` with its
+  internal size/hash checks; PSP savedata wraps it in a 16-byte Chnnlsv envelope. PPSSPP's real file is 1,680 bytes
+  and its SFO advertises crypto mode `0x41` plus a nonzero file-list MAC.
+- Vendored PPSSPP v1.20.4's standalone Chnnlsv subset and libkirk sources with exact provenance/licenses. Secure
+  AUTO/LOAD/SAVE and `*SECURE` modes now derive mode 1/3/5 from SDK/version/key, encrypt or decrypt with the live
+  request key, verify the file MAC, and generate the three retail PARAM.SFO hashes. Nonsecure modes remain raw.
+  Bad ciphertext/MAC is rejected as `SCE_UTILITY_SAVEDATA_ERROR_LOAD_DATA_BROKEN` (`0x80110306`).
+- Added `SR_SAVEDATA_MIGRATE=1`: a successfully loaded plaintext save from an older runtime is rewritten securely
+  with the game's live key. Synthetic tests cover 1,664→1,680→1,664 mode-5 round trips, wrong hashes, SFO `0x41`,
+  secure HLE save/load, corruption, nonsecure legacy IO and migration.
+- Bidirectional protected evidence passes. The runtime decrypted PPSSPP's 1,680-byte `KZL.BIN` to a 1,664-byte
+  `KZPP_` buffer with result zero. Migrating the validated legacy template produced a 1,680-byte file and
+  `SAVEDATA_PARAMS=0x41`; PPSSPP loaded that runtime-generated memstick and completed all 50 scripted frames.
+- Strict GCC/G++, runtime-only/default/D3D12 clang-cl builds, 8/8 and 9/9 CTests, 40 public Python tests, actionlint
+  and the 227-file content audit pass. libkirk is GPL-3.0-or-later, now documented in both credit/license surfaces;
+  linked binaries must use compatible terms. Fork `2a85f7a`. → F-093
+
 ## 2026-10-20 — Session 3t: complete utility dialogs and module contracts (T-3.8)
 - Registered every missing KZL `sceUtility` import. Message dialogs now decode V1/V2/V3-compatible text/error
   fields and yes/no, default-no, cancel and OK options; write common/message results and `buttonPressed`; and drive

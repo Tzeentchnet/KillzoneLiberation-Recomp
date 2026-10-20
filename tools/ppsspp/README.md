@@ -127,9 +127,10 @@ script before a menu appears:
 
 PPSSPP widths are measured in vblanks; runtime widths are measured in presented frames.
 
-Use separate savedata templates. PPSSPP implements the retail secure-savedata path, while the
-standalone runtime currently stores the same game payload without encryption; copying one
-implementation's template over the other is not reliable.
+Use separate cloned templates during comparison so the two processes cannot mutate one
+another's input. Their savedata is now interoperable: the runtime implements the retail
+Chnnlsv/libkirk envelope, file-list MAC, and PARAM.SFO hashes. `SR_SAVEDATA_MIGRATE=1`
+converts plaintext saves from older runtime builds.
 
 ```
 python tools/kzl/golden_frames.py `

@@ -1377,6 +1377,28 @@ The remaining imported contracts are intentionally simple: Utility USB load/unlo
 - **Impact:** T-3.8 is complete. Every KZL utility import is registered, typed and testable; multiplayer utility
   entries have deterministic offline exits and user-facing message dialogs use native host UI.
 
+### F-093 `SaveableData` is the plaintext payload, not the PSP secure envelope — Confirmed
+KZL's own save is 1,664 bytes and begins `KZPP_`; its next word is the internal data size and the game validates
+the following hash fields (the surveyed `SaveableData` error strings). PPSSPP's corresponding `KZL.BIN` is 1,680
+bytes of apparently random data. Decrypting it yields the same plaintext shape: the 16-byte difference is the
+retail Chnnlsv envelope, while PARAM.SFO's `SAVEDATA_PARAMS[0]=0x41` selects mode 5 and
+`SAVEDATA_FILE_LIST` carries the per-file MAC.
+
+Raw persistence happened to preserve KZL's internal hash, but it was not PSP savedata compatibility. The runtime
+now uses PPSSPP v1.20.4's Chnnlsv algorithms and GPL-3.0-or-later libkirk implementation to:
+
+- choose mode 1/3/5 from `secureVersion`, compiled SDK and the request's 16-byte key;
+- encrypt/decrypt the aligned payload plus IV and validate the file MAC;
+- generate the 11D0, 1220 and 11C0 hashes in the 128-byte `SAVEDATA_PARAMS` block; and
+- preserve raw behavior only for explicitly nonsecure MAKEDATA/READDATA/WRITEDATA modes.
+
+This is verified with the title, not only synthetic crypto vectors. A PPSSPP-created 1,680-byte save loaded in the
+runtime as 1,664 bytes beginning `KZPP_`. Conversely, explicit migration of a legacy runtime save produced a
+1,680-byte, mode-`0x41` save that PPSSPP accepted through the complete protected 50-frame boot/menu/gameplay path.
+Flipping one ciphertext byte is rejected with `0x80110306`.
+- **Impact:** T-3.11 is complete. Existing plaintext users have an opt-in migration path, and all new secure saves
+  round-trip with PPSSPP/PSP while retaining KZL's own header and hash unchanged inside the envelope.
+
 ---
 
 ## D. Assets and content

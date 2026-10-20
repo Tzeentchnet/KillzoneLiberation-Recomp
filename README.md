@@ -143,9 +143,10 @@ the JSON pass/fail summary is retained.
 
 ## License and attribution
 
-The combined project is licensed **GPL-2.0-or-later**; see
-[LICENSE](LICENSE). Third-party provenance and separately licensed components
-are documented in [CREDITS.md](CREDITS.md) and
+Project-authored and PPSSPP-derived code is licensed **GPL-2.0-or-later**; see
+[LICENSE](LICENSE). The secure-savedata path includes GPL-3.0-or-later libkirk,
+so linked binaries must comply with GPL-3.0-or-later. Third-party provenance
+and separately licensed components are documented in [CREDITS.md](CREDITS.md) and
 [external/psp-recomp/CREDITS.md](external/psp-recomp/CREDITS.md).
 
 The license covers this project's source, not the original game or its assets.
