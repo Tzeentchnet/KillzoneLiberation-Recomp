@@ -5,6 +5,23 @@ findings or tasks it touched. Items move here from [TODO.md](TODO.md) when they 
 
 ---
 
+## 2026-10-19 — Session 2v: D3D12 aspect-correct presentation (T-4.7)
+- Replaced the direct upload-to-swapchain copy with a persistent 480×272 BGRA8 display texture and a dedicated
+  one-SRV present root signature, static linear-clamp sampler, and fullscreen-triangle PSO. Two new strict SM 6.0
+  shaders are generated as deterministic, hash-stamped embedded DXIL by the existing DXC pipeline.
+- The SDL3 window is resizable and the three-buffer swapchain follows its actual pixel dimensions. A size change
+  waits for the direct queue, releases all old buffers, calls `ResizeBuffers`, reacquires each resource, and
+  rebuilds its RTV without disturbing frame-fence or descriptor-partition ownership.
+- Every frame copies the converted software framebuffer into the display texture, clears the entire back buffer
+  opaque black, and samples through a centered viewport preserving the exact 480:272 ratio. Integer
+  cross-products select the constrained output axis, while floor/ceil scissor bounds safely enclose fractional
+  viewport edges for letterbox, pillarbox, portrait, square, and ultrawide outputs.
+- Added deterministic layout coverage for zero-sized, exact 2×, letterboxed, portrait, and pillarboxed targets.
+  Shader regenerate/check, Make, default/D3D12 clang-cl builds, both CTest configurations, and strict MinGW C++17
+  compilation pass. Hardware and WARP present successfully; a live hardware run recreates the swapchain at both
+  wide and portrait sizes and exits cleanly, and a 1,200-frame hardware stress completes without a D3D12 error.
+  T-4.7 is complete. → F-067
+
 ## 2026-10-19 — Session 2u: D3D12 synchronous PSO cache (T-4.6)
 - Added a canonical 16-byte pipeline key derived from PSO-static GE state: mapped color/alpha blend factors and
   operations, channel writes, depth test/write/function, culling, and RTV/DSV formats. Texture/shader constants,

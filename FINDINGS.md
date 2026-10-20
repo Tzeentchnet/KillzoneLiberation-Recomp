@@ -772,6 +772,31 @@ zero failures, and waits for the graphics queue before releasing the cached COM 
 - **Impact:** T-4.6 is complete. The next native submission stage can bind vertex slices and per-draw dynamic
   state without recompiling equivalent fixed-function combinations.
 
+### F-067 Presentation must decouple the fixed PSP display texture from the resizable swapchain — Confirmed
+The software GE always produces a 480×272 framebuffer, while an SDL3 window can have any logical size, DPI scale,
+or aspect ratio. Copying that upload directly into a swapchain buffer therefore only works while the swapchain is
+also fixed at 480×272. T-4.7 introduces a persistent default-heap BGRA8 texture at the PSP display dimensions.
+Each frame first copies the existing row-pitched upload into that texture, transitions it to an SRV, and then
+draws a fullscreen triangle through a dedicated one-table root signature and static linear-clamp sampler.
+The whole back buffer is cleared opaque black before the draw, so any uncovered area is deterministic letterbox
+or pillarbox space rather than stale swapchain contents.
+
+Aspect fitting uses the actual SDL pixel size, not its logical window size. An integer cross-product decides
+whether width or height constrains the image; that dimension is assigned exactly and only the other is computed
+in floating point. The viewport is centered at the true 480:272 ratio, and the scissor floors its origin and
+ceils its far edge so fractional pixels cannot clip the triangle. This intentionally preserves 480:272 rather
+than rounding it to nominal 16:9.
+
+On a pixel-size change, the backend waits for the direct queue, releases all three old back buffers, resizes the
+flip-discard chain, reacquires each buffer, and recreates its RTV. Zero-sized/minimized observations defer resize
+work and retain the valid chain. Focused tests cover zero dimensions, exact 960×544, square letterboxing,
+portrait letterboxing, and 1920×1080 pillarboxing, including fractional scissor bounds. Hardware and WARP boots
+both execute the new root signature, PSO, copy, and draw. A live hardware test recreates the chain at 1478×844
+and 878×1410 (the DPI-scaled wide and portrait client sizes) and shuts down cleanly; a 1,200-frame hardware run
+reports no resize, resource-state, presentation, or D3D12 device error.
+- **Impact:** T-4.7 is complete. The swapchain is now presentation-only and can retain this stable aspect-correct
+  path when T-4.8/T-4.9 replace the software framebuffer source with native cached render targets.
+
 ---
 
 ## D. Assets and content

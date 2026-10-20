@@ -79,6 +79,8 @@ if(KZL_ENABLE_D3D12)
     ${RT}/gpu_d3d12/device.cpp
     ${RT}/gpu_d3d12/pipeline.cpp
     ${RT}/gpu_d3d12/pipeline_key.cpp
+    ${RT}/gpu_d3d12/present.cpp
+    ${RT}/gpu_d3d12/present_layout.cpp
     ${RT}/gpu_d3d12/vertex.cpp)
 endif()
 
@@ -110,6 +112,7 @@ if(BUILD_TESTING)
     add_executable(kzl_d3d12_vertex_tests EXCLUDE_FROM_ALL
       ${PSP_RECOMP_DIR}/tools/tests/d3d12_vertex_test.cpp
       ${RT}/gpu_d3d12/pipeline_key.cpp
+      ${RT}/gpu_d3d12/present_layout.cpp
       ${RT}/gpu_d3d12/vertex.cpp)
     target_include_directories(kzl_d3d12_vertex_tests PRIVATE "${RT}")
     target_compile_definitions(kzl_d3d12_vertex_tests PRIVATE SR_D3D12)
