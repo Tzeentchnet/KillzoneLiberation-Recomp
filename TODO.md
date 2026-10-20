@@ -16,8 +16,10 @@ Priority: **P0** blocks the next milestone · **P1** is needed for 1.0 · **P2**
 - [ ] **T-0.4 P1** MSYS2 UCRT64 (gcc, sdl3, vulkan-loader, lld): build unmodified sal063 against one homebrew ELF to get a known-good baseline.
 - [x] **T-0.5 P0** Get the PPSSPP desktop build and `PPSSPPHeadless.exe`. Confirm KZL boots there and capture a reference log.
   *Desktop 1.20.4 (official zip, SHA-256 checked) in `D:\Tools\PPSSPP-1.20.4`; PPSSPPHeadless built from the v1.20.4 tag in `D:\Github\ppsspp` (`Windows\x64\Release\PPSSPPHeadless.exe`). Both boot KZL (F-047).*
-- [ ] **T-0.6 P1** Add `LICENSE` (GPL-2.0-or-later), `CREDITS.md` (PPSSPP, sal063) and a README stating that the user supplies the game.
-- [ ] **T-0.7 P1** CI skeleton (GitHub Actions, windows-latest): run the Python tools' unit tests and do a compile-only build of the runtime without game code.
+- [x] **T-0.6 P1** Add `LICENSE` (GPL-2.0-or-later), `CREDITS.md` (PPSSPP, sal063) and a README stating that the user supplies the game.
+  *Done 2026-10-20: root GPL-2.0-or-later license and attribution now cover the psp-recomp/PPSSPP relationship, standalone LGPL ATRAC decoder, SDL3 and platform tools. The README identifies the one supported disc by size/SHA-1, explicitly excludes every game payload/generated source, and documents extraction, D3D12 build/run, input config, public verification and project status (F-083).*
+- [x] **T-0.7 P1** CI skeleton (GitHub Actions, windows-latest): run the Python tools' unit tests and do a compile-only build of the runtime without game code.
+  *Done 2026-10-20: `KZL_RUNTIME_ONLY=ON` skips generated-source discovery and compiles all redistributable runtime/decoder sources into `kzl_runtime_compile`. Public Windows CI runs 16 synthetic Python tests and a clean clang-cl/Ninja runtime-only build with recursive submodules; actionlint validates both workflows with the protected runner label declared (F-083).*
 
 ## Phase 1 — Extraction and static analysis
 - [x] **T-1.1 P0** `tools/kzl/extract.py`: check the ISO SHA-1 (F-001), then pull out KZL.PRX, BOOT.BIN, PARAM.SFO and the PSP.DAT header. Built from `tools/survey/isols.py`.

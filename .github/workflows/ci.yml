@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  runtime-and-tools:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Run Python tool tests
+        shell: pwsh
+        run: >-
+          python -m unittest
+          tools\tests\test_calltargets.py
+          tools\tests\test_golden_frames.py
+          external\psp-recomp\tools\tests\test_ppmdiff.py
+
+      - name: Configure runtime-only build
+        shell: pwsh
+        run: |
+          cmake -S . -B out\build\runtime-only -G Ninja `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DCMAKE_C_COMPILER=clang-cl `
+            -DCMAKE_CXX_COMPILER=clang-cl `
+            -DKZL_RUNTIME_ONLY=ON `
+            -DBUILD_TESTING=OFF
+
+      - name: Compile redistributable runtime
+        shell: pwsh
+        run: cmake --build out\build\runtime-only --target kzl_runtime_compile

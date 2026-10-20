@@ -1200,6 +1200,25 @@ resync and capacity boundaries without requiring audio hardware.
 - **Impact:** T-5.6 and Phase 5 are complete. Audio, video and input now use native, measured paths with deterministic
   no-device alternatives for automation.
 
+### F-083 Public CI must stop before the copyrighted game boundary — Confirmed
+The original root configure unconditionally globbed `build/kzl/gen` and failed if translated game C was absent.
+That made even a compile-only runtime check depend on a user's ISO-derived output, which cannot exist on a public
+GitHub-hosted runner. `KZL_RUNTIME_ONLY=ON` now skips that discovery and `kzl_game`, but still compiles every
+redistributable runtime source plus the complete standalone ATRAC decoder into a static library. Pointing
+`KZL_GEN_DIR` at a deliberately nonexistent path still produced all 34 runtime/decoder objects and the archive.
+
+The public workflow can therefore exercise a real Windows clang-cl/Ninja compile without protected inputs. It
+also runs 16 synthetic Python tests for call-target parsing, golden manifests/comparison and pixel diffs. The
+existing self-hosted workflow remains the only job allowed to consume an ISO, generated image, savedata templates,
+PPSSPP executable or SDL/DXC machine paths. Both workflows pass actionlint after declaring the private
+`kzl-golden` runner label.
+
+Root licensing/docs now make the same boundary explicit: only UCUS-98646 v1.20 with the pinned size/SHA-1 is
+supported, all game/generated payloads are user supplied and ignored, and the GPL/LGPL provenance is linked from
+the build instructions.
+- **Impact:** T-0.6 and T-0.7 are complete. Pull requests can validate tools and runtime compilation publicly
+  without weakening content hygiene or pretending generated game code is redistributable.
+
 ---
 
 ## D. Assets and content

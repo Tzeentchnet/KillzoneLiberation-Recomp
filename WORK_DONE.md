@@ -5,6 +5,19 @@ findings or tasks it touched. Items move here from [TODO.md](TODO.md) when they 
 
 ---
 
+## 2026-10-20 — Session 3l: root licensing, user build guide and public CI (T-0.6, T-0.7)
+- Added the root GPL-2.0-or-later license and project credits covering sal063's recompiler, the pinned runtime fork,
+  PPSSPP-derived behavior, the separately licensed standalone FFmpeg ATRAC decoder, SDL3 and Windows SDK tooling.
+  The documents explicitly exclude the ISO, executable, generated C, assets, saves and Chapter 5 payload.
+- Added a root README with the supported UCUS-98646 v1.20 size/SHA-1, prerequisites, verified extraction/codegen,
+  D3D12 configure/build/run commands, input configuration, project status, repository layout and public test path.
+- Added `KZL_RUNTIME_ONLY=ON`. It bypasses generated-game discovery and the `kzl_game` target, then compiles every
+  redistributable C/C++ runtime and decoder source into `kzl_runtime_compile`; a clean build passed while
+  `KZL_GEN_DIR` pointed at a nonexistent directory.
+- Added `.github/workflows/ci.yml`: recursive checkout, Python 3.12, 16 synthetic tool tests, VS x64 environment,
+  clang-cl/Ninja runtime-only configure and compile on `windows-latest`. Added actionlint's declared
+  `kzl-golden` runner label; actionlint passes both public and protected workflows. → F-083
+
 ## 2026-10-20 — Session 3k: XAudio2 backend and measured latency (T-5.6, Phase 5 complete)
 - Selected XAudio2 2.9 over SDL audio: it is native to all supported Windows builds and does not make the
   GDI/headless runtime depend on SDL3. Replaced waveOut's four 1,024-frame blocks (92.88 ms device queue) with four

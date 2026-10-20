@@ -13,6 +13,10 @@ set(KZL_GEN_DIR "${CMAKE_SOURCE_DIR}/build/kzl/gen" CACHE PATH "Directory writte
 set(PSP_RECOMP_DIR "${CMAKE_SOURCE_DIR}/external/psp-recomp" CACHE PATH "sal063 fork (submodule)")
 
 option(KZL_ENABLE_D3D12 "Build the SDL3/D3D12 backend" OFF)
+option(KZL_RUNTIME_ONLY "Compile the redistributable runtime without generated game code" OFF)
+if(KZL_RUNTIME_ONLY AND KZL_ENABLE_D3D12)
+  message(FATAL_ERROR "KZL_RUNTIME_ONLY currently supports the dependency-free Windows runtime only")
+endif()
 if(KZL_ENABLE_D3D12)
   if(NOT WIN32)
     message(FATAL_ERROR "KZL_ENABLE_D3D12 requires Windows")
@@ -34,16 +38,7 @@ if(KZL_ENABLE_D3D12)
     VERBATIM)
 endif()
 
-file(GLOB KZL_GEN_SRCS CONFIGURE_DEPENDS
-     "${KZL_GEN_DIR}/kzl_recomp_[0-9][0-9][0-9].c"
-     "${KZL_GEN_DIR}/kzl_recomp_register.c")
-if(NOT KZL_GEN_SRCS)
-  message(FATAL_ERROR "No generated code in ${KZL_GEN_DIR}. Run tools/kzl/extract.py <ISO> and tools/kzl/gen.py first.")
-endif()
-list(LENGTH KZL_GEN_SRCS _n)
-message(STATUS "KZL generated translation units: ${_n}")
-
-if(CMAKE_C_COMPILER_ID STREQUAL "MSVC")
+if(NOT KZL_RUNTIME_ONLY AND CMAKE_C_COMPILER_ID STREQUAL "MSVC")
   message(FATAL_ERROR "MSVC cl cannot compile the generated GNU C; configure with clang-cl (preset 'clang-cl').")
 endif()
 if(CMAKE_C_SIMULATE_ID STREQUAL "MSVC")
@@ -55,15 +50,30 @@ if(CMAKE_C_SIMULATE_ID STREQUAL "MSVC")
   set(CMAKE_AR "${KZL_LLVM_LIB}")
 endif()
 
-# Recompiled game code. Float behaviour must match the PSP: no FMA contraction, no fast-math (F-013).
-add_library(kzl_game STATIC ${KZL_GEN_SRCS})
-target_include_directories(kzl_game PRIVATE "${PSP_RECOMP_DIR}/src/rt" "${KZL_GEN_DIR}")
 if(CMAKE_C_SIMULATE_ID STREQUAL "MSVC")  # clang-cl
   set(KZL_FP_FLAGS /fp:precise /clang:-ffp-contract=off /clang:-fno-strict-aliasing)
-  target_compile_options(kzl_game PRIVATE /W3 ${KZL_FP_FLAGS})
 else()
   set(KZL_FP_FLAGS -ffp-contract=off -fno-strict-aliasing)
-  target_compile_options(kzl_game PRIVATE -Wall -Wno-unused-label ${KZL_FP_FLAGS})
+endif()
+
+if(NOT KZL_RUNTIME_ONLY)
+  file(GLOB KZL_GEN_SRCS CONFIGURE_DEPENDS
+       "${KZL_GEN_DIR}/kzl_recomp_[0-9][0-9][0-9].c"
+       "${KZL_GEN_DIR}/kzl_recomp_register.c")
+  if(NOT KZL_GEN_SRCS)
+    message(FATAL_ERROR "No generated code in ${KZL_GEN_DIR}. Run tools/kzl/extract.py <ISO> and tools/kzl/gen.py first.")
+  endif()
+  list(LENGTH KZL_GEN_SRCS _n)
+  message(STATUS "KZL generated translation units: ${_n}")
+
+  # Recompiled game code. Float behaviour must match the PSP: no FMA contraction, no fast-math (F-013).
+  add_library(kzl_game STATIC ${KZL_GEN_SRCS})
+  target_include_directories(kzl_game PRIVATE "${PSP_RECOMP_DIR}/src/rt" "${KZL_GEN_DIR}")
+  if(CMAKE_C_SIMULATE_ID STREQUAL "MSVC")
+    target_compile_options(kzl_game PRIVATE /W3 ${KZL_FP_FLAGS})
+  else()
+    target_compile_options(kzl_game PRIVATE -Wall -Wno-unused-label ${KZL_FP_FLAGS})
+  endif()
 endif()
 
 # sal063 runtime (HLE kernel, scheduler, ISO, media, GDI window, software GE) plus its
@@ -111,6 +121,20 @@ if(KZL_ENABLE_D3D12)
     ${RT}/gpu_d3d12/texture.cpp
     ${RT}/gpu_d3d12/texture_key.cpp
     ${RT}/gpu_d3d12/vertex.cpp)
+endif()
+
+if(KZL_RUNTIME_ONLY)
+  add_library(kzl_runtime_compile STATIC ${KZL_RUNTIME_SRCS})
+  add_dependencies(kzl_runtime_compile kzl_at3)
+  target_include_directories(kzl_runtime_compile PRIVATE "${RT}")
+  target_compile_definitions(kzl_runtime_compile PRIVATE _CRT_SECURE_NO_WARNINGS)
+  target_compile_features(kzl_runtime_compile PRIVATE cxx_std_17)
+  if(MSVC)
+    target_compile_options(kzl_runtime_compile PRIVATE /W3 ${KZL_FP_FLAGS})
+  else()
+    target_compile_options(kzl_runtime_compile PRIVATE -Wall -Wextra ${KZL_FP_FLAGS})
+  endif()
+  return()
 endif()
 
 function(kzl_configure_runtime_target target)
