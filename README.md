@@ -109,6 +109,7 @@ python -m unittest `
   tools\tests\test_calltargets.py `
   tools\tests\test_content_audit.py `
   tools\tests\test_golden_frames.py `
+  tools\tests\test_source_bundle.py `
   external\psp-recomp\tools\tests\test_ppmdiff.py
 python tools\kzl\content_audit.py
 ```
@@ -133,3 +134,14 @@ are documented in [CREDITS.md](CREDITS.md) and
 [external/psp-recomp/CREDITS.md](external/psp-recomp/CREDITS.md).
 
 The license covers this project's source, not the original game or its assets.
+Every `v*` tag is published with a deterministic corresponding-source zip
+containing the parent tree and the exact pinned `external/psp-recomp` tree.
+The release job refuses dirty or mismatched trees and runs the content audit
+before publishing. Build the same archive locally from a clean checkout with:
+
+```powershell
+python tools\kzl\source_bundle.py --version v1.0.0
+```
+
+No redistributable game executable is currently published: generated game code
+and the required game data remain user-supplied and outside this repository.

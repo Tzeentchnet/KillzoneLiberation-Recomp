@@ -1,0 +1,47 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build corresponding-source bundle
+        id: source
+        shell: pwsh
+        run: |
+          $bundle = "dist\KillzoneLiberation-Recomp-${{ github.ref_name }}-source.zip"
+          python tools\kzl\source_bundle.py `
+            --version "${{ github.ref_name }}" `
+            --output $bundle
+          if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+          }
+          "bundle=$bundle" >> $env:GITHUB_OUTPUT
+
+      - name: Publish release with corresponding source
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ steps.source.outputs.bundle }}
+          fail_on_unmatched_files: true
+          generate_release_notes: true

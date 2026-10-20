@@ -39,6 +39,7 @@ jobs:
           tools\tests\test_calltargets.py
           tools\tests\test_content_audit.py
           tools\tests\test_golden_frames.py
+          tools\tests\test_source_bundle.py
           external\psp-recomp\tools\tests\test_ppmdiff.py
 
       - name: Audit tracked content

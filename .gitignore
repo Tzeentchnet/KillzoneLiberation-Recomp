@@ -21,6 +21,7 @@ CHAPTER5.BIN
 # Build output
 /build/
 /out/
+/dist/
 *.obj
 *.o
 *.pdb
