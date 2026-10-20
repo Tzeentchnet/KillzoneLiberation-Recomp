@@ -5,6 +5,29 @@ findings or tasks it touched. Items move here from [TODO.md](TODO.md) when they 
 
 ---
 
+## 2026-10-19 — Session 2w: D3D12 texture cache (T-4.8)
+- Extended the shared GE state and authoritative software decoder from one level of direct/CLUT4/CLUT8 input to
+  all eight PSP mip descriptors and every texture format: 5650, 5551, 4444, 8888, CLUT4/8/16/32, and the PSP
+  byte layouts of DXT1/3/5. Swizzling, PSP buffer-width alignment, DXT endpoint/alpha rules, palette
+  shift/mask/start selection, and shared versus per-level CLUT offsets now have focused coverage.
+- Added canonical 96-byte texture and 8-byte sampler keys. Resource identity includes all valid mip addresses,
+  aligned strides, dimensions, format/swizzle state, CLUT mode, and the complete selected palette, while filter,
+  wrap, and signed LOD bias remain independently reusable sampler state. Illegal mip tails are discarded before
+  D3D12 resource creation.
+- Added a 512-slot content-versioned D3D12 cache with serial-protected handles, decoded RGBA8 staging, real
+  default-heap mip resources, upload copies, SRV/sampler descriptor reuse, a 64 MiB pending-data ceiling, and
+  queue-safe 128-entry LRU eviction. Quick hashes keep repeated primitive capture cheap; each live texture is
+  fully verified once per presented frame, and dirty entries are always fully rechecked.
+- Primitive batches retain the texture handle and sampler snapshot captured with their GE state. CPU, DMA, and
+  block-transfer dirty ranges invalidate every overlapping mip, while `TEXFLUSH` remains a synchronization hint
+  rather than falsely destroying content identity. The upload ring is now 32 MiB per fenced frame to cover
+  decoded textures plus vertices and display data.
+- Added format, swizzle, DXT, CLUT, mip-register, alignment, byte-range, sampler, content-key, and block-transfer
+  invalidation tests. Default/D3D12 clang-cl builds and CTests, Make and shader checks, and strict MinGW builds
+  pass. Hardware and WARP create and bind identical entries; a graceful hardware run records 4,608 lookups,
+  4,572 hits, 36 uploads, 18 invalidations, and zero evictions or failures, and the final 1,200-frame hardware
+  stress completes without D3D12 errors or cache exhaustion. T-4.8 is complete. → F-068
+
 ## 2026-10-19 — Session 2v: D3D12 aspect-correct presentation (T-4.7)
 - Replaced the direct upload-to-swapchain copy with a persistent 480×272 BGRA8 display texture and a dedicated
   one-SRV present root signature, static linear-clamp sampler, and fullscreen-triangle PSO. Two new strict SM 6.0

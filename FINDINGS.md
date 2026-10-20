@@ -797,6 +797,42 @@ reports no resize, resource-state, presentation, or D3D12 device error.
 - **Impact:** T-4.7 is complete. The swapchain is now presentation-only and can retain this stable aspect-correct
   path when T-4.8/T-4.9 replace the software framebuffer source with native cached render targets.
 
+### F-068 PSP texture identity requires metadata, palette state, and immutable content versions — Confirmed
+PSP texture addresses are mutable views into RAM/VRAM, not durable resource identities. The same address can be
+redrawn after its bytes or palette change, while two draws with identical encoded content should reuse one D3D12
+resource. The cache therefore separates a canonical metadata key from encoded-content hashes. Its 96-byte
+texture key includes eight addresses, PSP-aligned buffer widths, dimensions, format, swizzle mode, the legal mip
+count, CLUT format/sharing state, and a full hash of the selected palette. Filter, wrap, mip filtering, and signed
+sixteenth-level LOD bias form a separate 8-byte sampler key so sampling changes do not duplicate texture memory.
+
+The shared GE decoder remains the source of truth rather than a D3D12-specific implementation. It now decodes
+5650, 5551, 4444, 8888, CLUT4/8/16/32, and PSP-layout DXT1/3/5 at any of eight levels. PSP DXT blocks reverse the
+usual PC member order. Separate mip palettes advance by 16 entries for CLUT4 and alternate 256-entry banks for
+16-bit CLUT8; CLUT16/32 do not add a level offset. Buffer widths obey the PSP's format-specific masks, with a
+masked zero selecting the minimum 16-byte row. Mip tails are accepted only while registered dimensions halve
+correctly, and are capped to the number D3D12 can represent down to 1×1.
+
+Each cache miss creates an immutable content version. Captured batches hold serial-protected handles, so a later
+write can create a new version without changing an earlier draw's texture. Small inputs are fully hashed on every
+lookup. Large inputs use a distributed quick hash during primitive capture, then receive one full verification
+per texture per presented frame; explicit invalidation always forces full verification. This catches unsignaled
+between-frame RAM changes without rescanning a 512×512 texture for every primitive.
+
+The fixed 512-slot cache owns decoded RGBA8 staging and default-heap mip resources. Pending decoded data is
+bounded to 64 MiB, upload footprints are row-pitch aligned, and unique texture/sampler descriptors are reused
+within each fenced frame. When full, the backend waits for the graphics queue and retires the 128 least-recently
+used versions. CPU, DMA, and `TRXKICK` dirty spans invalidate every overlapping mip range. `TEXFLUSH` deliberately
+does not invalidate content: observed command streams issue it frequently without changing bytes, and treating
+it as a write created duplicate identical versions.
+
+Focused tests cover every format, swizzling, DXT interpolation and alpha, shared/separate palettes, mip
+registers, PSP row alignment, byte ranges, sampler mapping, key sensitivity, and block-transfer notification.
+Hardware and WARP produce identical keys and full hashes in ten-frame boots. A graceful hardware run records
+4,608 lookups, 4,572 hits, 36 misses/uploads, 18 invalidations, zero evictions, and no D3D12 failures. A separate
+1,200-frame hardware run completes without cache exhaustion or device errors.
+- **Impact:** T-4.8 is complete. Native draw submission can bind stable texture resources while T-4.9 adds
+  GPU-resident framebuffer aliases and render-to-texture transitions over the same dirty-range model.
+
 ---
 
 ## D. Assets and content

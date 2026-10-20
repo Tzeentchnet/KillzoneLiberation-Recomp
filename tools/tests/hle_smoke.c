@@ -93,6 +93,21 @@ static void test_ge_backend_interface(void) {
     sr_gpu_vram_dirty(0x04012340u, 0x800u);
     check_u32("GE backend dirty address", backend_dirty_addr, 0x04012340u);
     check_u32("GE backend dirty size", backend_dirty_bytes, 0x800u);
+
+    backend_dirty_addr = 0;
+    backend_dirty_bytes = 0;
+    ge_execute_op(0xb2001000u, 0);
+    ge_execute_op(0xb3040008u, 0);
+    ge_execute_op(0xb4002000u, 0);
+    ge_execute_op(0xb5040008u, 0);
+    ge_execute_op(0xeb000401u, 0);
+    ge_execute_op(0xec000402u, 0);
+    ge_execute_op(0xee000402u, 0);
+    ge_execute_op(0xea000000u, 0);
+    check_u32("GE block-transfer dirty address",
+              backend_dirty_addr, 0x04002014u);
+    check_u32("GE block-transfer dirty size", backend_dirty_bytes, 22);
+
     ge_set_backend(NULL);
     if (ge_backend_get() != NULL) {
         fprintf(stderr, "FAIL: GE software fallback did not clear the backend\n");
@@ -247,6 +262,167 @@ static void test_ge_decoded_vertex_boundary(void) {
         check_u32("decoded color alpha", (uint32_t)backend_triangle[0].a, 255);
     }
     ge_set_backend(NULL);
+}
+
+static void set_texture_level(GeState *state, int level, uint32_t address,
+                              uint32_t stride, int width, int height) {
+    state->tex_addr_levels[level] = address;
+    state->tex_bufw_levels[level] = stride;
+    state->tex_width_levels[level] = width;
+    state->tex_height_levels[level] = height;
+    if (level == 0) {
+        state->tex_addr = address;
+        state->tex_bufw = stride;
+        state->tex_w = width;
+        state->tex_h = height;
+    }
+}
+
+static void set_clut8888(GeState *state, uint32_t index, uint32_t color) {
+    memcpy(&state->clutram[(index * 4) & 2047], &color, sizeof(color));
+}
+
+static void test_ge_texture_decode(void) {
+    const uint32_t texture_addr = 0x08822000u;
+    GeState *state = ge_state_ptr();
+    uint32_t pixels[16 * 8];
+
+    memset(state, 0, sizeof(*state));
+    set_texture_level(state, 0, texture_addr, 4, 4, 1);
+    state->tex_fmt = 0;
+    MEM_W16(texture_addr + 0, 0x001fu);
+    MEM_W16(texture_addr + 2, 0x07e0u);
+    MEM_W16(texture_addr + 4, 0xf800u);
+    MEM_W16(texture_addr + 6, 0xffffu);
+    ge_decode_tex_rgba(pixels);
+    check_u32("texture 565 red", pixels[0], 0xff0000ffu);
+    check_u32("texture 565 green", pixels[1], 0xff00ff00u);
+    check_u32("texture 565 blue", pixels[2], 0xffff0000u);
+    check_u32("texture 565 white", pixels[3], 0xffffffffu);
+
+    state->tex_fmt = 1;
+    MEM_W16(texture_addr, 0xfc00u);
+    ge_decode_tex_rgba(pixels);
+    check_u32("texture 5551 blue alpha", pixels[0], 0xffff0000u);
+
+    state->tex_fmt = 2;
+    MEM_W16(texture_addr, 0x4321u);
+    ge_decode_tex_rgba(pixels);
+    check_u32("texture 4444 channels", pixels[0], 0x44332211u);
+
+    state->tex_fmt = 3;
+    MEM_W32(texture_addr, 0x44332211u);
+    ge_decode_tex_rgba(pixels);
+    check_u32("texture 8888 channels", pixels[0], 0x44332211u);
+
+    memset(state->clutram, 0, sizeof(state->clutram));
+    state->clut_fmt = 3u | (0xffu << 8);
+    set_clut8888(state, 1, 0x11223344u);
+    set_clut8888(state, 2, 0x55667788u);
+    state->tex_fmt = 4;
+    set_texture_level(state, 0, texture_addr, 2, 2, 1);
+    MEM_W8(texture_addr, 0x21u);
+    ge_decode_tex_rgba(pixels);
+    check_u32("texture CLUT4 low nibble", pixels[0], 0x11223344u);
+    check_u32("texture CLUT4 high nibble", pixels[1], 0x55667788u);
+
+    set_clut8888(state, 3, 0x89abcdefu);
+    state->tex_fmt = 5;
+    set_texture_level(state, 0, texture_addr, 1, 1, 1);
+    MEM_W8(texture_addr, 3);
+    ge_decode_tex_rgba(pixels);
+    check_u32("texture CLUT8", pixels[0], 0x89abcdefu);
+
+    set_clut8888(state, 4, 0x10203040u);
+    state->tex_fmt = 6;
+    state->clut_fmt = 3u | (8u << 2) | (0xffu << 8);
+    MEM_W16(texture_addr, 0x0400u);
+    ge_decode_tex_rgba(pixels);
+    check_u32("texture CLUT16 shifted index", pixels[0], 0x10203040u);
+
+    set_clut8888(state, 5, 0x50607080u);
+    state->tex_fmt = 7;
+    state->clut_fmt = 3u | (16u << 2) | (0xffu << 8);
+    MEM_W32(texture_addr, 0x00050000u);
+    ge_decode_tex_rgba(pixels);
+    check_u32("texture CLUT32 shifted index", pixels[0], 0x50607080u);
+
+    memset(SR_HOST(texture_addr), 0, 256);
+    state->tex_fmt = 3;
+    state->tex_swizzle = 1;
+    set_texture_level(state, 0, texture_addr, 16, 16, 8);
+    MEM_W32(texture_addr + 128, 0xa1b2c3d4u);
+    ge_decode_tex_rgba(pixels);
+    check_u32("texture swizzle second horizontal block", pixels[4], 0xa1b2c3d4u);
+
+    memset(SR_HOST(texture_addr), 0, 32);
+    state->tex_swizzle = 0;
+    state->tex_fmt = 8;
+    set_texture_level(state, 0, texture_addr, 4, 4, 4);
+    MEM_W8(texture_addr + 0, 0xe4u);
+    MEM_W16(texture_addr + 4, 0xf800u);
+    MEM_W16(texture_addr + 6, 0x001fu);
+    ge_decode_tex_rgba(pixels);
+    check_u32("texture DXT1 endpoint one", pixels[0], 0xff0000f8u);
+    check_u32("texture DXT1 endpoint two", pixels[1], 0xfff80000u);
+    check_u32("texture DXT1 interpolation one", pixels[2], 0xff5200a5u);
+    check_u32("texture DXT1 interpolation two", pixels[3], 0xffa50052u);
+
+    state->tex_fmt = 9;
+    MEM_W16(texture_addr + 8, 0x000au);
+    ge_decode_tex_rgba(pixels);
+    check_u32("texture DXT3 alpha", pixels[0], 0xa00000f8u);
+
+    state->tex_fmt = 10;
+    MEM_W32(texture_addr + 8, 7u);
+    MEM_W16(texture_addr + 12, 0);
+    MEM_W8(texture_addr + 14, 10);
+    MEM_W8(texture_addr + 15, 20);
+    ge_decode_tex_rgba(pixels);
+    check_u32("texture DXT5 explicit alpha", pixels[0], 0xff0000f8u);
+
+    memset(state->clutram, 0, sizeof(state->clutram));
+    state->tex_fmt = 4;
+    state->tex_mode = 0x100u;
+    state->clut_fmt = 3u | (0xffu << 8);
+    set_texture_level(state, 1, texture_addr + 0x100, 1, 1, 1);
+    set_clut8888(state, 1, 0x11111111u);
+    set_clut8888(state, 17, 0x22222222u);
+    MEM_W8(texture_addr + 0x100, 1);
+    ge_decode_tex_rgba_level(pixels, 1);
+    check_u32("texture per-level CLUT", pixels[0], 0x22222222u);
+
+    memset(state, 0, sizeof(*state));
+    ge_execute_op(0xa1812340u, 0);
+    ge_execute_op(0xa9080008u, 0);
+    ge_execute_op(0xb9000102u, 0);
+    ge_execute_op(0xc2020001u, 0);
+    check_u32("texture mip address register",
+              state->tex_addr_levels[1], 0x08812340u);
+    check_u32("texture mip stride register",
+              state->tex_bufw_levels[1], 8);
+    check_u32("texture mip width register",
+              (uint32_t)state->tex_width_levels[1], 4);
+    check_u32("texture mip height register",
+              (uint32_t)state->tex_height_levels[1], 2);
+    check_u32("texture max mip register", (uint32_t)state->tex_max_level, 2);
+    check_u32("texture swizzle register", (uint32_t)state->tex_swizzle, 1);
+
+    state->tex_fmt = 0;
+    state->tex_swizzle = 0;
+    set_texture_level(state, 0, texture_addr, 4, 4, 4);
+    check_u32("texture linear byte size",
+              (uint32_t)ge_texture_level_byte_size(state, 0), 64);
+    state->tex_fmt = 5;
+    state->tex_swizzle = 1;
+    set_texture_level(state, 0, texture_addr, 16, 16, 1);
+    check_u32("texture swizzled byte size",
+              (uint32_t)ge_texture_level_byte_size(state, 0), 128);
+    state->tex_fmt = 8;
+    state->tex_swizzle = 0;
+    set_texture_level(state, 0, texture_addr, 8, 8, 8);
+    check_u32("texture DXT1 byte size",
+              (uint32_t)ge_texture_level_byte_size(state, 0), 32);
 }
 
 static uint32_t hle_call(CpuState *cpu, uint32_t nid, uint32_t a0, uint32_t a1,
@@ -838,6 +1014,7 @@ int main(void) {
     CpuState cpu;
     test_ge_backend_interface();
     test_ge_decoded_vertex_boundary();
+    test_ge_texture_decode();
     test_default_vfs_root(&cpu, local_app_data);
     _putenv_s("SR_FSDIR", root);
     test_threadman(&cpu);
