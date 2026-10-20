@@ -14,11 +14,16 @@ storyboard, and C1M1 tutorial gameplay. See [PLAN.md](PLAN.md),
 ## You must supply the game
 
 No game disc, executable, generated game C, or game asset is distributed by
-this project. You must provide your own legally obtained dump of the supported
-US v1.20 disc:
+this project. You must provide your own legally obtained copy of the supported
+community-distributed US v1.20 image:
 
 - Size: `568,498,176` bytes
 - SHA-1: `5bc4fc8cd8d72c9c2e7c1c03a4325a29bed6e69a`
+
+This is **not** byte-identical to Redump's retail USA disc, which is
+581,632,000 bytes with SHA-1
+`dda1a72c28ccdd8ddd2f3cbfd2fa3188962b0458`. See
+[`research/kzl_provenance.txt`](research/kzl_provenance.txt).
 
 Extraction verifies that identity and the hashes of every required file.
 Do not upload or commit the ISO, PRX, `PSP.DAT`, generated C, savedata, or
@@ -118,6 +123,7 @@ python -m unittest `
   tools\tests\test_ghidra_symbols.py `
   tools\tests\test_homebrew_elf.py `
   tools\tests\test_knownfuncs.py `
+  tools\tests\test_provenance.py `
   tools\tests\test_scheduler_trace.py `
   tools\tests\test_source_bundle.py `
   tools\tests\test_svbrowser_io.py `

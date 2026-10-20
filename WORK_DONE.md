@@ -5,6 +5,19 @@ findings or tasks it touched. Items move here from [TODO.md](TODO.md) when they 
 
 ---
 
+## 2026-10-20 — Session 4a: distinguish community v1.20 from retail Redump (T-1.9)
+- Downloaded Redump's public PSP dat snapshot and located the retail USA entry: 581,632,000 bytes, CRC32
+  `a4f123eb`, MD5 `88d913fdf33172a3cfdb857b5c92be5b`, SHA-1
+  `dda1a72c28ccdd8ddd2f3cbfd2fa3188962b0458`.
+- The supported target is 13,133,824 bytes smaller and has SHA-1
+  `5bc4fc8cd8d72c9c2e7c1c03a4325a29bed6e69a`; it is not a Redump-identical retail disc.
+- Archive.org's public metadata for `killzone-liberation-v-1.20-us` exactly matches the supported filename,
+  size and SHA-1 and dates that upload to 2022-01-02. Local evidence adds PARAM.SFO 1.20, a plaintext v1.20 PRX
+  and embedded `KZL.PRX.100`.
+- Added a pinned `[provenance]` config section, public regression test, README warning and
+  `research/kzl_provenance.txt`. The project now accurately calls its input the community-distributed v1.20 image
+  while retaining exact hash enforcement and the user-supplied-content boundary. → F-100
+
 ## 2026-10-20 — Session 3z: KZL v1.00/v1.20 function matching (T-1.8)
 - Imported and relocation-aware analyzed `KZL.PRX.100` at 0x08804000 in the same ignored Ghidra project: 20,949
   functions versus 22,378 in v1.20.

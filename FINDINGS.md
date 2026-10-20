@@ -32,10 +32,10 @@ Raw data lives in [research/](research/). The scripts that produced it are in [t
 
 ### F-003 The game executable is not encrypted — Confirmed
 `KZL.PRX` and `KZL.PRX.100` are plain ELF files with full section headers, so no PRX decryption step is needed.
-That is unusual for a retail disc. The community-fixed v1.20 build (2022) shipped a decrypted 1.2 module, so this
-ISO may be that build (see the speedrun.com KZL guide).
-- **Impact:** the recompiler can read `KZL.PRX` directly. Before any team relies on the image, verify it against a
-  known-good dump (Redump) so everyone targets the same bytes.
+That is unusual because the target is not the retail Redump image. F-100 confirms it is the separately distributed
+v1.20 community image published in 2022.
+- **Impact:** the recompiler can read `KZL.PRX` directly, but documentation must identify the exact community image
+  rather than describe it as a retail dump.
 
 ### F-004 The bootloader can be skipped; it passes a placeholder argv — Confirmed
 BOOT.BIN is not thin: it imports sceHttp/sceSsl/sceNet\*, 15 sceUtility functions, sceGe and sceDisplay, plus an
@@ -1486,6 +1486,23 @@ The v1.20 PRX is 424,968 bytes larger (its relocated image grows 206,516 bytes),
 DME 3.0.15 / Medius 3.0.10 / RT 3.0 builds to DME 3.1.2 / Medius 3.1.1 / RT 3.01.200703171900.
 - **Impact:** T-1.8 is complete. Names can move between versions only through normalized content matches, and the
   patch's major functional additions are now bounded without assuming shifted addresses.
+
+### F-100 The supported v1.20 image is not the Redump retail USA disc — Confirmed
+Redump's public PSP dat snapshot lists retail USA Killzone: Liberation as:
+
+- 581,632,000 bytes
+- CRC32 `a4f123eb`
+- MD5 `88d913fdf33172a3cfdb857b5c92be5b`
+- SHA-1 `dda1a72c28ccdd8ddd2f3cbfd2fa3188962b0458`
+
+The project's target is 568,498,176 bytes and SHA-1
+`5bc4fc8cd8d72c9c2e7c1c03a4325a29bed6e69a`: 13,133,824 bytes smaller and not hash-equivalent. Public
+Archive.org metadata for `killzone-liberation-v-1.20-us`, uploaded 2022-01-02, exactly matches the supported
+filename, size and SHA-1. Locally it identifies itself as version 1.20, contains the older `KZL.PRX.100`, and ships
+the v1.20 KZL.PRX plaintext.
+- **Impact:** T-1.9 is complete. The exact supported input is a community-distributed v1.20 image, not a
+  known-good retail/Redump dump. Hash enforcement remains correct; every public/legal surface now states the
+  distinction so users do not mistake compatibility for retail provenance.
 
 ### F-098 The upstream pipeline requires a PRX-shaped homebrew, not only MIPS code — Confirmed
 A generic ET_EXEC containing `jr $ra; nop` passed the analyzer/codegen but failed the stock import step because it

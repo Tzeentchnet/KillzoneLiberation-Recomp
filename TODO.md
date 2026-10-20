@@ -37,7 +37,8 @@ Priority: **P0** blocks the next milestone · **P1** is needed for 1.0 · **P2**
 - [ ] **T-1.11 P2** Find the game's PSP.DAT reader (the function that opens `disc0:/PSP_GAME/USRDIR/PSP.DAT` and walks the TOC) and confirm which duplicate copy it picks. → F-020
 - [x] **T-1.8 P2** Function-match KZL.PRX against KZL.PRX.100 to carry names between versions and see what 1.20 changed.
   *Done 2026-10-20: both PRXs were relocation-aware Ghidra-analyzed at 0x08804000 (22,378 v1.20 functions, 20,949 v1.00). Immediate-normalized CityHash+size keys yielded 6,862 unique one-to-one matches covering 1,842,208 bytes; only 8 stayed at the same address, and 46 evidence-backed labels were applied to v1.00. v1.20 adds 424,968 PRX bytes / 206,516 relocated bytes, 1,429 Ghidra functions, 630 strings, and explicit Chapter 5/download support while upgrading DME/Medius/RT libraries from 3.0 to 3.1. Full evidence is in `research/kzl_version_match.txt` (F-099).*
-- [ ] **T-1.9 P2** Check the plaintext-PRX provenance against Redump / a known-good retail dump. → F-003
+- [x] **T-1.9 P2** Check the plaintext-PRX provenance against Redump / a known-good retail dump. → F-003
+  *Done 2026-10-20: Redump's retail USA image is 581,632,000 bytes / SHA-1 `dda1a72c28ccdd8ddd2f3cbfd2fa3188962b0458`; it differs by 13,133,824 bytes and hash from the supported 568,498,176-byte / `5bc4fc8c…e69a` target. Public Archive.org metadata exactly matches the latter under a separately uploaded “v1.20 US” item dated 2022-01-02. Combined with PARAM.SFO version 1.20, plaintext KZL.PRX and embedded KZL.PRX.100, the target is classified as the community-distributed v1.20 image, not a Redump retail dump. Config, README, tests and `research/kzl_provenance.txt` now state this explicitly (F-100).*
 
 ## Phase 2 — Recompiler completion
 - [x] **T-2.1 P0** Codegen: `bvf/bvt/bvfl/bvtl` (cop2 rs=8). 25 functions. → F-016

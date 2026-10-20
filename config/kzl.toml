@@ -8,6 +8,13 @@ version = "1.20"
 iso_size = 568498176
 iso_sha1 = "5bc4fc8cd8d72c9c2e7c1c03a4325a29bed6e69a"     # F-001
 
+[provenance]
+classification = "community-distributed-v1.20"
+archive_metadata = "https://archive.org/metadata/killzone-liberation-v-1.20-us"
+retail_redump_dat = "http://redump.org/datfile/psp/"
+retail_usa_size = 581632000
+retail_usa_sha1 = "dda1a72c28ccdd8ddd2f3cbfd2fa3188962b0458"
+
 # Files pulled out of the ISO by tools/kzl/extract.py, with their expected SHA-1.
 [disc.files]
 "PSP_GAME/USRDIR/KZL.PRX"         = "6928a1479430e79b5b8181a914f7fbb2f8e76b01"  # the game (plaintext PRX, F-003)

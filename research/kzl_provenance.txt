@@ -1,0 +1,41 @@
+# KZL target image provenance
+#
+# Verified: 2026-10-20
+
+[supported_image]
+label=Killzone Liberation v1.20 US
+size=568498176
+sha1=5bc4fc8cd8d72c9c2e7c1c03a4325a29bed6e69a
+param_disc_id=UCUS98646
+param_disc_version=1.20
+kzl_prx_sha1=6928a1479430e79b5b8181a914f7fbb2f8e76b01
+kzl_prx_format=plaintext ET_SCE_PRX
+embedded_v100_prx=true
+
+[public_metadata]
+source=https://archive.org/metadata/killzone-liberation-v-1.20-us
+item_public_date=2022-01-02
+item_filename=Killzone_Liberation_v1.20_US.ISO
+item_size=568498176
+item_sha1=5bc4fc8cd8d72c9c2e7c1c03a4325a29bed6e69a
+
+[redump_retail_usa]
+source=http://redump.org/datfile/psp/
+dat_snapshot=2026-06-13
+name=Killzone - Liberation (USA) (En,Fr,De,Es,It,Nl,Pl,Ru)
+size=581632000
+crc32=a4f123eb
+md5=88d913fdf33172a3cfdb857b5c92be5b
+sha1=dda1a72c28ccdd8ddd2f3cbfd2fa3188962b0458
+
+[comparison]
+size_delta_supported_minus_retail=-13133824
+sha1_equal=false
+redump_identical=false
+
+# Conclusion:
+# The supported target is the community-distributed v1.20 image published in
+# 2022, not a byte-identical Redump retail USA disc. The project intentionally
+# pins that image because every generated address and the plaintext v1.20 PRX
+# depend on it. Users must supply it themselves; no image or executable is
+# redistributed.
