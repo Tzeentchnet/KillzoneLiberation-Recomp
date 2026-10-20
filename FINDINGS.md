@@ -878,6 +878,46 @@ renderer until the remaining shader state is complete.
 - **Impact:** T-4.9 is complete. T-4.10 can make color/depth targets GPU-authoritative through native draws while
   retaining a tested identity, aliasing, presentation, copy, and CPU-coherency foundation.
 
+### F-070 PSP fragment state fits a 28-DWORD draw block, but complete stencil and dither need destination access — Confirmed
+The authoritative software GE now preserves the PSP fragment order: texture function and color doubling, alpha
+test, fog, masked RGB color test, stencil test, depth test/write, blending, dithering, and component write masks.
+Framebuffer alpha is stencil storage rather than ordinary source alpha. Normal draws therefore retain destination
+alpha, while clear mode can replace it. Stencil compares the masked reference against masked destination alpha,
+then applies independent test-fail, depth-fail, or depth-pass operations. The implementation covers keep, zero,
+replace, invert, saturating increment/decrement, alpha write masks, and the PSP's effective stencil precision:
+none in 5650, one bit in 5551, four bits in 4444, and eight bits in 8888.
+
+Depth testing now has separate verdict and write phases, so a depth failure can mutate stencil without
+incorrectly storing depth. D16 remains the native depth format and preserves all 65,536 PSP values; transform-mode
+fragments outside `minz`/`maxz` are discarded by the shader rather than clamped. Dithering uses the signed-nibble
+4×4 GE matrix after software blending for every framebuffer format, including clear-mode draws.
+
+Each captured D3D12 batch now owns a canonical 112-byte `b0` snapshot:
+- four configuration DWORDs for texture mode/flags, alpha test, and the 16-bit depth range;
+- texture-environment color, fog color, texture dimensions, and render-target alias offsets;
+- masked color-test state and complete stencil test/operation/write-mask/format state;
+- four packed signed dither rows.
+
+The root signature consequently grows from 16 to 28 constants, for a total cost of 30 root DWORDs including the
+two descriptor tables, still below D3D12's 64-DWORD limit. HLSL evaluates color test after fog and applies the
+ordered dither matrix. PSOs preserve destination alpha by default. The shader can directly represent the safe
+always-pass stencil depth-pass subset (zero or masked replace when every stored stencil bit is writable), because
+those results do not require reading the destination. Other stencil comparisons and fail/depth-fail/invert/
+increment/decrement operations require destination alpha; exact dithering also belongs after blending. Those
+operations will use the destination-aware shader/copy design already required by T-4.11 rather than a knowingly
+incorrect fixed-function approximation.
+
+Focused tests exercise pure comparison/operation rules and real sprite rasterization through the GE command
+path, including alpha preservation, all three stencil outcomes, partial masks, color-test ordering, depth
+preservation, and clear dithering. Default/D3D12 builds, CTests, Make/DXC verification, and strict MinGW pass.
+Hardware and WARP accept the expanded root signature and embedded DXIL; both produce the exact saved frame-10
+SHA-256 (`90AB1AE6...D3E7C3`). A graceful 120-vblank run reuses four PSOs across 39,214 lookups with no creation
+failure, records 39,200 texture lookups and 4,904 cached presentations, and drains normally; safe mode completes
+9,842 readbacks without error.
+- **Impact:** T-4.10 is complete at the current staged-native boundary. The batch ABI now carries every fragment
+  input, the software path is the exact oracle, and T-4.11 has an explicit requirement for destination-aware
+  stencil, blending, logic operations, and post-blend dithering before native draws become authoritative.
+
 ---
 
 ## D. Assets and content

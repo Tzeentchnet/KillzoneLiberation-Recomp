@@ -5,6 +5,35 @@ findings or tasks it touched. Items move here from [TODO.md](TODO.md) when they 
 
 ---
 
+## 2026-10-19 — Session 2y: D3D12 fragment and per-draw shader state (T-4.10)
+- Added shared color-test and stencil state decoding. The software GE evaluates masked RGB after fog, treats
+  destination framebuffer alpha as PSP stencil, preserves it during ordinary color draws, and applies stencil
+  fail, depth-fail, and depth-pass operations around a split depth-test/depth-write sequence. Zero, replace,
+  invert, saturating increment/decrement, per-format 5650/5551/4444/8888 precision, reference masks, and alpha
+  write masks are covered.
+- Corrected software fragment ordering and output behavior: alpha test remains before fog and color test;
+  stencil/depth follow both fragment tests; blending reads the source alpha but retains destination stencil;
+  dithering applies after blending for every framebuffer format and to clear-mode color writes. Dithered clears
+  bypass the solid-fill shortcut so the signed 4×4 pattern is retained.
+- Added a canonical 112-byte per-draw D3D12 constant block captured with each primitive batch. Its 28 DWORDs
+  carry texture function/format/filter flags, alpha test, D16 `minz`/`maxz`, texture-environment and fog colors,
+  texture dimensions and framebuffer-alias offsets, color/stencil state, and four packed signed dither rows.
+  The live root signature, default binding, and batch binding now use that exact ABI.
+- Extended the pixel shader with post-fog masked color test and signed ordered dithering. Normal PSOs no longer
+  overwrite framebuffer alpha. For the destination-independent stencil subset, an always-pass zero/replace
+  depth-pass operation can write alpha when every stored stencil bit is writable; other comparisons,
+  fail/depth-fail operations, invert/increment/decrement, partial 8888 masks, and exact post-blend dithering need
+  the same destination-aware shader path as T-4.11 blending/logic operations.
+- Added focused constant, flag, clear-state, PSO alpha-mask, command-decode, comparison, operation, and actual
+  sprite-raster tests. The raster tests prove normal alpha preservation, stencil fail/depth-fail/pass ordering,
+  partial write masks, color-test ordering, depth preservation, and clear dithering.
+- Default and D3D12 clang-cl targets/CTests, Make/DXC checks, and strict MinGW compilation pass. Final hardware
+  and WARP boots accept the expanded root signature and regenerated DXIL, and both frame-10 captures are
+  SHA-256 identical to the saved T-4.9 reference. A graceful 120-vblank run records 39,214 batch/PSO lookups,
+  four PSOs with no failures, 39,200 texture lookups, and 4,904 cached presentations; safe mode completes 9,842
+  GPU readbacks without failure. Native draw submission remains disabled; T-4.10 establishes the tested
+  fragment contract consumed by the destination-aware T-4.11 path. T-4.10 is complete. → F-070
+
 ## 2026-10-19 — Session 2x: D3D12 framebuffer cache and VRAM ownership (T-4.9)
 - Added canonical framebuffer and transfer metadata with physical-alias normalization, PSP stride defaults and
   limits, exact 512×272 VRAM bounds, byte-range overlap tests, and reversible 5650/5551/4444/8888 conversion to

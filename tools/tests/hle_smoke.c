@@ -89,6 +89,168 @@ static int test_backend_triangle(const GeVtx *a, const GeVtx *b,
     return 1;
 }
 
+static void test_ge_fragment_state(void) {
+    check_u32(
+        "color test masked equal",
+        (uint32_t)ge_color_test_pass(
+            2, 0x00332211u, 0x00ffff00u, 0x99, 0x22, 0x33),
+        1);
+    check_u32(
+        "color test masked not equal",
+        (uint32_t)ge_color_test_pass(
+            3, 0x00332211u, 0x00ffffffu, 0x99, 0x22, 0x33),
+        1);
+    check_u32(
+        "stencil reference less",
+        (uint32_t)ge_stencil_test_pass(
+            4u | (0x20u << 8) | (0xf0u << 16), 0x3fu),
+        1);
+    check_u32(
+        "stencil masked equal",
+        (uint32_t)ge_stencil_test_pass(
+            2u | (0x2fu << 8) | (0xf0u << 16), 0x20u),
+        1);
+    check_u32(
+        "stencil 8888 increment",
+        ge_stencil_apply(4, 3, 0x7f, 0), 0x80);
+    check_u32(
+        "stencil 8888 increment saturation",
+        ge_stencil_apply(4, 3, 0xff, 0), 0xff);
+    check_u32(
+        "stencil 8888 invert",
+        ge_stencil_apply(3, 3, 0x33, 0), 0xcc);
+    check_u32(
+        "stencil 4444 increment",
+        ge_stencil_apply(4, 2, 0xe0, 0), 0xf0);
+    check_u32(
+        "stencil 5551 decrement",
+        ge_stencil_apply(5, 1, 0xff, 0), 0);
+    check_u32(
+        "stencil replacement",
+        ge_stencil_apply(2, 3, 0x55, 0xa7), 0xa7);
+
+    ge_execute_op(0x27000001u, 0);
+    ge_execute_op(0xd8000003u, 0);
+    ge_execute_op(0xd9001122u, 0);
+    ge_execute_op(0xda00f0f0u, 0);
+    ge_execute_op(0x24000001u, 0);
+    ge_execute_op(0xdcaa5506u, 0);
+    ge_execute_op(0xdd030201u, 0);
+    GeState *state = ge_state_ptr();
+    check_u32(
+        "color test enable", (uint32_t)state->color_test_enable, 1);
+    check_u32("color test function", state->color_test, 3);
+    check_u32("color test reference", state->color_ref, 0x001122u);
+    check_u32("color test mask", state->color_test_mask, 0x00f0f0u);
+    check_u32(
+        "stencil test enable", (uint32_t)state->stencil_test_enable, 1);
+    check_u32("stencil test state", state->stencil_test, 0xaa5506u);
+    check_u32("stencil operation state", state->stencil_op, 0x030201u);
+    ge_execute_op(0x27000000u, 0);
+    ge_execute_op(0x24000000u, 0);
+}
+
+static void draw_test_sprite(
+    uint32_t vertex_addr, uint32_t color, uint16_t depth) {
+    for (uint32_t i = 0; i < 2; i++) {
+        uint32_t address = vertex_addr + i * 12u;
+        MEM_W32(address, color);
+        MEM_W16(address + 4, (uint16_t)(i * 2u));
+        MEM_W16(address + 6, (uint16_t)(i * 2u));
+        MEM_W16(address + 8, depth);
+        MEM_W16(address + 10, 0);
+    }
+    ge_execute_op(0x10080000u, 0);
+    ge_execute_op(0x01000000u | (vertex_addr & 0x00ffffffu), 0);
+    ge_execute_op(0x12000000u | (7u << 2) | (2u << 7) | (1u << 23), 0);
+    ge_execute_op(0x04060002u, 0);
+}
+
+static void test_ge_fragment_writes(void) {
+    const uint32_t framebuffer = 0x04018000u;
+    const uint32_t vertex_addr = 0x08818000u;
+    GeState *state = ge_state_ptr();
+    GeState saved = *state;
+    memset(state, 0, sizeof(*state));
+    state->fbp = framebuffer & 0x001fffffu;
+    state->fbw = 4;
+    state->fbfmt = 3;
+    state->scis_x2 = 3;
+    state->scis_y2 = 3;
+    state->minz = 0;
+    state->maxz = 65535;
+
+    MEM_W32(framebuffer, 0x55000000u);
+    draw_test_sprite(vertex_addr, 0xaa030201u, 50);
+    check_u32(
+        "normal draw preserves stencil alpha",
+        MEM_R32(framebuffer), 0x55030201u);
+
+    state->stencil_test_enable = 1;
+    state->stencil_test = 1u | (0x44u << 8) | (0xffu << 16);
+    state->stencil_op = 2u << 16;
+    draw_test_sprite(vertex_addr, 0xaa060504u, 50);
+    check_u32(
+        "stencil depth-pass replace",
+        MEM_R32(framebuffer), 0x44060504u);
+
+    state->ztest_enable = 1;
+    state->ztest = 4;
+    state->stencil_op = 3u << 8;
+    ge_zbuf_ptr()[0] = 10;
+    MEM_W32(framebuffer, 0x33090807u);
+    draw_test_sprite(vertex_addr, 0xaa0c0b0au, 50);
+    check_u32(
+        "stencil depth-fail invert",
+        MEM_R32(framebuffer), 0xcc090807u);
+    check_u32("depth fail preserves depth", ge_zbuf_ptr()[0], 10);
+
+    state->ztest_enable = 0;
+    state->stencil_test = 0;
+    state->stencil_op = 1;
+    MEM_W32(framebuffer, 0x77090807u);
+    draw_test_sprite(vertex_addr, 0xaa0c0b0au, 50);
+    check_u32(
+        "stencil test-fail zero",
+        MEM_R32(framebuffer), 0x00090807u);
+
+    state->color_test_enable = 1;
+    state->color_test = 0;
+    MEM_W32(framebuffer, 0x88090807u);
+    draw_test_sprite(vertex_addr, 0xaa0c0b0au, 50);
+    check_u32(
+        "color test precedes stencil",
+        MEM_R32(framebuffer), 0x88090807u);
+
+    state->color_test_enable = 0;
+    state->stencil_test = 1u | (0x3cu << 8) | (0xf0u << 16);
+    state->stencil_op = 2u << 16;
+    state->mask_alpha = 0x0f;
+    MEM_W32(framebuffer, 0xa5000000u);
+    draw_test_sprite(vertex_addr, 0xaa060504u, 50);
+    check_u32(
+        "partial stencil write mask",
+        MEM_R32(framebuffer), 0x35060504u);
+
+    memset(state, 0, sizeof(*state));
+    state->fbp = framebuffer & 0x001fffffu;
+    state->fbw = 4;
+    state->fbfmt = 3;
+    state->scis_x2 = 3;
+    state->scis_y2 = 3;
+    state->clear = 1;
+    state->clear_mode = 0x300;
+    state->dither_enable = 1;
+    state->dith[0][0] = 7;
+    MEM_W32(framebuffer, 0);
+    draw_test_sprite(vertex_addr, 0x80030201u, 50);
+    check_u32(
+        "clear applies dither before packing",
+        MEM_R32(framebuffer), 0x800a0908u);
+
+    *state = saved;
+}
+
 static void test_ge_backend_interface(void) {
     GeBackend backend;
     memset(&backend, 0, sizeof(backend));
@@ -101,6 +263,7 @@ static void test_ge_backend_interface(void) {
         fprintf(stderr, "FAIL: GE backend was registered before the interface test\n");
         failures++;
     }
+
     ge_set_backend(&backend);
     if (ge_backend_get() != &backend) {
         fprintf(stderr, "FAIL: GE backend registration did not round-trip\n");
@@ -1053,6 +1216,8 @@ int main(void) {
     sr_mem_init();
     CpuState cpu;
     test_ge_backend_interface();
+    test_ge_fragment_state();
+    test_ge_fragment_writes();
     test_ge_decoded_vertex_boundary();
     test_ge_texture_decode();
     test_default_vfs_root(&cpu, local_app_data);
