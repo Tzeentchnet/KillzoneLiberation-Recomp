@@ -5,6 +5,33 @@ findings or tasks it touched. Items move here from [TODO.md](TODO.md) when they 
 
 ---
 
+## 2026-10-19 — Session 2z: D3D12 destination-aware fragment path (T-4.11)
+- Added exact PSP blending to the shared software GE, including signed doubled-alpha factors, source/destination
+  and inverse-color factors, independent fixed colors, add/reverse-subtract/subtract, min/max/absolute-difference,
+  and the GE's integer term rounding. All 16 logic operations now run after blending and signed 4×4 dithering,
+  preserving framebuffer-alpha stencil. Clear mode and ordinary draws both honor native per-bit component masks;
+  stencil replacement correctly writes the unmasked reference after masked comparison.
+- Expanded each D3D12 batch's canonical shader state from 112 bytes/28 DWORDs to 160 bytes/40 DWORDs. The new
+  blocks carry complete blend, fixed-color, logic, framebuffer mask/format, clear, depth-test/write, and clamped
+  inclusive-to-exclusive scissor state. PSOs now disable fixed-function blending and use `ALWAYS` D16 writes so
+  the shader can reproduce PSP fragment ordering and return either the updated or preserved depth through
+  `SV_Depth`; only culling remains PSO-static.
+- Replaced the pixel shader's destination-independent subset with complete manual stencil/depth/blend/dither/
+  logic/native-pack processing. The root signature adds an ordered two-SRV `t2`/`t3` destination table alongside
+  `t0`/`t1`, for 43 of D3D12's 64 root DWORDs. Cached depth targets are `R16_TYPELESS` with `D16_UNORM` DSVs;
+  a reusable BGRA8 color snapshot and R16 depth snapshot provide prior-fragment values. A dedicated per-draw
+  snapshot/bind API and safe null defaults leave current native submission staged rather than double-rendering
+  over the authoritative software result.
+- Added `SR_D3D12_DESTINATION_SAFE=1` to exercise both resource copies and destination descriptor binding for
+  every staged batch. Pure blend/logic vectors, integrated sprite raster cases, raw stencil-reference replacement,
+  the 160-byte constant ABI, normalized PSOs, and invalid/clamped scissors have focused coverage.
+- Default and D3D12 clang-cl builds/CTests, Make/DXC checks, and strict MinGW compilation pass. Hardware and WARP
+  create the expanded root signature, typeless depth resources, destination SRVs, and rewritten pixel-shader PSO;
+  safe destination-copy boots complete without errors. The final RTX frame-10 capture remains byte-identical to
+  the saved reference at SHA-256 `90AB1AE6E95A03BA789B8D07B0AD407A6BA7644C2E9079B7F8F8F8DEB9D3E7C3`.
+  Native draw submission remains intentionally disabled until software raster suppression and GPU ownership are
+  switched together. T-4.11 is complete. → F-071
+
 ## 2026-10-19 — Session 2y: D3D12 fragment and per-draw shader state (T-4.10)
 - Added shared color-test and stencil state decoding. The software GE evaluates masked RGB after fog, treats
   destination framebuffer alpha as PSP stencil, preserves it during ordinary color draws, and applies stencil

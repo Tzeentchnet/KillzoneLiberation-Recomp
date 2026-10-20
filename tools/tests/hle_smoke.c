@@ -128,6 +128,41 @@ static void test_ge_fragment_state(void) {
     check_u32(
         "stencil replacement",
         ge_stencil_apply(2, 3, 0x55, 0xa7), 0xa7);
+    GeRgb blended = ge_blend_rgb(
+        2u | (3u << 4), 0, 0,
+        0x803296c8u, 0x55145064u);
+    check_u32("source-alpha blend red", (uint32_t)blended.r, 150);
+    check_u32("source-alpha blend green", (uint32_t)blended.g, 115);
+    check_u32("source-alpha blend blue", (uint32_t)blended.b, 35);
+    blended = ge_blend_rgb(
+        3u << 8, 0, 0, 0xff30c080u, 0xffa05040u);
+    check_u32("minimum blend red", (uint32_t)blended.r, 64);
+    check_u32("minimum blend green", (uint32_t)blended.g, 80);
+    check_u32("minimum blend blue", (uint32_t)blended.b, 48);
+    blended = ge_blend_rgb(
+        5u << 8, 0, 0, 0xff30c080u, 0xffa05040u);
+    check_u32("absolute-difference red", (uint32_t)blended.r, 64);
+    check_u32("absolute-difference green", (uint32_t)blended.g, 112);
+    check_u32("absolute-difference blue", (uint32_t)blended.b, 112);
+    blended = ge_blend_rgb(
+        7u | (10u << 4), 0, 0, 0xc8000064u, 0);
+    check_u32("signed doubled-alpha blend", (uint32_t)blended.r, (uint32_t)-57);
+    check_u32(
+        "logic xor",
+        ge_logic_apply(6, 0xaa0f3355u, 0x77f00ff0u),
+        0xaaff3ca5u);
+    check_u32(
+        "logic nor",
+        ge_logic_apply(8, 0xaa0f3355u, 0x77f00ff0u),
+        0xaa00c00au);
+    check_u32(
+        "logic noop",
+        ge_logic_apply(5, 0xaa0f3355u, 0x77f00ff0u),
+        0xaaf00ff0u);
+    check_u32(
+        "logic set",
+        ge_logic_apply(15, 0xaa0f3355u, 0x77f00ff0u),
+        0xaaffffffu);
 
     ge_execute_op(0x27000001u, 0);
     ge_execute_op(0xd8000003u, 0);
@@ -136,6 +171,8 @@ static void test_ge_fragment_state(void) {
     ge_execute_op(0x24000001u, 0);
     ge_execute_op(0xdcaa5506u, 0);
     ge_execute_op(0xdd030201u, 0);
+    ge_execute_op(0x28000001u, 0);
+    ge_execute_op(0xe6000006u, 0);
     GeState *state = ge_state_ptr();
     check_u32(
         "color test enable", (uint32_t)state->color_test_enable, 1);
@@ -146,8 +183,12 @@ static void test_ge_fragment_state(void) {
         "stencil test enable", (uint32_t)state->stencil_test_enable, 1);
     check_u32("stencil test state", state->stencil_test, 0xaa5506u);
     check_u32("stencil operation state", state->stencil_op, 0x030201u);
+    check_u32(
+        "logic operation enable", (uint32_t)state->logic_op_enable, 1);
+    check_u32("logic operation state", state->logic_op, 6);
     ge_execute_op(0x27000000u, 0);
     ge_execute_op(0x24000000u, 0);
+    ge_execute_op(0x28000000u, 0);
 }
 
 static void draw_test_sprite(
@@ -231,6 +272,39 @@ static void test_ge_fragment_writes(void) {
     check_u32(
         "partial stencil write mask",
         MEM_R32(framebuffer), 0x35060504u);
+    state->mask_alpha = 0;
+    MEM_W32(framebuffer, 0xa5000000u);
+    draw_test_sprite(vertex_addr, 0xaa060504u, 50);
+    check_u32(
+        "stencil replacement uses unmasked reference",
+        MEM_R32(framebuffer), 0x3c060504u);
+
+    memset(state, 0, sizeof(*state));
+    state->fbp = framebuffer & 0x001fffffu;
+    state->fbw = 4;
+    state->fbfmt = 3;
+    state->scis_x2 = 3;
+    state->scis_y2 = 3;
+    state->minz = 0;
+    state->maxz = 65535;
+    state->blend_enable = 1;
+    state->blend_mode = 2u | (3u << 4);
+    MEM_W32(framebuffer, 0x55145064u);
+    draw_test_sprite(vertex_addr, 0x803296c8u, 50);
+    check_u32(
+        "exact source-alpha raster blend",
+        MEM_R32(framebuffer), 0x55237396u);
+
+    state->blend_enable = 0;
+    state->logic_op_enable = 1;
+    state->logic_op = 6;
+    state->dither_enable = 1;
+    state->dith[0][0] = 1;
+    MEM_W32(framebuffer, 0x55f0f0f0u);
+    draw_test_sprite(vertex_addr, 0x800f0f0fu, 50);
+    check_u32(
+        "logic follows dither and preserves stencil",
+        MEM_R32(framebuffer), 0x55e0e0e0u);
 
     memset(state, 0, sizeof(*state));
     state->fbp = framebuffer & 0x001fffffu;

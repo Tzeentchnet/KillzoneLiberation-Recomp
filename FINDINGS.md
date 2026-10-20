@@ -918,6 +918,40 @@ failure, records 39,200 texture lookups and 4,904 cached presentations, and drai
   input, the software path is the exact oracle, and T-4.11 has an explicit requirement for destination-aware
   stencil, blending, logic operations, and post-blend dithering before native draws become authoritative.
 
+### F-071 Ordered per-batch snapshots provide exact PSP destination fragments without ROVs — Confirmed
+PSP blending cannot be represented exactly by ordinary D3D12 blend state. Its add/subtract equations use signed
+integer terms `((2 * color + 1) * (2 * abs(factor) + 1)) >> 10`; doubled inverse-alpha factors can be negative;
+min, max, and absolute-difference ignore configured factors; and source and destination fixed colors are
+independent. Logic operations occur after blending and dithering. Stencil is framebuffer alpha, with test-fail,
+depth-fail, and depth-pass mutations, while component masks apply to native 5650/5551/4444/8888 storage bits.
+The shared software GE now implements those rules as the authoritative oracle, including all 16 logic operations
+and raw-reference stencil replacement after masked comparison.
+
+Each captured batch is one ordered primitive, so D3D12 can obtain the exact previous destination without raster
+order views: copy that batch's cached BGRA8 color target and D16 depth target to reusable SRV snapshots before
+issuing its draw. The color/depth pair is bound at `t2`/`t3`; the shader evaluates stencil and depth, exact blend
+math, signed post-blend dithering, logic operations, native packing, and per-bit masks, then returns final color
+and either new or preserved `SV_Depth`. Cached depth resources are `R16_TYPELESS`, exposed as `D16_UNORM` DSVs
+and copied to an `R16_UNORM` SRV snapshot. The PSO disables fixed-function blending and uses depth `ALWAYS` with
+writes enabled, making the shader the single fragment-state authority.
+
+The canonical batch state is 160 bytes/40 DWORDs: the prior 28-DWORD texture/test/dither contract plus blend mode,
+both fixed colors, framebuffer write mask, logic operation, clear mode, depth state, and a clamped D3D12 scissor.
+The root signature adds a second two-entry SRV table, for 43 root DWORDs total. Safe null destination descriptors
+are bound at frame start. `SR_D3D12_DESTINATION_SAFE=1` invokes the new per-draw snapshot/bind API for every staged
+batch, allowing actual transition/copy/SRV validation while native draws remain disabled and the software GE
+remains authoritative; enabling replay now would render every primitive twice.
+
+Focused tests cover exact blend vectors, signed doubled-alpha factors, min/max/absolute-difference, all logic
+operations, logic-after-dither rasterization, raw stencil-reference writes, state capture, normalized PSOs, and
+inclusive/clamped scissors. Default and D3D12 builds/CTests, Make/DXC verification, and strict MinGW pass.
+Hardware and WARP accept the expanded signature, typeless depth/SRV resources, snapshots, and rewritten shader.
+An RTX destination-safe frame-10 capture remains byte-identical to the saved reference
+(`90AB1AE6E95A03BA789B8D07B0AD407A6BA7644C2E9079B7F8F8F8DEB9D3E7C3`).
+- **Impact:** T-4.11 completes the fragment-accuracy contract at the staged-native boundary. Future native
+  submission must call the destination snapshot API immediately before each ordered draw and suppress the
+  matching software rasterization in the same ownership transition.
+
 ---
 
 ## D. Assets and content
