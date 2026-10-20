@@ -5,6 +5,17 @@ findings or tasks it touched. Items move here from [TODO.md](TODO.md) when they 
 
 ---
 
+## 2026-10-20 — Session 3g: SRC audio and no-device microphone (T-5.2)
+- Registered KZL's three missing microphone imports. `sceAudioInputInitEx` resets one global request,
+  `sceAudioInput` validates its bounded mono range and fills it with deterministic silence without touching a host
+  capture device, and `sceAudioWaitInputEnd` preserves the requested sample-duration scheduler yield.
+- Added focused coverage for valid silence, buffer guards, zero-length capture, invalid sample rates/sizes/ranges,
+  repeated waits, and the already implemented Output2 channel's reserve, duplicate/error, length-change, output and
+  release behavior. HLE tests force no host playback device, so they remain deterministic.
+- Strict MinGW C11, default and D3D12 clang-cl builds, and both CTests pass. A fresh WARP run completed all 50
+  protected frames through C1M1, with the validated PPSSPP comparison again passing at a 5,130-pixel peak over
+  delta 64. → F-078
+
 ## 2026-10-20 — Session 3f: SAS envelopes, effects, noise and pause (T-5.1)
 - Replaced the 11 permissive SAS no-ops with PSP error contracts and persistent state. Voices now honor all four
   ADSR rates and curve modes, decode `SetSimpleADSR` bitfields, expose real envelope heights, retain key-off release

@@ -1097,6 +1097,21 @@ peaking at 5,130 pixels above channel delta 64 versus the 6,000-pixel gate.
 - **Impact:** T-5.1 is complete. KZL's ACX voices can now attack, sustain, pause, release and route effects without
   success-shaped no-ops or immediate key-off cuts.
 
+### F-078 KZL's microphone path can be deterministic without host capture — Confirmed
+KZL imports only `sceAudioInputInitEx`, nonblocking `sceAudioInput` and `sceAudioWaitInputEnd`. Its capture worker
+initializes a 24-byte parameter block, repeatedly requests 2,048 mono samples at 11,025 Hz, waits, and then filters
+the returned signed samples. The call results are not used to select a fallback, so a success-shaped no-op would
+leave stale guest memory and turn old data into microphone input.
+
+The runtime therefore models one global asynchronous request but deliberately opens no host recording device.
+Input validates the PSP user-memory range, bounded sample count and the supported 11,025/22,050/44,100 Hz rates,
+fills exactly the requested 16-bit mono span with zeroes, and returns the sample count. Wait consumes the pending
+request and yields for its sample duration; repeated waits return immediately. This keeps voice-chat code
+deterministic, prevents a tight capture loop from monopolising the scheduler, and makes the no-device policy
+explicit. The pre-existing Output2 SRC channel is unchanged but now has end-to-end reserve/output/change/release
+regression coverage.
+- **Impact:** T-5.2 is complete without microphone permissions, privacy exposure or host-device nondeterminism.
+
 ---
 
 ## D. Assets and content

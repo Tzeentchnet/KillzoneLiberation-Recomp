@@ -1353,6 +1353,76 @@ static void test_sas(CpuState *cpu) {
     check_u32("SAS room reverb output", (uint32_t)room_tail, 1);
 }
 
+static void test_audio_input(CpuState *cpu) {
+    const uint32_t params = 0x0881d000u;
+    const uint32_t buffer = 0x0881d100u;
+
+    for (uint32_t i = 0; i < 24; i++) MEM_W8(params + i, (uint8_t)(0xa0u + i));
+    check_u32("audio input init",
+              hle_call(cpu, 0xe926d3fbu, params, 0, 0, 0), 0);
+
+    MEM_W16(buffer - 2, 0x1234);
+    for (uint32_t i = 0; i < 64; i++) MEM_W16(buffer + i * 2, 0x7f7f);
+    MEM_W16(buffer + 128, 0x5678);
+    check_u32("audio input samples",
+              hle_call(cpu, 0x6d4bec68u, 64, 11025, buffer, 0), 64);
+    for (uint32_t i = 0; i < 64; i++) {
+        if (MEM_R16(buffer + i * 2) != 0) {
+            fail_u32("audio input silence", MEM_R16(buffer + i * 2), 0);
+            break;
+        }
+    }
+    check_u32("audio input prefix guard", MEM_R16(buffer - 2), 0x1234);
+    check_u32("audio input suffix guard", MEM_R16(buffer + 128), 0x5678);
+    check_u32("audio input wait",
+              hle_call(cpu, 0x87b2e651u, 0, 0, 0, 0), 0);
+    check_u32("audio input second wait",
+              hle_call(cpu, 0x87b2e651u, 0, 0, 0, 0), 0);
+
+    MEM_W16(buffer, 0x4321);
+    check_u32("audio input empty",
+              hle_call(cpu, 0x6d4bec68u, 0, 44100, buffer, 0), 0);
+    check_u32("audio input empty buffer", MEM_R16(buffer), 0x4321);
+    check_u32("audio input invalid rate",
+              hle_call(cpu, 0x6d4bec68u, 64, 8000, buffer, 0), 0xffffffffu);
+    check_u32("audio input invalid size",
+              hle_call(cpu, 0x6d4bec68u, 65536, 11025, buffer, 0), 0xffffffffu);
+    check_u32("audio input null buffer",
+              hle_call(cpu, 0x6d4bec68u, 64, 11025, 0, 0), 0xffffffffu);
+    check_u32("audio input crossing memory",
+              hle_call(cpu, 0x6d4bec68u, 64, 11025, 0x0bffffc0u, 0),
+              0xffffffffu);
+}
+
+static void test_audio_output2(CpuState *cpu) {
+    const uint32_t buffer = 0x0881e000u;
+
+    check_u32("audio output2 release unreserved",
+              hle_call(cpu, 0x43196845u, 0, 0, 0, 0), 0x80260008u);
+    check_u32("audio output2 short reserve",
+              hle_call(cpu, 0x01562ba3u, 16, 0, 0, 0), 0x80000104u);
+    check_u32("audio output2 long reserve",
+              hle_call(cpu, 0x01562ba3u, 4112, 0, 0, 0), 0x80000104u);
+    check_u32("audio output2 reserve",
+              hle_call(cpu, 0x01562ba3u, 64, 0, 0, 0), 0);
+    check_u32("audio output2 duplicate reserve",
+              hle_call(cpu, 0x01562ba3u, 64, 0, 0, 0), 0x80268002u);
+    check_u32("audio output2 invalid volume",
+              hle_call(cpu, 0x2d53f36eu, 0x100000, buffer, 0, 0), 0x8026000bu);
+
+    clear_guest_audio(buffer, 96);
+    check_u32("audio output2 samples",
+              hle_call(cpu, 0x2d53f36eu, 0x8000, buffer, 0, 0), 64);
+    check_u32("audio output2 change length",
+              hle_call(cpu, 0x63f2889cu, 96, 0, 0, 0), 0);
+    check_u32("audio output2 changed samples",
+              hle_call(cpu, 0x2d53f36eu, 0x8000, buffer, 0, 0), 96);
+    check_u32("audio output2 release",
+              hle_call(cpu, 0x43196845u, 0, 0, 0, 0), 0);
+    check_u32("audio output2 output unreserved",
+              hle_call(cpu, 0x2d53f36eu, 0x8000, buffer, 0, 0), 0x80260008u);
+}
+
 static void test_threadman(CpuState *cpu) {
     const uint32_t name_addr = 0x08810000u;
     const uint32_t status_addr = 0x08811000u;
@@ -2001,6 +2071,7 @@ int main(void) {
              (unsigned long)GetCurrentProcessId());
     _putenv_s("LOCALAPPDATA", local_app_data);
     _putenv_s("SR_FSDIR", "");
+    _putenv_s("SR_NOAUDIO", "1");
 
     sr_mem_init();
     CpuState cpu;
@@ -2020,6 +2091,8 @@ int main(void) {
     test_utility_system_params(&cpu);
     test_atrac_reset_buffer_info(&cpu);
     test_sas(&cpu);
+    test_audio_input(&cpu);
+    test_audio_output2(&cpu);
     test_time(&cpu);
     test_io(&cpu, root);
     test_iso_directory(&cpu);

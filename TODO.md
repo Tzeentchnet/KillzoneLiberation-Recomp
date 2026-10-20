@@ -120,8 +120,8 @@ Priority: **P0** blocks the next milestone · **P1** is needed for 1.0 · **P2**
 ## Phase 5 — Audio, video, input
 - [x] **T-5.1 P0** SasCore gaps: ADSR (`SetADSR`, `SetADSRmode`, `SetSimpleADSR`, `SetSL`), reverb (`RevType`, `RevParam`, `RevEVOL`, `RevVON`), noise and pause. → F-031
   *Done 2026-10-20: the gate-only mixer now has PPSSPP-compatible per-sample ADSR state/rate/curve handling, simple-envelope decoding and release tails; pause masks freeze voices; noise voices use a deterministic frequency-divided LFSR; and dry/effect sends feed the nine PSX-style SAS reverb presets with validated type/parameter/volume controls. PSP error contracts, focused mixing tests, strict MinGW, default/D3D12 clang-cl builds, 2/2 CTests, and a protected 50-frame WARP gameplay capture all pass (F-077).*
-- [ ] **T-5.2 P0** sceAudio `Output2*` (SRC channel). Mic input stubbed to "no device".
-  *2026-10-19: `Output2Reserve/OutputBlocking/ChangeLength/Release` done (host mixer channel 8, F-053). Mic input (`sceAudioInput*`) still to do.*
+- [x] **T-5.2 P0** sceAudio `Output2*` (SRC channel). Mic input stubbed to "no device".
+  *Done 2026-10-20: the existing `Output2Reserve/OutputBlocking/ChangeLength/Release` path now has focused state/error/output coverage. `sceAudioInputInitEx`, nonblocking `sceAudioInput`, and `sceAudioWaitInputEnd` implement one bounded mono capture request without opening a host device: valid requests receive deterministic silence and retain sample-duration wait pacing; invalid sizes, rates and guest ranges fail explicitly. Strict MinGW, both clang-cl builds/CTests, and the protected 50-frame WARP path pass (F-078).*
 - [ ] **T-5.3 P1** Atrac3+ gaps: `GetInternalErrorInfo`. Confirm looping BGM.
   *2026-10-19: `sceAtracGetBufferInfoForResetting` now returns the fully resident-buffer contract with focused valid/error coverage; internal error reporting and looping-BGM confirmation remain.*
 - [ ] **T-5.4 P1** PMF movies (intro, attract, credits): `sceMpegAvcDecodeMode`, and check that Media Foundation decodes H.264 baseline at 480×272 with A/V sync.
