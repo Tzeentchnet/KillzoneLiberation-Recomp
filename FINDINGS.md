@@ -1360,6 +1360,23 @@ size.
 - **Impact:** T-2.11 is complete. The protected self-hosted job now gates scheduler/HLE/CPU state across three
   useful phases and retains only a non-copyrighted JSON summary.
 
+### F-092 One utility status variable is safe only with an explicit dialog type — Confirmed
+KZL imports complete MsgDialog, Netconf and GameSharing API quartets, but the runtime had only an unregistered
+message initializer sharing savedata's anonymous status. A global PSP utility slot is valid—only one utility
+dialog runs at once—but each GetStatus/Update/Shutdown must verify which type owns it or a multiplayer poll can
+advance a savedata/message operation.
+
+The shared slot now records Savedata, Message, Netconf or GameSharing and follows PPSSPP's five statuses.
+Message Update decodes the 572/580/708-byte ABI (`string` at 0x3C, options at 0x23C, button at 0x240), invokes a
+native Win32 message box when interactive, and writes the common result at 0x1C plus message result at 0x30.
+Yes/OK, No and Cancel map to PSP button values 1, 2 and 3. Noninteractive runs select the configured default.
+Netconf and GameSharing complete as canceled (`common.result=1`) so offline menu entries return instead of hanging.
+
+The remaining imported contracts are intentionally simple: Utility USB load/unload and AV unload succeed, while
+`GetSystemParamString(1)` returns the bounded nickname `shadow` and rejects a short buffer or unknown ID.
+- **Impact:** T-3.8 is complete. Every KZL utility import is registered, typed and testable; multiplayer utility
+  entries have deterministic offline exits and user-facing message dialogs use native host UI.
+
 ---
 
 ## D. Assets and content

@@ -5,6 +5,20 @@ findings or tasks it touched. Items move here from [TODO.md](TODO.md) when they 
 
 ---
 
+## 2026-10-20 — Session 3t: complete utility dialogs and module contracts (T-3.8)
+- Registered every missing KZL `sceUtility` import. Message dialogs now decode V1/V2/V3-compatible text/error
+  fields and yes/no, default-no, cancel and OK options; write common/message results and `buttonPressed`; and drive
+  the full INITIALIZE/RUNNING/FINISHED/SHUTDOWN/NONE status sequence.
+- Added a GUI-level Win32 message box parented to the GDI window when available (top-level for SDL presenters).
+  Headless runs and `SR_NO_DIALOGS=1` choose the PSP dialog's configured default without host UI.
+- Netconf and Game Sharing use distinct dialog types and deterministically finish with
+  `SCE_UTILITY_DIALOG_RESULT_CANCEL`, preserving an offline multiplayer exit path. Load/UnloadUsbModule and
+  UnloadAvModule return success; the existing `GetSystemParamString` nickname, short-buffer and invalid-ID contracts
+  are now regression-tested.
+- Focused HLE coverage checks every status/result/button transition and all module NIDs. Strict GCC with the
+  existing source-warning suppressions, runtime-only/default/D3D12 clang-cl builds, 7/7 and 8/8 CTests, 40 public
+  Python tests and the 211-file content audit pass. Fork `93455fb`. → F-092
+
 ## 2026-10-20 — Session 3s: protected multi-start scheduler trace gate (T-2.11)
 - Added deferred runtime traces: `--trace-start=<pc>` runs normally until the selected guest instruction,
   `SR_TRACE_STEPS` bounds output to 50 million, and exact completion writes `<trace>.done` before clean exit.

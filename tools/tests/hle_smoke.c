@@ -1499,6 +1499,105 @@ static void test_utility_system_params(CpuState *cpu) {
               hle_call(cpu, 0x34b78343u, 2, out_addr, 16, 0), 0x80110103u);
 }
 
+static void test_utility_dialogs(CpuState *cpu) {
+    const uint32_t param = 0x08812240u;
+    for (uint32_t i = 0; i < 708; i++) MEM_W8(param + i, 0);
+    MEM_W32(param, 580);
+    MEM_W32(param + 0x34, 1);
+    guest_string(param + 0x3c, "Proceed with the operation?");
+    MEM_W32(param + 0x23c, 0x110);
+    check_u32(
+        "message dialog init",
+        hle_call(cpu, 0x2ad8e239u, param, 0, 0, 0),
+        0);
+    check_u32(
+        "message dialog initialize status",
+        hle_call(cpu, 0x9a1c91d7u, 0, 0, 0, 0),
+        1);
+    check_u32(
+        "message dialog update",
+        hle_call(cpu, 0x95fc253bu, 1, 0, 0, 0),
+        0);
+    check_u32(
+        "message dialog finished status",
+        hle_call(cpu, 0x9a1c91d7u, 0, 0, 0, 0),
+        3);
+    check_u32("message dialog default no", MEM_R32(param + 0x240), 2);
+    check_u32("message dialog common result", MEM_R32(param + 0x1c), 0);
+    check_u32("message dialog result", MEM_R32(param + 0x30), 0);
+    check_u32(
+        "message dialog shutdown",
+        hle_call(cpu, 0x67af3428u, 0, 0, 0, 0),
+        0);
+    check_u32(
+        "message dialog shutdown status",
+        hle_call(cpu, 0x9a1c91d7u, 0, 0, 0, 0),
+        4);
+    check_u32(
+        "message dialog none status",
+        hle_call(cpu, 0x9a1c91d7u, 0, 0, 0, 0),
+        0);
+
+    MEM_W32(param + 0x1c, 0);
+    check_u32(
+        "netconf dialog init",
+        hle_call(cpu, 0x4db1e739u, param, 0, 0, 0),
+        0);
+    check_u32(
+        "netconf initialize status",
+        hle_call(cpu, 0x6332aa39u, 0, 0, 0, 0),
+        1);
+    check_u32(
+        "netconf cancel update",
+        hle_call(cpu, 0x91e70e35u, 1, 0, 0, 0),
+        0);
+    check_u32("netconf cancel result", MEM_R32(param + 0x1c), 1);
+    check_u32(
+        "netconf finished status",
+        hle_call(cpu, 0x6332aa39u, 0, 0, 0, 0),
+        3);
+    check_u32(
+        "netconf shutdown",
+        hle_call(cpu, 0xf88155f6u, 0, 0, 0, 0),
+        0);
+    check_u32(
+        "netconf shutdown status",
+        hle_call(cpu, 0x6332aa39u, 0, 0, 0, 0),
+        4);
+
+    MEM_W32(param + 0x1c, 0);
+    check_u32(
+        "game sharing dialog init",
+        hle_call(cpu, 0xc492f751u, param, 0, 0, 0),
+        0);
+    check_u32(
+        "game sharing initialize status",
+        hle_call(cpu, 0x946963f3u, 0, 0, 0, 0),
+        1);
+    check_u32(
+        "game sharing cancel update",
+        hle_call(cpu, 0x7853182du, 1, 0, 0, 0),
+        0);
+    check_u32("game sharing cancel result", MEM_R32(param + 0x1c), 1);
+    check_u32(
+        "game sharing shutdown",
+        hle_call(cpu, 0xefc6f80fu, 0, 0, 0, 0),
+        0);
+
+    check_u32(
+        "load USB module",
+        hle_call(cpu, 0x0d5bc6d2u, 1, 0, 0, 0),
+        0);
+    check_u32(
+        "unload USB module",
+        hle_call(cpu, 0xf64910f0u, 1, 0, 0, 0),
+        0);
+    check_u32(
+        "unload AV module",
+        hle_call(cpu, 0xf7d8d092u, 1, 0, 0, 0),
+        0);
+}
+
 static void test_atrac_reset_buffer_info(CpuState *cpu) {
     const uint32_t data_addr = 0x08812300u;
     const uint32_t info_addr = 0x08812400u;
@@ -2243,6 +2342,7 @@ int main(void) {
     _putenv_s("SR_FSDIR", root);
     test_threadman(&cpu);
     test_utility_system_params(&cpu);
+    test_utility_dialogs(&cpu);
     test_atrac_reset_buffer_info(&cpu);
     test_sas(&cpu);
     test_audio_input(&cpu);
