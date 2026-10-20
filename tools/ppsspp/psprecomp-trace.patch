@@ -1,11 +1,20 @@
 diff --git a/Core/HLE/sceCtrl.cpp b/Core/HLE/sceCtrl.cpp
-index e6657bb..57010df 100644
+index e6657bb..db2b0b5 100644
 --- a/Core/HLE/sceCtrl.cpp
 +++ b/Core/HLE/sceCtrl.cpp
-@@ -18,0 +19,2 @@
+@@ -16,6 +16,8 @@
+ // https://github.com/hrydgard/ppsspp and http://www.ppsspp.org/.
+ 
+ #include <cmath>
 +#include <cstdio>
 +#include <cstdlib>
-@@ -112,0 +115,33 @@ const u32 CTRL_EMU_RAPIDFIRE_MASK = CTRL_UP | CTRL_DOWN | CTRL_LEFT | CTRL_RIGHT
+ #include <mutex>
+ 
+ #include "Common/Serialize/Serializer.h"
+@@ -110,6 +112,62 @@ static u32 emuRapidFireInterval = 5;
+ // These buttons are not affected by rapid fire (neither is analog.)
+ const u32 CTRL_EMU_RAPIDFIRE_MASK = CTRL_UP | CTRL_DOWN | CTRL_LEFT | CTRL_RIGHT;
+ 
 +static u32 PrRecompScriptedButtons() {
 +	static struct {
 +		int frame;
@@ -18,15 +27,38 @@ index e6657bb..57010df 100644
 +		const char *path = getenv("PSPRECOMP_PADSCRIPT");
 +		if (path && *path) {
 +			if (FILE *fp = fopen(path, "r")) {
-+				unsigned mask;
-+				while (count < (int)ARRAY_SIZE(events) &&
-+					fscanf(fp, "%d %x %d", &events[count].frame, &mask, &events[count].width) == 3) {
-+					events[count].mask = mask;
-+					count++;
++				char line[160];
++				while (count < (int)ARRAY_SIZE(events) && fgets(line, sizeof(line), fp)) {
++					int ppssppFrame, runtimePresent, ppssppWidth, runtimeWidth;
++					unsigned mask;
++					char extra;
++					char *p = line;
++					while (*p == ' ' || *p == '\t')
++						++p;
++					if (!*p || *p == '#' || *p == '\r' || *p == '\n')
++						continue;
++					if (sscanf(p, "%d %d %x %d %d %c", &ppssppFrame, &runtimePresent,
++							&mask, &ppssppWidth, &runtimeWidth, &extra) == 5) {
++						events[count].frame = ppssppFrame;
++						events[count].mask = mask;
++						events[count].width = ppssppWidth;
++						++count;
++					} else if (sscanf(p, "%d %x %d %c", &ppssppFrame, &mask,
++							&ppssppWidth, &extra) == 3) {
++						events[count].frame = ppssppFrame;
++						events[count].mask = mask;
++						events[count].width = ppssppWidth;
++						++count;
++					} else {
++						fprintf(stderr, "PSPRECOMP_PADSCRIPT: malformed line: %s", line);
++						fclose(fp);
++						exit(2);
++					}
 +				}
 +				fclose(fp);
 +			} else {
 +				fprintf(stderr, "PSPRECOMP_PADSCRIPT: cannot open %s\n", path);
++				exit(2);
 +			}
 +		}
 +	}
@@ -39,25 +71,55 @@ index e6657bb..57010df 100644
 +	return buttons;
 +}
 +
-@@ -120,0 +156 @@ static void __CtrlUpdateLatch()
+ static void __CtrlUpdateLatch()
+ {
+ 	std::lock_guard<std::mutex> guard(ctrlMutex);
+@@ -118,6 +176,7 @@ static void __CtrlUpdateLatch()
+ 	u32 buttons = ctrlCurrent.buttons;
+ 	if (emuRapidFire && emuRapidFireToggle)
+ 		buttons &= CTRL_EMU_RAPIDFIRE_MASK;
 +	buttons |= PrRecompScriptedButtons();
+ 
+ 	ReplayApplyCtrl(buttons, ctrlCurrent.analog, t);
+ 
 diff --git a/Core/HLE/sceKernel.h b/Core/HLE/sceKernel.h
 index b1d79f9..2bec8c5 100644
 --- a/Core/HLE/sceKernel.h
 +++ b/Core/HLE/sceKernel.h
-@@ -254,0 +255,2 @@ class KernelObjectPool {
+@@ -252,6 +252,8 @@ class KernelObjectPool {
+ 	void List();
+ 	void Clear();
+ 	int GetCount() const;
 +	// psp-recomp trace: the handle the next Create() would try first.
 +	int PeekNextHandle() const { return nextID + handleOffset; }
+ 
+ 	enum {
+ 		maxCount = 4096,
 diff --git a/Core/MIPS/MIPSTables.cpp b/Core/MIPS/MIPSTables.cpp
 index 4e3e820..adab7e5 100644
 --- a/Core/MIPS/MIPSTables.cpp
 +++ b/Core/MIPS/MIPSTables.cpp
-@@ -19,0 +20,2 @@
+@@ -17,6 +17,8 @@
+ 
+ #include "Common/StringUtils.h"
+ 
 +#include <unordered_set>
 +
-@@ -31,0 +34 @@
+ #include "Core/Core.h"
+ #include "Core/MemMap.h"
+ #include "Core/MIPS/MIPS.h"
+@@ -29,6 +31,7 @@
+ #include "Core/CoreTiming.h"
+ #include "Core/Reporting.h"
+ #include "Core/Debugger/Breakpoints.h"
 +#include "Core/HLE/sceKernel.h"
-@@ -992,0 +996,199 @@ static inline void RunUntilFast() {
+ 
+ #include "JitCommon/JitCommon.h"
+ 
+@@ -990,6 +993,205 @@ static inline void RunUntilFast() {
+ 	}
+ }
+ 
 +// ---- psp-recomp CPU trace (Killzone: Liberation recomp project) ----------------------------------
 +// Writes the per-instruction trace format of sal063's psp-recomp (tools/TRACE_FORMAT.md) so a run
 +// of the interpreter can be diffed against recompiled code with tools/tracediff.py. Enabled by
@@ -257,7 +319,13 @@ index 4e3e820..adab7e5 100644
 +}
 +}  // namespace
 +
-@@ -1029,0 +1232,24 @@ static void RunUntilWithChecks(u64 globalTicks) {
+ static void RunUntilWithChecks(u64 globalTicks) {
+ 	MIPSState *curMips = currentMIPS;
+ 	// NEVER stop in a delay slot!
+@@ -1027,10 +1229,37 @@ static void RunUntilWithChecks(u64 globalTicks) {
+ 					break;
+ 			}
+ 
 +			// psp-recomp trace: snapshot before, emit after (see PrTraceAfter).
 +			bool traced = false;
 +			u32 tracePc = curMips->pc, traceAddr = 0;
@@ -282,22 +350,278 @@ index 4e3e820..adab7e5 100644
 +				}
 +			}
 +
-@@ -1033,0 +1260,3 @@ static void RunUntilWithChecks(u64 globalTicks) {
+ 			bool wasInDelaySlot = curMips->inDelaySlot;
+ 			Interpret(instr, op);
+ 			curMips->downcount -= GetInstructionCycleEstimate(instr);
+ 
 +			if (traced)
 +				PrTraceAfter(curMips, tracePc, op.encoding, traceAddr, traceSize);
 +
-@@ -1051,3 +1280,3 @@ int MIPSInterpret_RunUntil(u64 globalTicks) {
+ 			// The reason we have to check this is the delay slot hack in Int_Syscall.
+ 			if (curMips->inDelaySlot && wasInDelaySlot) {
+ 				curMips->pc = curMips->nextPC;
+@@ -1049,7 +1278,7 @@ int MIPSInterpret_RunUntil(u64 globalTicks) {
+ 		CoreTiming::Advance();
+ 
  		uint64_t ticksLeft = globalTicks - CoreTiming::GetTicks();
 -		if (g_breakpoints.HasBreakPoints() || g_breakpoints.HasMemChecks() || ticksLeft <= curMips->downcount)
 +		if (PrInstrumentationArmed() || g_breakpoints.HasBreakPoints() || g_breakpoints.HasMemChecks() || ticksLeft <= curMips->downcount)
  			RunUntilWithChecks(globalTicks);
+ 		else
+ 			RunUntilFast();
 diff --git a/headless/Headless.cpp b/headless/Headless.cpp
-index 293878d..20e9143 100644
+index 293878d..efe3431 100644
 --- a/headless/Headless.cpp
 +++ b/headless/Headless.cpp
-@@ -552,0 +553,5 @@ int main(int argc, const char* argv[])
+@@ -46,6 +46,7 @@
+ #include "Core/SaveState.h"
+ #include "GPU/GPUCommon.h"
+ #include "GPU/Common/FramebufferManagerCommon.h"
++#include "GPU/Common/GPUDebugInterface.h"
+ #include "Common/Log.h"
+ #include "Common/Log/LogManager.h"
+ 
+@@ -179,9 +180,189 @@ struct AutoTestOptions {
+ 	bool bench : 1;
+ };
+ 
++class GoldenFrameCapture {
++public:
++	bool Init() {
++		const char *manifest = getenv("PSPRECOMP_CAPTURE_MANIFEST");
++		if (!manifest || !manifest[0])
++			return true;
++		const char *outputDir = getenv("PSPRECOMP_CAPTURE_DIR");
++		if (!outputDir || !outputDir[0])
++			return Fail("PSPRECOMP_CAPTURE_DIR is required");
++		outputDir_ = outputDir;
++
++		FILE *file = fopen(manifest, "rb");
++		if (!file)
++			return Fail("cannot open manifest", manifest);
++		char line[256];
++		int lineNumber = 0;
++		bool seenHeader = false;
++		u32 previousRuntimePresent = 0;
++		while (fgets(line, sizeof(line), file)) {
++			++lineNumber;
++			char *p = line;
++			while (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n')
++				++p;
++			if (!*p)
++				continue;
++			if (*p == '#') {
++				if (!strcmp(p, "# psp-recomp golden frames v2\n") ||
++					!strcmp(p, "# psp-recomp golden frames v2\r\n"))
++					seenHeader = true;
++				continue;
++			}
++
++			Request request{};
++			u32 runtimePresent = 0;
++			char scene[32]{};
++			char extra = 0;
++			if (sscanf(p, "%u %u %63s %31s %c",
++					&request.present, &runtimePresent, request.name, scene, &extra) != 4) {
++				fclose(file);
++				return FailLine("malformed manifest", lineNumber);
++			}
++			if (requestCount_ >= FRAME_COUNT || request.present == 0 ||
++				runtimePresent == 0 ||
++				(requestCount_ && request.present <= requests_[requestCount_ - 1].present) ||
++				(requestCount_ && runtimePresent <= previousRuntimePresent) ||
++				strchr(request.name, '/') || strchr(request.name, '\\')) {
++				fclose(file);
++				return FailLine("invalid capture request", lineNumber);
++			}
++			size_t nameLength = strlen(request.name);
++			if (nameLength < 5 || strcmp(request.name + nameLength - 4, ".ppm")) {
++				fclose(file);
++				return FailLine("capture name must end in .ppm", lineNumber);
++			}
++			for (int i = 0; i < requestCount_; ++i) {
++				if (!strcmp(request.name, requests_[i].name)) {
++					fclose(file);
++					return FailLine("duplicate capture name", lineNumber);
++				}
++			}
++			requests_[requestCount_++] = request;
++			previousRuntimePresent = runtimePresent;
++		}
++		if (ferror(file)) {
++			fclose(file);
++			return Fail("cannot read manifest", manifest);
++		}
++		fclose(file);
++		if (!seenHeader || requestCount_ != FRAME_COUNT)
++			return Fail("manifest must contain its v2 header and exactly 50 frames", manifest);
++		enabled_ = true;
++		fprintf(stderr, "golden-frame capture: loaded %d requests from %s\n", requestCount_, manifest);
++		return true;
++	}
++
++	bool Present() {
++		if (!enabled_)
++			return true;
++		++presentCount_;
++		if (nextRequest_ >= requestCount_ || presentCount_ < requests_[nextRequest_].present)
++			return true;
++		const Request &request = requests_[nextRequest_];
++		if (presentCount_ != request.present)
++			return Fail("PPSSPP skipped a requested presented frame", request.name);
++		if (!gpuDebug)
++			return Fail("GPU debug interface is unavailable");
++
++		GPUDebugBuffer buffer;
++		if (!gpuDebug->GetCurrentFramebuffer(buffer, GPU_DBG_FRAMEBUF_DISPLAY))
++			return Fail("cannot read the current display framebuffer", request.name);
++		const std::vector<u32> pixels = TranslateDebugBufferToCompare(&buffer, STRIDE, HEIGHT);
++		if (pixels.size() != STRIDE * HEIGHT)
++			return Fail("cannot convert the display framebuffer", request.name);
++
++		const std::string path = outputDir_ + "/" + request.name;
++		FILE *file = fopen(path.c_str(), "wb");
++		if (!file)
++			return Fail("cannot open capture output", path.c_str());
++		bool writeFailed = fprintf(file, "P6\n%u %u\n255\n", WIDTH, HEIGHT) < 0;
++		for (u32 y = 0; y < HEIGHT && !writeFailed; ++y) {
++			const u32 sourceY = HEIGHT - 1 - y;
++			for (u32 x = 0; x < WIDTH; ++x) {
++				const u32 pixel = pixels[sourceY * STRIDE + x];
++				const u8 rgb[3] = {
++					(u8)(pixel >> 16),
++					(u8)(pixel >> 8),
++					(u8)pixel,
++				};
++				if (fwrite(rgb, 1, sizeof(rgb), file) != sizeof(rgb)) {
++					writeFailed = true;
++					break;
++				}
++			}
++		}
++		if (fclose(file) != 0)
++			writeFailed = true;
++		if (writeFailed)
++			return Fail("cannot write capture output", path.c_str());
++		fprintf(stderr, "golden-frame capture: present %u -> %s\n", presentCount_, path.c_str());
++
++		++nextRequest_;
++		if (nextRequest_ != requestCount_)
++			return true;
++		const std::string completePath = outputDir_ + "/capture.complete";
++		file = fopen(completePath.c_str(), "wb");
++		if (!file)
++			return Fail("cannot open completion marker", completePath.c_str());
++		writeFailed = fprintf(file, "%d\n", requestCount_) < 0;
++		if (fclose(file) != 0)
++			writeFailed = true;
++		if (writeFailed)
++			return Fail("cannot write completion marker", completePath.c_str());
++		complete_ = true;
++		fprintf(stderr, "golden-frame capture: completed %d frames\n", requestCount_);
++		return true;
++	}
++
++	bool Enabled() const {
++		return enabled_;
++	}
++
++	bool Complete() const {
++		return complete_;
++	}
++
++private:
++	static constexpr int FRAME_COUNT = 50;
++	static constexpr u32 WIDTH = 480;
++	static constexpr u32 HEIGHT = 272;
++	static constexpr u32 STRIDE = 512;
++
++	struct Request {
++		u32 present;
++		char name[64];
++	};
++
++	bool Fail(const char *message, const char *detail = nullptr) {
++		fprintf(stderr, "golden-frame capture: %s%s%s\n",
++			message, detail ? ": " : "", detail ? detail : "");
++		return false;
++	}
++
++	bool FailLine(const char *message, int lineNumber) {
++		char detail[64];
++		snprintf(detail, sizeof(detail), "line %d", lineNumber);
++		return Fail(message, detail);
++	}
++
++	Request requests_[FRAME_COUNT]{};
++	std::string outputDir_;
++	int requestCount_ = 0;
++	int nextRequest_ = 0;
++	u32 presentCount_ = 0;
++	bool enabled_ = false;
++	bool complete_ = false;
++};
++
+ bool RunAutoTest(HeadlessHost *headlessHost, CoreParameter &coreParameter, const AutoTestOptions &opt) {
+ 	// Kinda ugly, trying to guesstimate the test name from filename...
+ 	currentTestName = GetTestName(coreParameter.fileToStart);
++	GoldenFrameCapture frameCapture;
++	if (!frameCapture.Init())
++		return false;
+ 
+ 	std::string output;
+ 	if (opt.compare || opt.bench)
+@@ -237,6 +418,12 @@ bool RunAutoTest(HeadlessHost *headlessHost, CoreParameter &coreParameter, const
+ 		// If we were rendering, this might be a nice time to do something about it.
+ 		if (coreState == CORE_NEXTFRAME) {
+ 			coreState = CORE_RUNNING_CPU;
++			if (!frameCapture.Present()) {
++				passed = false;
++				Core_Stop();
++			} else if (frameCapture.Complete()) {
++				Core_Stop();
++			}
+ 			headlessHost->SwapBuffers();
+ 		}
+ 		if (coreState == CORE_STEPPING_CPU && !coreParameter.startBreak) {
+@@ -261,6 +448,10 @@ bool RunAutoTest(HeadlessHost *headlessHost, CoreParameter &coreParameter, const
+ 			Core_Stop();
+ 		}
+ 	}
++	if (frameCapture.Enabled() && !frameCapture.Complete()) {
++		fprintf(stderr, "golden-frame capture: stopped before all requested frames were captured\n");
++		passed = false;
++	}
+ 	if (gpu) {
+ 		gpu->EndHostFrame();
+ 	}
+@@ -550,6 +741,11 @@ int main(int argc, const char* argv[])
+ 	g_Config.bMemStickInserted = true;
+ 	g_Config.iMemStickSizeGB = 16;
+ 	g_Config.bEnableWlan = true;
 +	// psp-recomp trace (Core/MIPS/MIPSTables.cpp): native function replacements would skip guest
 +	// instructions and break step-for-step comparison, so turn them off while tracing. The
 +	// 0xDEADBEEF filling after HLE calls stays on: the psp-recomp runtime reproduces it.
 +	if (getenv("PSPRECOMP_TRACE") || getenv("PSPRECOMP_CALLTRACE"))
 +		g_Config.bFuncReplacements = false;
+ 	g_Config.sMACAddress = "12:34:56:78:9A:BC";
+ 	g_Config.iFirmwareVersion = PSP_DEFAULT_FIRMWARE;
+ 	g_Config.iPSPModel = PSP_MODEL_SLIM;
+@@ -563,14 +759,15 @@ int main(int argc, const char* argv[])
+ 
+ 	Path exePath = File::GetExeDirectory();
+ 	g_Config.flash0Directory = exePath / "assets/flash0";
++	const char *memstickOverride = getenv("PSPRECOMP_MEMSTICK");
+ 
+ #if PPSSPP_PLATFORM(WINDOWS)
+ 	// Mount a filesystem
+-	g_Config.memStickDirectory = exePath / "memstick";
++	g_Config.memStickDirectory = memstickOverride ? Path(std::string(memstickOverride)) : exePath / "memstick";
+ 	File::CreateDir(g_Config.memStickDirectory);
+ 	CreateSysDirectories();
+ #elif !PPSSPP_PLATFORM(ANDROID)
+-	g_Config.memStickDirectory = Path(std::string(getenv("HOME"))) / ".ppsspp";
++	g_Config.memStickDirectory = memstickOverride ? Path(std::string(memstickOverride)) : Path(std::string(getenv("HOME"))) / ".ppsspp";
+ #endif
+ 
+ 	// Try to find the flash0 directory.  Often this is from a subdirectory.

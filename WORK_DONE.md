@@ -5,6 +5,30 @@ findings or tasks it touched. Items move here from [TODO.md](TODO.md) when they 
 
 ---
 
+## 2026-10-19 — Session 3b: protected golden-frame harness (T-4.13)
+- Added a strict 50-frame manifest with independent PPSSPP/runtime presentation indices for the title, Continue
+  menu, Chapter 1 Visari storyboard, C1M1 tutorial gameplay, and HUD. The orchestrator validates exact capture
+  inventories, clones separate protected savedata templates into temporary roots, runs PPSSPP's software renderer
+  and the D3D12 runtime, and emits only the comparator's JSON report.
+- Extended the PPSSPP patch with deterministic input, isolated memstick, capture-manifest, completion-marker, and
+  software-renderer PPM support. Runtime capture reads the normalized 480x272 BGRA8 D3D12 display texture back
+  after its graphics fence instead of dumping the pre-presentation CPU buffer.
+- Replaced runtime-vblank input timing with pad-script v3 presentation timing. Turbo startup reached the same title
+  at widely different vblank counts, so absolute vblank pulses could expire at the language/title path before the
+  UI consumed them. PPSSPP retains its own vblank column; runtime pulses now follow deterministic display flips.
+- Fixed turbo vblank delivery for runnable-thread delays, supplied the system nickname queried during C1M1
+  loading, and implemented the fully resident `sceAtracGetBufferInfoForResetting` contract with address, ID, and
+  sample-range errors. These fixes carry the unattended runtime from boot through stable gameplay.
+- Made D3D12 upload spikes fence-safe: the existing 32 MiB per-frame ring remains the fast path, while committed
+  overflow slabs are owned by the active frame slot and released only after that slot's fence completes. This
+  removes the C1M1 texture-population failure without weakening upload lifetime guarantees.
+- Calibrated the cross-renderer gate to at most 6,000 pixels per frame above a maximum-channel delta of 64. The
+  aligned set peaks at 5,136; substituting a cutscene for gameplay produces 71,900 and is rejected. Complete WARP
+  and hardware D3D12 captures both pass all 50 frames.
+- Added 13 manifest/comparator tests and a protected `[self-hosted, Windows, X64, kzl-golden]` workflow restricted
+  to trusted pushes/manual dispatch. Default and D3D12 builds, HLE and D3D12 vertex CTests, DXIL checks, workflow
+  lint, PPSSPPHeadless rebuild, and clean-index patch application all pass. → F-073
+
 ## 2026-10-19 — Session 3a: CPU morphing, skinning, and patch tessellation (T-4.12)
 - Extended the shared GE vertex decoder with the PSP logical morph layout: one aligned target record repeated up
   to eight times per logical vertex. Positions, texture coordinates, colors, normals, and bone weights are blended

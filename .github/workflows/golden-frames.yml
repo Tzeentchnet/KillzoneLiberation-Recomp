@@ -1,0 +1,121 @@
+name: Golden frames
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - master
+
+permissions:
+  contents: read
+
+concurrency:
+  group: golden-frames-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compare:
+    if: github.event_name != 'push' || github.repository_owner == 'Tzeentchnet'
+    runs-on: [self-hosted, Windows, X64, kzl-golden]
+    timeout-minutes: 45
+    env:
+      KZL_ISO: ${{ vars.KZL_GOLDEN_ISO }}
+      PPSSPP_HEADLESS: ${{ vars.KZL_GOLDEN_PPSSPP_HEADLESS }}
+      KZL_GOLDEN_PPSSPP_MEMSTICK: ${{ vars.KZL_GOLDEN_PPSSPP_MEMSTICK }}
+      KZL_GOLDEN_RUNTIME_MEMSTICK: ${{ vars.KZL_GOLDEN_RUNTIME_MEMSTICK }}
+      KZL_GEN_DIR: ${{ vars.KZL_GOLDEN_GEN_DIR }}
+      SDL3_DIR: ${{ vars.KZL_GOLDEN_SDL3_DIR }}
+      KZL_DXC: ${{ vars.KZL_GOLDEN_DXC }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Validate protected inputs
+        shell: pwsh
+        run: |
+          $files = @{
+            KZL_ISO = $env:KZL_ISO
+            PPSSPP_HEADLESS = $env:PPSSPP_HEADLESS
+            KZL_DXC = $env:KZL_DXC
+          }
+          $directories = @{
+            KZL_GOLDEN_PPSSPP_MEMSTICK = $env:KZL_GOLDEN_PPSSPP_MEMSTICK
+            KZL_GOLDEN_RUNTIME_MEMSTICK = $env:KZL_GOLDEN_RUNTIME_MEMSTICK
+            KZL_GEN_DIR = $env:KZL_GEN_DIR
+            SDL3_DIR = $env:SDL3_DIR
+          }
+          foreach ($item in $files.GetEnumerator()) {
+            if (-not $item.Value -or -not (Test-Path -LiteralPath $item.Value -PathType Leaf)) {
+              throw "Missing protected file configured by $($item.Key)"
+            }
+          }
+          foreach ($item in $directories.GetEnumerator()) {
+            if (-not $item.Value -or -not (Test-Path -LiteralPath $item.Value -PathType Container)) {
+              throw "Missing protected directory configured by $($item.Key)"
+            }
+          }
+          $image = Join-Path $env:KZL_GEN_DIR 'kzl_image.bin'
+          if (-not (Test-Path -LiteralPath $image -PathType Leaf)) {
+            throw "KZL_GEN_DIR does not contain kzl_image.bin"
+          }
+
+      - name: Run harness unit tests
+        shell: pwsh
+        run: >-
+          python -m unittest
+          external\psp-recomp\tools\tests\test_ppmdiff.py
+          tools\tests\test_golden_frames.py
+
+      - name: Configure D3D12 runtime
+        shell: pwsh
+        run: |
+          cmake -S . -B out\build\golden -G Ninja `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DCMAKE_C_COMPILER=clang-cl `
+            -DCMAKE_CXX_COMPILER=clang-cl `
+            -DKZL_ENABLE_D3D12=ON `
+            -DKZL_GEN_DIR="$env:KZL_GEN_DIR" `
+            -DCMAKE_PREFIX_PATH="$env:SDL3_DIR" `
+            -DKZL_DXC_EXECUTABLE="$env:KZL_DXC"
+
+      - name: Build and test D3D12 runtime
+        shell: pwsh
+        run: |
+          cmake --build out\build\golden --target `
+            kzl_driver kzl_hle_tests kzl_d3d12_vertex_tests kzl_d3d12_shaders_check
+          ctest --test-dir out\build\golden --output-on-failure
+
+      - name: Compare WARP golden frames
+        shell: pwsh
+        run: |
+          python tools\kzl\golden_frames.py `
+            --iso "$env:KZL_ISO" `
+            --ppsspp "$env:PPSSPP_HEADLESS" `
+            --runtime "$PWD\out\build\golden\kzl.exe" `
+            --image "$env:KZL_GEN_DIR\kzl_image.bin" `
+            --ppsspp-memstick-template "$env:KZL_GOLDEN_PPSSPP_MEMSTICK" `
+            --runtime-memstick-template "$env:KZL_GOLDEN_RUNTIME_MEMSTICK" `
+            --output "$PWD\build\kzl\golden_frames" `
+            --threshold 64 `
+            --max-threshold-pixels 6000 `
+            --warp
+
+      - name: Preserve comparison report
+        if: always()
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path artifacts | Out-Null
+          $report = 'build\kzl\golden_frames\ppmdiff.json'
+          if (Test-Path -LiteralPath $report -PathType Leaf) {
+            Copy-Item -LiteralPath $report -Destination 'artifacts\ppmdiff.json'
+          }
+          Remove-Item -LiteralPath 'build\kzl\golden_frames' -Recurse -Force -ErrorAction SilentlyContinue
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: golden-frame-report
+          path: artifacts/ppmdiff.json
+          if-no-files-found: ignore

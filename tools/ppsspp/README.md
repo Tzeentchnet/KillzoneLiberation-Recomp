@@ -8,10 +8,12 @@ It applies to PPSSPP **v1.20.4** and touches four files:
 
 - `Core/MIPS/MIPSTables.cpp`: the instruction and call-edge writers in the interpreter's checked loop.
 - `Core/HLE/sceKernel.h`: a read-only accessor for the next kernel object handle.
-- `Core/HLE/sceCtrl.cpp`: optional frame-based scripted controller input for reproducible UI paths.
+- `Core/HLE/sceCtrl.cpp`: optional backend-specific, frame-based scripted controller input for
+  reproducible UI paths.
 - `headless/Headless.cpp`: turns off function replacements while tracing (they skip guest
-  instructions). The 0xDEADBEEF filling after HLE calls stays on, because the psp-recomp
-  runtime reproduces it.
+  instructions), captures golden frames from the software renderer, and supports an isolated
+  memstick root. The 0xDEADBEEF filling after HLE calls stays on, because the psp-recomp runtime
+  reproduces it.
 
 ## Build (Windows, VS 2022 Build Tools)
 
@@ -36,7 +38,10 @@ it in a `ppsspp` checkout next to this repo, or wherever `PPSSPP_HEADLESS` point
 | `PSPRECOMP_TRACE_TARGET` | name written in the header (default `ppsspp`) |
 | `PSPRECOMP_CALLTRACE` | compact unique `jal`/`jalr` edge output file |
 | `PSPRECOMP_CALLTRACE_START` | hex PC that arms the call trace (normally `08804000`) |
-| `PSPRECOMP_PADSCRIPT` | optional input file; each line is `<vblank> <hex PSP button mask> <width in vblanks>` |
+| `PSPRECOMP_PADSCRIPT` | optional v2 input script described below |
+| `PSPRECOMP_CAPTURE_MANIFEST` | strict 50-frame golden manifest |
+| `PSPRECOMP_CAPTURE_DIR` | output directory for the 50 PPMs and `capture.complete` |
+| `PSPRECOMP_MEMSTICK` | isolated PPSSPP memstick root (must contain `PSP/SAVEDATA`) |
 
 Run with the interpreter (`-i`). The JIT never reaches the traced loop. When the trace is complete
 the build writes `<trace>.done`, which `ppsspp_trace.py` uses to stop the emulator.
@@ -78,3 +83,70 @@ python tools/kzl/calltargets.py build/kzl/ref/calls_ppsspp_boot.txt --report=res
 The T-2.7 capture contains 12,399 unique edges and 4,553 targets inside KZL. All executed targets
 are represented by the effective 42,600-function codegen inventory; the report separately
 recognizes the existing `jal .+8` get-PC override as an intentional non-function.
+
+## Golden-frame harness
+
+`tools/kzl/golden_frames.py` runs the patched PPSSPPHeadless software renderer and the recompiled
+D3D12 runtime, requires both processes to produce the exact 50-file inventory, and invokes the
+strict `external/psp-recomp/tools/ppmdiff.py` gate. The committed manifests contain no game data.
+The ISO, generated image, PPSSPP executable, and savedata templates remain protected local assets.
+The calibrated gate permits at most 6,000 pixels per frame whose maximum RGB-channel delta exceeds
+64. This covers the known software-versus-D3D12 rasterization differences while rejecting
+semantically mismatched scenes.
+
+The frame manifest is intentionally backend-specific because PPSSPP and the standalone runtime
+do not issue display flips at the same points during boot:
+
+```
+# psp-recomp golden frames v2
+<ppsspp-present> <runtime-present> <stable-name.ppm> <scene>
+```
+
+It must contain exactly 50 entries with increasing indices and unique names. The required scene
+labels are `boot`, `menu`, `cutscene`, `gameplay`, and `hud`.
+
+The pad script keeps the logical button sequence shared while using PPSSPP vblanks and runtime
+presentation counts. Runtime presentation timing avoids turbo-scheduler variance consuming the
+script before a menu appears:
+
+```
+# psp-recomp pad script v3
+<ppsspp-vblank> <runtime-present> <hex-button-mask> <ppsspp-width> <runtime-width>
+```
+
+PPSSPP widths are measured in vblanks; runtime widths are measured in presented frames.
+
+Use separate savedata templates. PPSSPP implements the retail secure-savedata path, while the
+standalone runtime currently stores the same game payload without encryption; copying one
+implementation's template over the other is not reliable.
+
+```
+python tools/kzl/golden_frames.py `
+  --iso D:\protected\Killzone_Liberation.iso `
+  --ppsspp D:\tools\ppsspp\Windows\x64\Release\PPSSPPHeadless.exe `
+  --runtime out\build\clang-cl-d3d12\kzl.exe `
+  --image build\kzl\gen\kzl_image.bin `
+  --ppsspp-memstick-template D:\protected\memstick-ppsspp `
+  --runtime-memstick-template D:\protected\memstick-runtime `
+  --threshold 64 `
+  --max-threshold-pixels 6000 `
+  --warp
+```
+
+Each template is copied to a temporary directory before use, so the protected baseline is never
+modified. `KZL_GOLDEN_PPSSPP_MEMSTICK` and `KZL_GOLDEN_RUNTIME_MEMSTICK` provide the two defaults;
+`KZL_GOLDEN_MEMSTICK` remains a legacy fallback for local experiments.
+
+The `Golden frames` workflow runs only on the protected `kzl-golden` self-hosted Windows runner.
+Configure these repository variables with runner-local paths:
+
+- `KZL_GOLDEN_ISO`
+- `KZL_GOLDEN_PPSSPP_HEADLESS`
+- `KZL_GOLDEN_PPSSPP_MEMSTICK`
+- `KZL_GOLDEN_RUNTIME_MEMSTICK`
+- `KZL_GOLDEN_GEN_DIR`
+- `KZL_GOLDEN_SDL3_DIR`
+- `KZL_GOLDEN_DXC`
+
+The workflow uploads only `ppmdiff.json` and deletes captured PPMs after every run. It never
+publishes screenshots, savedata, generated game code, or other copyrighted payloads.

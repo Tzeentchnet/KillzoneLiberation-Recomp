@@ -982,6 +982,33 @@ Make/DXC verification, strict MinGW, RTX/WARP boots, and saved pre-change GE/fra
   D3D12 backend. Future shader-side vertex decoding can compare against one authoritative logical-vertex and patch
   contract instead of inventing separate morph, skin, or curve behavior.
 
+### F-073 Golden captures need semantic dual clocks and fence-scoped upload overflow — Confirmed
+PPSSPP and the standalone runtime do not issue display flips or vblanks at equivalent points during boot, and
+their secure-savedata representations are not interchangeable. A deterministic oracle therefore needs separate
+protected savedata templates and a manifest that names one semantic frame while carrying independent PPSSPP and
+runtime presentation indices. The final 50-frame sequence covers the animated title, Continue menu, Visari
+storyboard slide, C1M1 tutorial view, and HUD in ten consecutive frames each.
+
+Input needs an asymmetric clock too. PPSSPP consumes its scripted events by vblank, but the runtime's turbo
+scheduler reached the same WARP title at observed vblank counts from roughly 4,000 to 12,000. Runtime-vblank
+pulses could all expire before the UI appeared, leaving the unattended run at the language/title path.
+Pad-script v3 retains PPSSPP vblanks but keys runtime events and widths to presentation counts. Display flips then
+drive the same menu path regardless of turbo scheduling or D3D12 adapter speed.
+
+D3D12 golden capture reads the normalized 480x272 BGRA8 display texture through a persistent, row-pitched readback
+buffer after the graphics fence. C1M1 loading also proved that a fixed 32 MiB upload slice was too small for one
+frame's texture population even though the texture cache permits 64 MiB of pending decoded data. Upload slices now
+carry their source resource: the fixed ring remains the fast path, while on-demand 32 MiB committed overflow slabs
+belong to the frame slot and are unmapped/released only after that slot's fence completes.
+
+The calibrated comparison allows at most 6,000 pixels per frame whose maximum RGB-channel delta exceeds 64.
+Aligned PPSSPP/software versus D3D12 frames peak at 5,136; replacing one gameplay frame with the captured cutscene
+produces 71,900 and fails. Complete WARP and hardware runs both pass all 50 frames. The protected self-hosted
+workflow uploads only `ppmdiff.json` and removes captures after every run.
+- **Impact:** T-4.13 provides a repeatable visual regression gate without committing or publishing the ISO,
+  savedata, generated payload, or screenshots. Presentation-timed input and fence-scoped upload overflow are the
+  reusable contracts for future protected gameplay scenarios.
+
 ---
 
 ## D. Assets and content
