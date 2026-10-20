@@ -112,8 +112,10 @@ Priority: **P0** blocks the next milestone · **P1** is needed for 1.0 · **P2**
 - [x] **T-4.14 P1** Debug tooling (install PIX for Windows first): PIX markers per list and draw, a GE state dump on hotkey, and a `SR_GPU_LOG` equivalent for D3D12.
   *Done 2026-10-19: PIX 2603.25 is installed. Deferred D3D12 batches retain immutable GE list/draw context and record nested PIX events; F10 writes a complete decoded/raw GE state file; `SR_GPU_LOG=1` reports flushes, logical draws, presents, and totals. Focused tests and a live WARP/F10 boot pass (F-074).*
 ### 4c: performance
-- [ ] **T-4.15 P1** Async PSO compilation, an `ID3D12PipelineLibrary` disk cache and an ubershader fallback, so there are no first-use hitches.
-- [ ] **T-4.16 P2** Decode vertices in the shader from raw GE buffers, batch draws within a list, and cache constant-buffer state.
+- [x] **T-4.15 P1** Async PSO compilation, an `ID3D12PipelineLibrary` disk cache and an ubershader fallback, so there are no first-use hitches.
+  *Done 2026-10-20: device initialization creates or library-loads one exact no-cull ubershader PSO; shader-side `SV_IsFrontFace` rejection preserves back-face culling until the sole specialized key is promoted by a prewarming worker. The main recording thread never compiles. A bounded, versioned, shader/key/adapter-qualified pipeline library is atomically persisted under `%LOCALAPPDATA%` (or `SR_D3D12_PSO_CACHE`). Cold and warm WARP boots proved compiler-to-library promotion for both keys; focused tests, DXIL checks, clang-cl, and strict MinGW validation pass (F-075).*
+- [x] **T-4.16 P2** Decode vertices in the shader from raw GE buffers, batch draws within a list, and cache constant-buffer state.
+  *Done 2026-10-20: the vertex shader now raw-loads the canonical 32-byte post-T&L GE stream through a space-1 root SRV, eliminating the fixed input layout while preserving `ge.c` as the sole PSP format/T&L/clip decoder. Adjacent primitives from one logical GE draw share one immutable state record, and identical 160-byte fragment blocks skip redundant root-constant uploads. A 120-presentation WARP boot reduced 39,291 primitive records to 12,509 batches (68.2%) and reused 1,595 constant states; focused tests, shader checks, clang-cl builds, strict MinGW, cold/warm WARP caches, and clean WARP/RTX 5070 exits pass (F-076).*
 
 ## Phase 5 — Audio, video, input
 - [ ] **T-5.1 P0** SasCore gaps: ADSR (`SetADSR`, `SetADSRmode`, `SetSimpleADSR`, `SetSL`), reverb (`RevType`, `RevParam`, `RevEVOL`, `RevVON`), noise and pause. → F-031

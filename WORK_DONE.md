@@ -5,6 +5,30 @@ findings or tasks it touched. Items move here from [TODO.md](TODO.md) when they 
 
 ---
 
+## 2026-10-20 — Session 3e: raw vertex fetch and draw-state batching (T-4.16)
+- Replaced the fixed D3D12 input layout with a vertex-visible root SRV. `psp_vs.hlsl` uses `SV_VertexID` to
+  raw-load and unpack the canonical 32-byte `GeD3D12Vertex` stream; PSP layouts, morphing, skinning, lighting,
+  clipping and patch tessellation remain in the already verified shared CPU frontend.
+- Coalesced adjacent accepted primitives from the same logical GE command into one batch/state capture while
+  retaining list/draw PIX identity and per-kind primitive counters. Added a per-command-list cache that always
+  restores dynamic scissor state but omits identical 160-byte pixel root constants.
+- Focused tests cover draw-boundary batching, capture reuse, constant-cache hit/change behavior and storage growth.
+  Shader generation/check, the focused CTest, full clang-cl D3D12 build, strict MinGW C++17, and cold/warm WARP
+  plus RTX 5070 boots pass. Over 120 WARP presentations, 39,291 primitives became 12,509 batches (68.2% fewer),
+  with 1,595 redundant root-constant updates avoided; the warm schema-2 pipeline library loaded both PSOs. → F-076
+
+## 2026-10-20 — Session 3d: asynchronous D3D12 PSOs (T-4.15)
+- Replaced command-recording-thread PSO creation with an exact no-cull ubershader fallback and a dedicated worker.
+  The 40-DWORD draw block carries a back-face flag; `SV_IsFrontFace` discards the same winding while the hardware-
+  cull PSO is pending. The worker prewarms that sole specialized variant and promotes future full-key misses without
+  stalling command recording.
+- Added `ID3D12PipelineLibrary` persistence. A 40-byte envelope validates schema, embedded shader bytes, key ABI and
+  adapter LUID before accepting at most 64 MiB; writes use a flushed PID-specific temporary file and atomic replace.
+  The default is `%LOCALAPPDATA%\KZLRecomp\cache\d3d12-pipelines.bin`, with `SR_D3D12_PSO_CACHE` override/disable.
+- An isolated cold WARP boot compiled and persisted both the fallback and cull PSOs; the next boot loaded both from
+  the library. Focused key/fallback tests, checked-in DXIL verification, clang-cl builds, strict MinGW C++17, and
+  live 120-vblank WARP boots pass. → F-075
+
 ## 2026-10-19 — Session 3c: D3D12 PIX and diagnostics (T-4.14)
 - Installed PIX for Windows 2603.25 and used D3D12's PIX-compatible ANSI command-list event ABI directly, so
   clang-cl and MinGW builds need neither the PIX header nor a WinPixEventRuntime DLL.

@@ -1031,6 +1031,51 @@ produced list-aware logs and a valid F10 dump without D3D12 errors.
   Future native draw submission and PSO work can diagnose one logical GE draw without reconstructing context from
   mutable state or command addresses after the fact.
 
+### F-075 KZL's destination-aware shader reduces the live PSO set to one cull variant — Confirmed
+After moving blend, stencil, depth comparison, logic operations, masks and native-format behavior into the
+destination-aware pixel shader, the canonical 16-byte PSO key observed by the D3D12 backend differs only in
+back-face culling. A no-cull pipeline is therefore an exact universal fallback when the same draw block carries a
+cull bit and the pixel shader rejects `!SV_IsFrontFace`; the specialized back-cull PSO merely moves that rejection
+back to fixed-function rasterization. Non-triangles and clear draws never set the bit.
+
+The command-recording thread now performs only a collision-safe lookup and `SetPipelineState`. Device startup
+creates or loads the universal PSO, then a dedicated worker prewarms the sole specialized key and handles later
+misses. Its `ID3D12PipelineLibrary` file has a fixed envelope containing schema version, embedded VS/PS hash, key
+size and adapter LUID, rejects blobs over 64 MiB, and is flushed to a PID-specific temporary file before atomic
+replacement. `SR_D3D12_PSO_CACHE` can override the default
+`%LOCALAPPDATA%\KZLRecomp\cache\d3d12-pipelines.bin` or disable persistence with `0`.
+
+On WARP, a cold run compiled the 1,038-byte fallback library and then asynchronously expanded it to 1,204 bytes
+with the cull PSO. The next process loaded the fallback and worker-prewarmed cull PSOs from the library; neither
+first use invoked the compiler on the recording thread.
+- **Impact:** T-4.15 removes first-use PSO hitches with a correctness-preserving fallback, while keeping cache
+  corruption, shader changes, key-ABI changes and adapter/driver mismatches explicit and recoverable.
+
+### F-076 The canonical post-T&L stream is the safe D3D12 raw-decode boundary — Confirmed
+Moving PSP source-layout decoding wholesale into HLSL would duplicate `ge.c`'s already verified morph-before-skin,
+lighting, texgen, clipping, primitive-acceptance and patch rules. The useful GPU boundary is instead the canonical
+32-byte `GeD3D12Vertex` stream from F-065. D3D12 now exposes its upload-ring GPU address as a vertex-visible
+space-1 root SRV; `psp_vs.hlsl` indexes it with `SV_VertexID`, performs two aligned `ByteAddressBuffer.Load4`
+operations and unpacks the float/color fields. The PSO has no fixed input layout or IA vertex-buffer binding.
+Changing that shader/root ABI advances the pipeline-library schema to 2, and the embedded shader hash rejects
+schema-compatible stale blobs as before.
+
+One GE `PRIM`, `BEZIER` or `SPLINE` command cannot mutate state while its accepted primitives cross the backend
+seam. Adjacent primitives with identical list ID/address, draw serial/PC/op, kind and perspective mode can
+therefore append to one captured batch without repeating framebuffer, texture, PSO or 160-byte fragment-state
+capture. Different logical draws remain separate for PIX and diagnostics. During command recording, a small
+exact-value cache suppresses identical 40-DWORD root-constant writes while still restoring the dynamic scissor
+after every framebuffer bind.
+
+A clean 120-presentation WARP boot captured 39,291 primitives as 12,509 batches, eliminating 26,782 state records
+(68.2%). Of those batches, 1,595 (12.8%) reused the preceding fragment block and skipped its root-constant write.
+Cold and warm WARP boots compiled then library-loaded the schema-2 raw-fetch PSOs; both WARP and an RTX 5070
+exited cleanly. The focused tests, embedded-DXIL check, full clang-cl build and warning-as-error MinGW compilation
+all pass.
+- **Impact:** T-4.16 is complete without introducing a second PSP vertex decoder or weakening the CPU oracle.
+  Native replay can consume one contiguous raw stream and one state record per logical draw when it becomes the
+  authoritative presentation path.
+
 ---
 
 ## D. Assets and content
