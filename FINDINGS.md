@@ -1182,6 +1182,24 @@ this layer in sceCtrl and is ORed with configured live input, which the unchange
 - **Impact:** T-5.5 is complete. Keyboard and gamepad controls are persistent and backend-consistent, keyboard
   gameplay has analog movement, and analog tuning is measurable/tested rather than presenter-specific magic.
 
+### F-082 waveOut's submitted cursor hid 92.88 ms of device queue — Confirmed
+The old backend queued four 1,024-frame waveOut headers. Its `s_play` advanced when a header was submitted, not
+when hardware completed it, so `sceAudio*Blocking` compared guest writes to a playhead up to 4,096 frames ahead of
+the speakers while reporting that lead as already consumed. The fixed queue alone was 92.88 ms at 44.1 kHz.
+
+XAudio2 2.9 is the better Windows backend than SDL audio here: it is available to the default GDI/headless build,
+does not widen that build's dependency surface, and exposes completion callbacks. The new backend keeps the shared
+nine-channel saturating mixer but has separate submit and callback-complete cursors. Four 256-frame buffers cap
+device lead at 1,024 frames/23.22 ms; blocking HLE calls now pace against the completed cursor. Idle channels snap
+to the current submit point when they restart, while actual ring overflow is counted and dropped explicitly.
+
+A 29.27 s run with real vblank pacing and host playback held 2–4 device buffers (11.61–23.22 ms), reported zero
+dropped frames, and completed 14.26 ms behind QPC—less than one 16.68 ms vblank. The previous backend's device
+queue was exactly four times larger. Mixer tests separately verify summation, panning, clipping, cursor completion,
+resync and capacity boundaries without requiring audio hardware.
+- **Impact:** T-5.6 and Phase 5 are complete. Audio, video and input now use native, measured paths with deterministic
+  no-device alternatives for automation.
+
 ---
 
 ## D. Assets and content

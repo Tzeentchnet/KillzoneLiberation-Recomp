@@ -5,6 +5,22 @@ findings or tasks it touched. Items move here from [TODO.md](TODO.md) when they 
 
 ---
 
+## 2026-10-20 — Session 3k: XAudio2 backend and measured latency (T-5.6, Phase 5 complete)
+- Selected XAudio2 2.9 over SDL audio: it is native to all supported Windows builds and does not make the
+  GDI/headless runtime depend on SDL3. Replaced waveOut's four 1,024-frame blocks (92.88 ms device queue) with four
+  256-frame XAudio2 source buffers (23.22 ms maximum).
+- Extracted a deterministic nine-channel mixer. Per-channel write cursors still sum into one saturating ring, but
+  submitted and callback-completed cursors are now distinct, so `sceAudio*Blocking` measures queued frames against
+  the actual playhead rather than the point where waveOut accepted a block.
+- Focused tests cover independent channel cursors, panning/volume, summation and clipping, silence, callback
+  completion, inactive-channel resync, ring capacity/drop accounting and stats. XAudio init/submission/voice
+  failures are explicit; `SR_NOAUDIO` retains virtual-duration pacing for deterministic runs. `SR_AUDIO_LOG`
+  reports device lead and drift.
+- In a 29.27 s real-time, vblank-paced WARP run, XAudio2 stayed between 2 and 4 buffers (11.61–23.22 ms), dropped
+  zero frames, and its completed-sample clock ended 14.26 ms from QPC (under one 59.94 Hz vblank). Strict GCC/G++,
+  default/D3D12 builds and 4/4 CTests pass; the final Phase 5 capture passes all 50 protected frames at the same
+  5,149-pixel peak. → F-082
+
 ## 2026-10-20 — Session 3j: configurable keyboard and gamepad input (T-5.5)
 - Replaced three divergent hard-coded maps with `input_config.c`: GDI's Win32/XInput/DirectInput path and the
   D3D12/Vulkan SDL3 paths now translate physical state through the same PSP bindings. Keyboard directions drive

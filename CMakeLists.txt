@@ -95,7 +95,8 @@ endif()
 
 set(KZL_RUNTIME_SRCS
   ${RT}/recomp.c ${RT}/vfpu_interp.c ${RT}/vfpu_asin.c ${RT}/hle.c ${RT}/net.c ${RT}/kmem.c ${RT}/intr.c ${RT}/gelist.c ${RT}/callback.c ${RT}/sched.c
-  ${RT}/iso.c ${RT}/mpeg.c ${RT}/pgf.c ${RT}/gui.c ${RT}/input_config.c ${RT}/audio.c ${RT}/sas_reverb.c ${RT}/h264_mf.c ${RT}/savedata.c
+  ${RT}/iso.c ${RT}/mpeg.c ${RT}/pgf.c ${RT}/gui.c ${RT}/input_config.c
+  ${RT}/audio_mixer.c ${RT}/audio_xaudio2.cpp ${RT}/sas_reverb.c ${RT}/h264_mf.c ${RT}/savedata.c
   ${RT}/osk_win.c ${RT}/ge.c)
 if(KZL_ENABLE_D3D12)
   list(APPEND KZL_RUNTIME_SRCS
@@ -116,7 +117,7 @@ function(kzl_configure_runtime_target target)
   target_include_directories(${target} PRIVATE "${RT}")
   target_compile_definitions(${target} PRIVATE _CRT_SECURE_NO_WARNINGS)
   target_compile_options(${target} PRIVATE ${KZL_FP_FLAGS})
-  target_link_libraries(${target} PRIVATE kzl_game kzl_at3 mfplat mfuuid gdi32 user32 dinput8 dxguid ole32 winmm)
+  target_link_libraries(${target} PRIVATE kzl_game kzl_at3 mfplat mfuuid gdi32 user32 dinput8 dxguid ole32 winmm xaudio2)
   if(KZL_ENABLE_D3D12)
     target_compile_definitions(${target} PRIVATE SR_D3D12)
     target_compile_features(${target} PRIVATE cxx_std_17)
@@ -133,6 +134,13 @@ set_target_properties(kzl_driver PROPERTIES OUTPUT_NAME kzl)
 
 include(CTest)
 if(BUILD_TESTING)
+  add_executable(kzl_audio_mixer_tests EXCLUDE_FROM_ALL
+    ${PSP_RECOMP_DIR}/tools/tests/audio_mixer_test.c
+    ${RT}/audio_mixer.c)
+  target_include_directories(kzl_audio_mixer_tests PRIVATE "${RT}")
+  target_compile_options(kzl_audio_mixer_tests PRIVATE ${KZL_FP_FLAGS})
+  add_test(NAME kzl_audio_mixer COMMAND kzl_audio_mixer_tests)
+
   add_executable(kzl_input_tests EXCLUDE_FROM_ALL
     ${PSP_RECOMP_DIR}/tools/tests/input_config_test.c
     ${RT}/input_config.c)
