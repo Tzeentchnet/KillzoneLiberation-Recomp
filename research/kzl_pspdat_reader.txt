@@ -1,0 +1,73 @@
+KZL PSP.DAT reader and duplicate selection
+==========================================
+
+Target
+------
+UCUS-98646 community-distributed v1.20 target pinned in config/kzl.toml.
+Addresses below are relocated Allegrex addresses in KZL.PRX at base 0x08804000.
+No game bytes or decompiler output are stored in this report.
+
+Reproduction
+------------
+The ignored Ghidra project was created with the procedure in
+research/kzl_ghidra.txt. Selected functions were exported locally with:
+
+  analyzeHeadless.bat out\ghidra KZL -process KZL.PRX -noanalysis \
+    -scriptPath tools\ghidra -postScript ExportKzlDecompile.java \
+    out\ghidra\pspdat_reader.c \
+    0x08804ae4 0x088148cc 0x08814148 0x08813d78 0x08813ea4 \
+    0x08814af4 0x08814c50 0x08814d0c 0x08814da0 0x0881506c
+
+Reader chain
+------------
+0x08804AE4 is the high-level VFS bootstrap. It constructs system:, appdir:
+and library: mappings, appends PSP.DAT to the disc path, mounts the archive,
+and conditionally adds downloaded Chapter 5 content.
+
+0x088148CC constructs the archive filesystem object and calls 0x08814148 to
+mount one archive. 0x08814148:
+
+  1. opens the archive through the existing VFS;
+  2. reads the first 0x18 bytes into a temporary and never reads that
+     temporary again;
+  3. reads the u32 at 0x18, allocates that many bytes, and reads the name pool;
+  4. reads the u32 immediately after the pool, allocates that many bytes, and
+     reads the root/record table; and
+  5. stores the parsed archive and adjusts every record's source index.
+
+The executable therefore does not inspect any of header words [0] through
+[5]. In particular, it neither compares nor stores words [2]/[3],
+0x00FA3E01 and 0x00FA3DB6. Neither value occurs as a literal in the relocated
+program image or generated code. Their archive-writer meaning cannot be
+recovered from the consumer and should be treated as opaque exporter
+metadata, not a magic, version, checksum, or compatibility gate. The public
+pspdat.py tool may still use words [0]/[1] for stronger offline validation.
+
+Lookup and duplicate choice
+---------------------------
+0x08814DA0 opens a virtual file and calls 0x08814D0C for its record.
+0x08814AF4 searches mounted archives. With the shipped flag at 0x08DD5D80
+clear, it searches mounts from newest to oldest, so downloaded content can
+override the disc archive.
+
+Within one archive, 0x08813EA4 splits the requested path on slash/backslash.
+For each component, 0x08813D78 uses lower/upper-bound searches over sorted
+12-byte records. The final component returns an inclusive range containing
+all same-name candidates.
+
+0x08814D0C walks that range in 12-byte steps. 0x08814C50 computes the
+absolute unsigned 64-bit distance from each candidate's physical data offset
+to the archive object's last underlying seek/read cursor and replaces the
+winner only for a strictly smaller distance. Consequently:
+
+  * the physically nearest copy is selected, independent of TOC order;
+  * the first candidate in TOC order wins an exact distance tie;
+  * the initial zero cursor selects the lowest-offset copy; and
+  * 0x0881506C updates the cursor after seeks/reads, so later opens favor data
+    placed near the current streaming region.
+
+This exactly explains the 165 duplicated paths (up to 40 extents each):
+identical assets are intentionally replicated near mission/language data to
+reduce UMD seeking. tools/kzl/pspdat.py exposes the recovered nearest-copy
+rule, and tools/tests/test_pspdat.py locks proximity and tie behavior with
+synthetic, redistributable records.

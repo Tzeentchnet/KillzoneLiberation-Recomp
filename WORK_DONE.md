@@ -5,6 +5,18 @@ findings or tasks it touched. Items move here from [TODO.md](TODO.md) when they 
 
 ---
 
+## 2026-10-20 — Session 4b: PSP.DAT reader and seek-local duplicate policy (T-1.10, T-1.11)
+- Located the complete archive path in the relocated v1.20 executable: 0x08804AE4 mounts the VFS, 0x088148CC and
+  0x08814148 open/parse each archive, and 0x08814DA0 resolves virtual-file opens.
+- The parser reads the first 0x18 header bytes into a dead temporary and begins using data only at the 0x18 name-pool
+  size. It never compares or stores header words `[2]/[3]` (0xFA3E01/0xFA3DB6), so they are opaque exporter metadata
+  rather than a runtime magic, version or checksum.
+- Path lookup uses lower/upper bounds to retain every equal-name record. The selector computes each extent's absolute
+  64-bit distance from the last archive seek/read cursor and takes only a strictly nearer candidate: lowest offset on
+  the initial zero cursor, first TOC entry on a tie, then seek-local copies during streaming.
+- Added `ExportKzlDecompile.java`, a non-copyrighted address/behavior report, and a public nearest-copy helper with
+  synthetic regression tests. This proves why 165 paths have 2–40 byte-identical physical replicas. → F-020
+
 ## 2026-10-20 — Session 4a: distinguish community v1.20 from retail Redump (T-1.9)
 - Downloaded Redump's public PSP dat snapshot and located the retail USA entry: 581,632,000 bytes, CRC32
   `a4f123eb`, MD5 `88d913fdf33172a3cfdb857b5c92be5b`, SHA-1

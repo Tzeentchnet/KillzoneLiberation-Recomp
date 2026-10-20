@@ -5,8 +5,8 @@ Layout (reverse-engineered from UCUS-98646 v1.20, all little-endian u32):
 
     0x00  toc_len         TOC bytes after the first 0x18 (TOC ends at 0x18 + toc_len)
     0x04  file_count      file records, duplicates included (3987 on v1.20)
-    0x08  ?               (0xFA3E01 on v1.20)
-    0x0C  ?               (0xFA3DB6 on v1.20)
+    0x08  exporter metadata (0xFA3E01 on v1.20; ignored by the game)
+    0x0C  exporter metadata (0xFA3DB6 on v1.20; ignored by the game)
     0x10  0, 0
     0x18  pool_size       bytes of the name pool that follows
     0x1C  name pool       NUL-terminated names, shared between entries
@@ -21,7 +21,8 @@ depth-first. The first file starts at 0x15000, right after the sector-padded TOC
 
 The same path can appear several times with identical size at different offsets (for
 example /scripts/menu/unlockableabilities.lua x4): copies placed near the data that uses
-them to cut UMD seeks. Any copy can be read; the game picks one.
+them to cut UMD seeks. The game picks the extent nearest the underlying archive cursor;
+the first extent in TOC order wins a distance tie.
 
 Usage:
     pspdat.py <ISO or PSP.DAT> [--tree] [--csv=out.csv] [--extract=DIR [--match=SUBSTR]]
@@ -74,6 +75,15 @@ class Entry:
     @property
     def size(self):
         return self.b
+
+
+def nearest_copy(entries, cursor):
+    """Match KZL's duplicate selector for one path's ordered candidate range."""
+    if not 0 <= cursor < 1 << 64:
+        raise ValueError("cursor must be an unsigned 64-bit value")
+    if not entries:
+        raise ValueError("at least one archive entry is required")
+    return min(entries, key=lambda entry: abs(entry.offset - cursor))
 
 
 class PspDat:
@@ -134,6 +144,15 @@ class PspDat:
 
     def files(self):
         return [e for e in self.entries if not e.is_dir and e.path]
+
+    def copies(self, path):
+        return [e for e in self.files() if e.path == path]
+
+    def select_copy(self, path, cursor=0):
+        copies = self.copies(path)
+        if not copies:
+            raise KeyError(path)
+        return nearest_copy(copies, cursor)
 
 
 def print_tree(e, depth=0):

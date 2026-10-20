@@ -1524,20 +1524,26 @@ stock runtime, and the executable returned `done (hit_hle=0)` with SHA-256
 
 ## D. Assets and content
 
-### F-020 PSP.DAT archive — Confirmed (layout decoded, tree validates)
+### F-020 PSP.DAT archive — Confirmed (layout, reader and duplicate policy decoded)
 [tools/kzl/pspdat.py](tools/kzl/pspdat.py) lists and extracts it. Layout (little-endian u32):
 - Header: `[0]` = TOC length after the first 0x18 bytes (TOC ends at 0x14F90), `[1]` = file records incl. duplicates
-  (3,987), `[2]/[3]` = 0xFA3E01/0xFA3DB6 (unknown; not sizes in sectors), `[6]` = name pool size. The pool starts at 0x1C.
+  (3,987), `[2]/[3]` = 0xFA3E01/0xFA3DB6, `[6]` = name pool size. The pool starts at 0x1C. The game reader at
+  0x08814148 discards the complete first 0x18 bytes and begins with `[6]`; `[2]/[3]` are never compared or stored
+  and do not occur as program literals. They are opaque archive-exporter metadata with no consumer-side semantics.
 - After the pool: the root `{end, child_count}` with no name word, then 12-byte records `{name_off | 0x80000000 if dir, a, b}`.
   Files: `a` = offset, `b` = size. Dirs: `a` points at the first child, `b` = child count. Pointers are byte offsets from
   pool_end + 4, so record = (p - 4) / 12, and the root's `end` points one past the last record (5,005 records).
   Children are contiguous and the tree is depth-first. The first file starts at 0x15000.
 - Contents: 1,018 dirs and 3,987 file records, but only **2,899 unique paths**: 165 files are stored 2–40 times at
   different offsets (all copies byte-identical, checked by SHA-1) to cut UMD seeks. 518 MB of records, 350 MB unique.
+- Reader: 0x08804AE4 mounts `PSP.DAT`; 0x088148CC/0x08814148 parse the pool/tree; and 0x08814DA0 opens a virtual
+  file. Equal-name lower/upper bounds produce the candidate range. 0x08814D0C/0x08814C50 then choose the physical
+  extent nearest the last underlying 64-bit archive cursor, with the first TOC candidate winning a tie. The cursor
+  starts at zero and is updated after archive I/O, proving the copies are deliberate seek-local streaming replicas.
 - File types (unique paths): `.luabin` 1,070, `.jsp` 655, `.core` 617, `.dat` 448, `.at3` 42, `.xm/.xmb/.xmh` 17 each,
   `.lua` 7, `.pmf` 6, `.png` 3. (The session-1 counts came from the name pool, which shares names between paths.)
 - **Impact:** the runtime still reads PSP.DAT through `sceIo` and needs no unpacker. The lister maps I/O offsets in
-  traces to file names, and it is the basis for later asset replacement.
+  traces to file names, reproduces the game's duplicate selector, and is the basis for later asset replacement.
 
 ### F-021 Chapter 5 is not on the disc — Confirmed
 KZL.PRX references `CHAPTER5.BIN`, `HasChapter5`, `StartBrowserDownloadPatch`, `cache:lumps/Chapter5_Mission1.core`
