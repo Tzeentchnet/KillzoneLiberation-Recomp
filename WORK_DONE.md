@@ -5,6 +5,26 @@ findings or tasks it touched. Items move here from [TODO.md](TODO.md) when they 
 
 ---
 
+## 2026-10-19 — Session 2u: D3D12 synchronous PSO cache (T-4.6)
+- Added a canonical 16-byte pipeline key derived from PSO-static GE state: mapped color/alpha blend factors and
+  operations, channel writes, depth test/write/function, culling, and RTV/DSV formats. Texture/shader constants,
+  scissor, blend constants, and other dynamic state are deliberately excluded.
+- Each primitive batch snapshots the key while its GE state is live. A 512-entry open-addressed cache uses the
+  key's FNV-1a hash for placement and full-key comparison for collision safety. Cache misses synchronously create
+  D3D12 graphics PSOs from the checked-in DXIL, live root signature, exact 32-byte input layout, triangle-list
+  topology, and mapped fixed-function state; hits reuse and bind the existing object.
+- Mirrored the Vulkan backend's approximations for unsupported doubled-alpha/fixed-color/absdiff blend cases,
+  last-stage cull convention, PSP depth functions, clear-mode color/depth writes, and partial channel masks.
+  Native draws remain deferred; binding real PSOs now validates the complete shader/root/input/fixed-state
+  contract without changing the software framebuffer that is presented.
+- Extended the focused C++ test with default, blend, depth, cull, sprite, clear, fixed-color conflict, relevant-
+  state, irrelevant-state, and stable-hash cases. Default/D3D12 clang-cl builds and CTests pass, the fork Make
+  target passes, and all new sources compile warning-free under strict MinGW C++17.
+- Hardware and WARP both create the same five PSOs with identical hashes in the 10-frame boot. A 1,200-frame
+  hardware stress run still creates only those five entries, proving reuse with no cache exhaustion or D3D12
+  creation failure. A graceful-close run drains the graphics queue before releasing PSOs and reports 2,214
+  lookups, 2,209 hits, five misses, and zero failures. T-4.6 is complete. → F-066
+
 ## 2026-10-19 — Session 2t: D3D12 decoded vertex capture and upload (T-4.5)
 - Added a dedicated D3D12 vertex module that consumes the authoritative post-transform `GeVtx` hooks rather than
   duplicating PSP decoding. This preserves `ge.c` support for u8/u16/float attributes, all packed colors, up to

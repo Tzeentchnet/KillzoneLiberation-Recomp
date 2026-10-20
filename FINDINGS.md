@@ -723,8 +723,9 @@ fence is acquired. The backend therefore grows CPU-side pending arrays during GE
 finished stream into the active frame's persistent upload partition during `present`. The frame limit is 240,000
 vertices (7.68 MB, about 7.32 MiB), leaving about 692 KiB in the 8 MiB partition for the 544 KiB BGRA
 presentation upload.
-Capacity, allocation, and partial-capture failures are fatal and explicit. Until T-4.6 records native draws, all
-hooks return zero and the reference rasterizer still generates the displayed framebuffer.
+Capacity, allocation, and partial-capture failures are fatal and explicit. Until native batch submission becomes
+the presentation source, all hooks return zero and the reference rasterizer still generates the displayed
+framebuffer.
 
 Focused tests lock down packing and every expansion rule. A `ge_execute_op` matrix independently proves that
 u8/u16/float positions and UVs, all four packed colors, and non-indexed/u8/u16/u32 indices reach the decoded
@@ -732,6 +733,44 @@ backend callback correctly. Default/D3D12 clang-cl builds, both CTest configurat
 hardware/WARP boots, and a 1,200-vblank capture stress run all pass without upload exhaustion.
 - **Impact:** T-4.5 is complete. T-4.6 can create PSOs against one triangle-list vertex ABI and use retained batch
   boundaries without revisiting PSP vertex formats or changing upload lifetime.
+
+### F-066 A 16-byte canonical key captures all current D3D12 PSO-static GE state — Confirmed
+The entire live graphics PSO varies on only these fields:
+
+| Bytes | State |
+|---:|---|
+| 0-3 | blend enable, source factor, destination factor, color operation |
+| 4-7 | source-alpha factor, destination-alpha factor, alpha operation, color-write mask |
+| 8-11 | depth enable, depth write, comparison function, cull mode |
+| 12-15 | RTV and DSV formats |
+
+The builder maps PSP blend and depth enums to D3D12 once, before hashing. It carries forward the Vulkan backend's
+current approximations: source-side doubled-alpha factors are paired with shader premultiplication later;
+destination doubled-alpha factors use ordinary destination alpha; two unequal fixed blend colors preserve the
+source constant and round the destination to zero/one; absolute difference uses subtract. Clear mode disables
+blend/culling and independently derives RGB, alpha, and depth writes from `clear_mode`. `draw_prim` has already
+reordered culled triangles, so D3D12 uses clockwise fronts and back-face culling just like Vulkan.
+
+Everything not baked into a PSO is intentionally absent. Texture identity/format, CLUT state, alpha test,
+fog, texture function, min/max depth kills, and perspective flags belong to shader constants/descriptors.
+Scissor and blend color will be dynamic command state. Attachment addresses and strides select render-target
+objects, not shader pipelines. Excluding those fields prevents equivalent PSOs from multiplying across draws.
+
+Every captured primitive batch stores this key while the matching `GeState` is still live. The cache computes
+64-bit FNV-1a, probes 512 power-of-two slots, and compares all 16 bytes before accepting a hit, so hash collisions
+cannot select the wrong state. A miss synchronously creates an `ID3D12PipelineState` using the live root signature,
+embedded DXIL, four-element input layout, triangle-list topology, BGRA8 target, optional D16 depth, and mapped
+fixed-function state. The PSO is immediately bound; native draw submission remains deferred so the software
+framebuffer stays authoritative during bring-up. T-4.15 can layer asynchronous compilation and a disk
+`ID3D12PipelineLibrary` over the same stable key.
+
+Focused tests prove that PSO-relevant changes alter the key/hash while shader-only texture fields do not, and lock
+clear/sprite/fixed-color behavior. RTX hardware and WARP compile the same five hashes during the boot sequence.
+A 1,200-frame hardware stress run creates exactly those five entries and then only hits them, with no creation
+failure or cache exhaustion. A separate graceful-close run records 2,214 lookups, 2,209 hits, five misses, and
+zero failures, and waits for the graphics queue before releasing the cached COM objects.
+- **Impact:** T-4.6 is complete. The next native submission stage can bind vertex slices and per-draw dynamic
+  state without recompiling equivalent fixed-function combinations.
 
 ---
 
