@@ -1,8 +1,8 @@
 # KZL statically linked library labels
 #
 # Evidence: Ghidra string xrefs + SN vtable installers, 2026-10-20.
-# PPSSPP knownfuncs.ini CityHash attempt: 0 exact matches against 22,378
-# Ghidra function boundaries (SN compiler/layout differs from its database).
+# PPSSPP knownfuncs.ini CityHash: 37 exact matches against 22,378 Ghidra
+# function boundaries. Full hashes/addresses are in kzl_knownfuncs.txt.
 
 [libraries]
 Havok = Physics 3.x family; hkWorld/reflection/constraint/vehicle classes and packfile runtime

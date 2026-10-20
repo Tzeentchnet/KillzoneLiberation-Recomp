@@ -1,0 +1,94 @@
+# KZL v1.20 -> v1.00 normalized function match
+v120_relocated_image_bytes=6965008
+v100_relocated_image_bytes=6758492
+relocated_image_growth=206516
+v120_prx_bytes=8522812
+v100_prx_bytes=8097844
+prx_growth=424968
+v120_ghidra_functions=22378
+v100_ghidra_functions=20949
+unique_function_matches=6862
+matched_normalized_bytes=1842208
+same_address_matches=8
+carried_labels=46
+v120_ascii_strings=7405
+v100_ascii_strings=7131
+added_ascii_strings=630
+removed_ascii_strings=356
+v120_feature_markers=
+  CHAPTER5.BIN
+  HasChapter5
+  SetHasChapter5
+  StartBrowserDownloadPatch
+  CalculateGameCompletionChapter5
+  ReleaseVersion 3.01.200703171900
+  dme version: 3.1.2
+  medius client version: 3.1.1
+top_address_deltas=
+  -474664 (-0x73e28) count=423
+  -474520 (-0x73d98) count=173
+  -474824 (-0x73ec8) count=157
+  -474432 (-0x73d40) count=156
+  -466448 (-0x71e10) count=143
+  -474736 (-0x73e70) count=77
+  -345720 (-0x54678) count=57
+  -240560 (-0x3abb0) count=55
+  -472192 (-0x73480) count=34
+  -330884 (-0x50c84) count=24
+  -464208 (-0x71550) count=23
+  -464384 (-0x71600) count=20
+  -478616 (-0x74d98) count=20
+  -412004 (-0x64964) count=19
+  -471792 (-0x732f0) count=18
+  -352820 (-0x56234) count=18
+  -240584 (-0x3abc8) count=18
+  -330892 (-0x50c8c) count=17
+  -3586228 (-0x36b8b4) count=17
+  -336672 (-0x52320) count=16
+labeled_matches=
+  v120=0x08804530 v100=0x08804530 size=200 name=sn_libc_main_thread_guard
+  v120=0x08a00a38 v100=0x089afdb4 size=76 name=__extendsfdf2
+  v120=0x08a00dcc v100=0x089b0148 size=104 name=__adddf3
+  v120=0x08a00e34 v100=0x089b01b0 size=116 name=__subdf3
+  v120=0x08a00ea8 v100=0x089b0224 size=888 name=__muldf3
+  v120=0x08a01650 v100=0x089b09cc size=68 name=__negdf2
+  v120=0x08a023bc v100=0x089b1738 size=24 name=fabsf
+  v120=0x08a0359c v100=0x089b2910 size=676 name=rint
+  v120=0x08a03840 v100=0x089b2bb4 size=32 name=finitef
+  v120=0x08a067f8 v100=0x089b5b6c size=32 name=isnanf
+  v120=0x08a06824 v100=0x089b5b98 size=444 name=scalbnf
+  v120=0x08a069e0 v100=0x089b5d54 size=40 name=copysignf
+  v120=0x08a06a88 v100=0x089b5e90 size=152 name=sn_runtime_terminate_handler
+  v120=0x08a0c6e0 v100=0x089bb5d8 size=120 name=RectangleTagModule_vtable_init
+  v120=0x08a118cc v100=0x089bfd1c size=184 name=PageIDTagModule_vtable_init
+  v120=0x08a14210 v100=0x089c2624 size=188 name=TickerTagModule_vtable_init
+  v120=0x08a1d614 v100=0x089cb594 size=308 name=TextTagModule_vtable_init
+  v120=0x08a22798 v100=0x089d0478 size=440 name=TextInputTag_scrollTextRightToFillWindow
+  v120=0x08a958f8 v100=0x08a303c8 size=276 name=HwSoundSystemPSP_IsInstancePlaying
+  v120=0x08addba4 v100=0x08a70500 size=328 name=CSystemContext_HandleSVModeTransition
+  v120=0x08bd1904 v100=0x08b5ee14 size=56 name=fabs
+  v120=0x08bddc08 v100=0x08b69ec8 size=824 name=TthkShapeCollection_getAabb
+  v120=0x08bddf40 v100=0x08b6a200 size=428 name=TthkShapeCollection_getMaximumProjection
+  v120=0x08c2a694 v100=0x08bb686c size=4680 name=hkWorld_constructor
+  v120=0x08c2dd50 v100=0x08bb9f28 size=836 name=LthkWorld_getPenetrations
+  v120=0x08d11a38 v100=0x08ca5e18 size=2388 name=qsort
+  v120=0x08d1238c v100=0x089a7010 size=436 name=_strtoul_r
+  v120=0x08d1256c v100=0x089ae954 size=68 name=memchr
+  v120=0x08d125b0 v100=0x089a71f0 size=76 name=memcmp
+  v120=0x08d125fc v100=0x089a723c size=148 name=memmove
+  v120=0x08d12690 v100=0x089a72d0 size=52 name=memset
+  v120=0x08d126c4 v100=0x08b5b8dc size=184 name=strcasecmp
+  v120=0x08d1277c v100=0x089a7304 size=92 name=strcat
+  v120=0x08d127d8 v100=0x089a7360 size=56 name=strchr
+  v120=0x08d12810 v100=0x089a7398 size=52 name=strcmp
+  v120=0x08d12844 v100=0x089a73cc size=68 name=strcpy
+  v120=0x08d12888 v100=0x089a7410 size=36 name=strlen
+  v120=0x08d128ac v100=0x08ca676c size=96 name=strlwr
+  v120=0x08d1290c v100=0x08ca67cc size=236 name=strncasecmp
+  v120=0x08d129f8 v100=0x08ca68b8 size=88 name=strncat
+  v120=0x08d12a50 v100=0x089a7434 size=100 name=strncmp
+  v120=0x08d12ab4 v100=0x089a7498 size=96 name=strncpy
+  v120=0x08d12b70 v100=0x08ca6910 size=60 name=strrchr
+  v120=0x08d12bac v100=0x089a7554 size=104 name=strstr
+  v120=0x08d17978 v100=0x089ac094 size=464 name=_strtol_r
+  v120=0x08d17bdc v100=0x089ac2f8 size=600 name=floor

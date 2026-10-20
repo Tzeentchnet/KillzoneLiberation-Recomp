@@ -1438,9 +1438,9 @@ only names, counts and addresses, and `tools/ghidra/README.md` contains the exac
   without adding copyrighted program databases to the repository.
 
 ### F-096 String xrefs outperform generic signatures for this SN-linked image — Confirmed
-PPSSPP-style `knownfuncs.ini` hashing was attempted with immediate masking and CityHash64 over every Ghidra function
-boundary. It produced zero exact matches: the database's compiler variants/boundaries do not match this SN ProDG
-image. Applying near matches would be guesswork.
+PPSSPP `knownfuncs.ini` hashing over immediate-normalized, inclusive Ghidra function bodies produced 37 exact
+hash+size matches. They label libc string/memory routines, qsort/strto*, scalar math, and SN double helpers.
+No near/fuzzy matches are applied.
 
 KZL instead retains unusually strong direct labels in diagnostics. Ghidra xrefs identify:
 
@@ -1472,6 +1472,20 @@ methods (127 symbols total), raising named functions from 302 to 395. Full addre
 `research/kzl_class_recovery.txt`.
 - **Impact:** T-1.5 is complete. SVBrowser decompilation now has stable class/table landmarks, and the ABI scanner
   can be extended to the remaining gameplay/Havok classes without changing its evidence standard.
+
+### F-099 v1.20 is a large Chapter 5 and online-stack patch, not an address-stable rebuild — Confirmed
+Relocation-aware Ghidra analysis finds 22,378 functions in v1.20 and 20,949 in the embedded v1.00 PRX. Matching
+immediate-normalized CityHash64 plus exact byte size, while accepting only keys unique on both sides, yields 6,862
+one-to-one functions covering 1,842,208 bytes. Only eight remain at the same address; the dominant address deltas
+are around -0x73E00, so address-only name transfer would be unsafe. Forty-six recovered v1.20 labels transfer by
+content to v1.00.
+
+The v1.20 PRX is 424,968 bytes larger (its relocated image grows 206,516 bytes), with 1,429 more Ghidra functions,
+630 added printable strings and 356 removed. Added feature markers include `CHAPTER5.BIN`, `HasChapter5`,
+`SetHasChapter5`, Chapter 5 completion and browser-download patch paths. The online middleware also moves from
+DME 3.0.15 / Medius 3.0.10 / RT 3.0 builds to DME 3.1.2 / Medius 3.1.1 / RT 3.01.200703171900.
+- **Impact:** T-1.8 is complete. Names can move between versions only through normalized content matches, and the
+  patch's major functional additions are now bounded without assuming shifted addresses.
 
 ### F-098 The upstream pipeline requires a PRX-shaped homebrew, not only MIPS code — Confirmed
 A generic ET_EXEC containing `jr $ra; nop` passed the analyzer/codegen but failed the stock import step because it

@@ -39,6 +39,9 @@ class KnownFunctionsTests(unittest.TestCase):
             ["memcpy"],
         )
 
+    def test_ghidra_end_address_is_inclusive_byte(self):
+        self.assertEqual(0x08804007 - 0x08804000 + 1, 8)
+
 
 if __name__ == "__main__":
     unittest.main()

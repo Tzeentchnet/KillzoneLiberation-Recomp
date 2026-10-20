@@ -67,7 +67,7 @@ def match_functions(image, functions, known):
         )
     matches = []
     for address, end, old_name in functions:
-        size = end - address + 4
+        size = end - address + 1
         offset = address - BASE
         if size <= 0 or size & 3 or offset < 0 or offset + size > len(image):
             continue
@@ -97,6 +97,18 @@ def write_report(path, matches):
             )
 
 
+def write_symbols(path, matches):
+    with open(path, "w", encoding="ascii", newline="") as stream:
+        writer = csv.writer(stream, lineterminator="\n")
+        writer.writerow(("address", "name", "source"))
+        for address, _, digest, names, _ in matches:
+            writer.writerow((
+                f"0x{address:08x}",
+                names[0],
+                f"knownfunc:{digest:016x}",
+            ))
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--functions", required=True)
@@ -106,6 +118,7 @@ def main(argv=None):
     )
     parser.add_argument("--knownfuncs", required=True)
     parser.add_argument("--output", required=True)
+    parser.add_argument("--symbols")
     args = parser.parse_args(argv)
     if CityHash64 is None:
         parser.exit(
@@ -118,6 +131,8 @@ def main(argv=None):
             image = stream.read()
         matches = match_functions(image, functions, known)
         write_report(args.output, matches)
+        if args.symbols:
+            write_symbols(args.symbols, matches)
     except (OSError, KeyError, ValueError, RuntimeError) as exc:
         parser.exit(1, f"knownfuncs: {exc}\n")
     print(f"known function matches: {len(matches)}; report: {args.output}")

@@ -58,3 +58,18 @@ python tools\kzl\class_recovery.py `
 
 The scripts fail on missing functions or malformed labels instead of silently
 creating a success-shaped report.
+
+Optional PPSSPP signatures and v1.00 matching use CityHash:
+
+```powershell
+python -m pip install -r tools\requirements-analysis.txt
+python tools\kzl\knownfuncs.py `
+  --functions out\ghidra\kzl_functions.csv `
+  --knownfuncs C:\path\to\ppsspp\assets\knownfuncs.ini `
+  --output research\kzl_knownfuncs.txt `
+  --symbols out\ghidra\kzl_knownfunc_symbols.csv
+```
+
+`tools/kzl/version_match.py --help` documents the two-version image/function
+inputs and emits both the non-copyrighted report and labels transferable to the
+v1.00 Ghidra program.

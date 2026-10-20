@@ -5,6 +5,19 @@ findings or tasks it touched. Items move here from [TODO.md](TODO.md) when they 
 
 ---
 
+## 2026-10-20 — Session 3z: KZL v1.00/v1.20 function matching (T-1.8)
+- Imported and relocation-aware analyzed `KZL.PRX.100` at 0x08804000 in the same ignored Ghidra project: 20,949
+  functions versus 22,378 in v1.20.
+- Added `version_match.py`. It masks address/immediate fields, hashes inclusive Ghidra bodies with CityHash64, and
+  accepts only hash+size keys unique in both images. 6,862 one-to-one functions match, covering 1,842,208 normalized
+  bytes; only eight retain the same address because the patch shifts large code regions.
+- Carried 46 exact v1.20 labels into the v1.00 project, including libc/SN helpers, four SV vtable installers,
+  TextInput/SystemContext/audio methods and four Havok methods.
+- v1.20 grows the PRX by 424,968 bytes and relocated image by 206,516 bytes, adds 1,429 Ghidra functions and 630
+  printable strings (356 removed). New markers identify Chapter 5 detection/completion, browser patch downloading,
+  and upgraded DME/Medius/RT 3.1 libraries. `research/kzl_version_match.txt` preserves full metrics/deltas/labels.
+  → F-099
+
 ## 2026-10-20 — Session 3y: clean upstream MSYS2 homebrew baseline (T-0.4)
 - Installed portable MSYS2 20260927 under `D:\Tools` and its UCRT64 GCC 16.2, SDL3 3.4.18, Vulkan
   loader/headers 1.4.363, lld 23.1.3, make 4.4.1 and Python 3.14.8 packages.
@@ -25,8 +38,8 @@ findings or tasks it touched. Items move here from [TODO.md](TODO.md) when they 
 - Identified Havok as the Physics 3.x API family from its build-version diagnostic, 3.0 conversion path, reflection
   types and hkWorld/packfile/constraint/vehicle classes. No numeric point-release literal exists, so the report
   deliberately avoids a false precision claim.
-- Ran PPSSPP-style knownfuncs immediate masking and CityHash64 against all 22,378 Ghidra functions; this SN build yielded
-  zero exact database matches. The matcher and tests remain checked in, but no zero-confidence names were applied.
+- Corrected Ghidra's inclusive byte-end handling and matched 37 exact PPSSPP knownfunc signatures across the 22,378
+  functions: libc string/memory routines, qsort/strto*, scalar math and SN double helpers. No fuzzy names were applied.
 - Recovered the SN C++ ABI: virtual tables are 8-byte `{signed this_delta, function}` pairs. Relocated
   rodata/data/linkonce scanning found 1,978 candidates. Source-file xrefs and functions that materialize/store those
   addresses linked 34 SV TagModule classes to vtable installers and 8–18-entry primary tables.

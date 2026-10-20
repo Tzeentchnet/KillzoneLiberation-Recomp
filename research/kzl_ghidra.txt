@@ -14,6 +14,9 @@ analysis_seconds=106
 ghidra_functions=22378
 applied_export_labels=2
 applied_import_labels=300
+applied_knownfunc_labels=37
+applied_class_vtable_string_symbols=127
+final_named_functions=432
 
 # Auto-analysis included Allegrex constant references, relocation-aware
 # disassembly, decompiler switch recovery, stack analysis, GCC exception
