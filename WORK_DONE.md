@@ -5,6 +5,19 @@ findings or tasks it touched. Items move here from [TODO.md](TODO.md) when they 
 
 ---
 
+## 2026-10-20 — Session 4c: prove the retail debug menu is orphaned (T-6.6)
+- Audited all 655 unique JSP pages. Eight localized `debugoptions.jsp` pages expose invulnerability, ammunition,
+  camera, item/script and mission-completion controls, but only their eight descendant `giveitem.jsp` pages link
+  back to them.
+- The English E3 adhoc/offline option pages retain `DebugMenu()` helpers gated by `options.nodebug`, but no tag,
+  quick link, controller binding or script calls either helper. Every shipped retail offline options page contains
+  zero debug references; online pages only retain a stale reference to a nonexistent tag.
+- The executable and relocated image contain none of the relevant page/key/function strings, excluding a separate
+  native cheat sequence. Clearing `options.nodebug` cannot restore a navigation edge that was removed.
+- Documented the negative result in `research/kzl_debug_menu.txt`. Direct debugger navigation or modified
+  user-supplied content can open the page, but the runtime does not patch game content; the debug mission-complete
+  action therefore cannot shortcut the default protected playthrough gate. → F-014
+
 ## 2026-10-20 — Session 4b: PSP.DAT reader and seek-local duplicate policy (T-1.10, T-1.11)
 - Located the complete archive path in the relocated v1.20 executable: 0x08804AE4 mounts the VFS, 0x088148CC and
   0x08814148 open/parse each archive, and 0x08814DA0 resolves virtual-file opens.

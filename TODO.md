@@ -154,7 +154,8 @@ Priority: **P0** blocks the next milestone · **P1** is needed for 1.0 · **P2**
 - [ ] **T-6.3 P1** Chapter 5: the user puts `CHAPTER5.BIN` in the ms0 data folder, and `HasChapter5` turns true. Play chapter 5. → F-021
 - [ ] **T-6.4 P1** A 10-hour soak test that watches the memory heap (the 32 MB PSP-1000 limit is emulated), thread starvation and audio drift.
 - [ ] **T-6.5 P2** Ad-hoc co-op and versus over LAN: map `sceNetAdhoc*` to UDP, following PPSSPP's adhoc and AdhocServer design.
-- [ ] **T-6.6 P2** Investigate `debugoptions.jsp` and how to unlock the debug menu. → F-014
+- [x] **T-6.6 P2** Investigate `debugoptions.jsp` and how to unlock the debug menu. → F-014
+  *Done 2026-10-20: all 655 unique JSP pages were searched. Eight localized debug pages exist, but the only incoming opens are their own `giveitem.jsp` descendants and two uncalled `DebugMenu()` helpers left in English E3 pages. All eight shipped offline option pages have zero debug references, the executable contains no related strings/native unlock handler, and clearing `options.nodebug` cannot create the missing navigation edge. The page is orphaned development content reachable only by direct SVBrowser invocation through a debugger or modified user-supplied content; the runtime does neither. See `research/kzl_debug_menu.txt` (F-014).*
 
 ## Phase 7 — Enhancements
 - [ ] **T-7.1 P1** Internal resolution scaling (×2…×8) with correct handling of framebuffer readback and copies.

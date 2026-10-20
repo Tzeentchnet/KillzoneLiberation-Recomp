@@ -1,0 +1,64 @@
+KZL retail debug-menu reachability audit
+========================================
+
+Target
+------
+UCUS-98646 community-distributed v1.20 target pinned in config/kzl.toml.
+Only paths, counts and behavior summaries are retained here; no game page
+content is committed.
+
+Method
+------
+tools/kzl/pspdat.py validated the archive and enumerated 655 unique JSP paths.
+Each unique JSP was then scanned in memory for:
+
+  debugoptions.jsp
+  options.nodebug
+  function DebugMenu(
+  calls to DebugMenu(
+
+The retail and E3 English in-game option pages were temporarily extracted
+under ignored out/ storage to inspect their complete tag/navigation graphs.
+The KZL.PRX and relocated image were also searched for all three strings.
+
+Results
+-------
+The archive has eight localized retail debugoptions.jsp pages. They expose
+god mode, buddy invulnerability, infinite ammunition, pause/camera controls,
+item granting, interactive-entity and script-debug controls, and a mission
+completion action that calls gGame:SwitchToMissionComplete(0.0).
+
+Across all 655 unique JSP pages, only ten pages open debugoptions.jsp:
+
+  * eight localized giveitem.jsp pages return to it; these are descendants
+    of the debug menu and do not create an external entry point;
+  * the English E3 adhoc and offline option pages each define DebugMenu().
+
+There are zero calls to either E3 DebugMenu() definition. Their markup has no
+button, quick link, controller binding or page hook that invokes the helper.
+The helper would open the retail debug page only when application value
+options.nodebug is absent.
+
+All eight localized shipped newmenu/offline/ingame/options.jsp pages contain
+zero "debug" references. The retail online option pages contain stale code
+that tries to disable a tag named debugoptions when options.nodebug is set,
+but their markup defines no such tag and never opens the page.
+
+KZL.PRX and the relocated executable image contain none of
+"debugoptions.jsp", "options.nodebug", or "DebugMenu". There is therefore no
+native secret-input handler or executable-side unlock path hidden outside
+the SVML pages.
+
+Conclusion
+----------
+The retail debug menu is orphaned development content, not a locked feature.
+Clearing options.nodebug is insufficient: the only helpers that test it are
+uncalled leftovers in E3 pages, while the shipped option pages have no
+navigation edge at all.
+
+It can be reached only by explicitly directing SVBrowser to
+/kzpsp/newmenu/offline/ingame/debugoptions.jsp, for example through a guest
+debugger or modified user-supplied game content. The runtime does not patch
+or redistribute PSP.DAT, so no debug-menu switch is added. In particular,
+the mission-complete action cannot be used by the unmodified protected
+playthrough gate.

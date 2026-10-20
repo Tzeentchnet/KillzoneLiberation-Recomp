@@ -94,7 +94,13 @@ The UI runs on Sony's SVO/SVML markup. `SVBrowser.cpp`, `*TagModule.cpp` (Form, 
 **775 `.jsp` records / 655 unique paths** in PSP.DAT (`svo/svml/kzpsp/…`: mainmenu, chapterselect, adhoc lobby,
 `debugoptions.jsp`). The earlier count of 56 came from shared names in the name pool, not full paths.
 - **Impact:** menus are rendered by game code, so no special HLE work is needed. Check that local pages never go
-  through `sceHttp` (T-3.12). `debugoptions.jsp` is a debug menu that could be unlocked — worth investigating (T-6.6).
+  through `sceHttp` (T-3.12).
+- **Debug-menu update (2026-10-20):** the eight localized debug pages are orphaned development content. Across all
+  655 unique pages, the only incoming opens are eight descendant `giveitem.jsp` return paths and two uncalled
+  `DebugMenu()` helpers in leftover English E3 pages. Every shipped offline options page has zero debug references;
+  stale online code names a tag that does not exist; and the executable has no related string/native handler.
+  Clearing `options.nodebug` therefore unlocks nothing. Only debugger-driven direct navigation or modified
+  user-supplied content can reach it, so the runtime deliberately adds no title-specific bypass (T-6.6).
 
 ### F-015 Function inventory with the sal063 analyzer — Confirmed
 `tools/analyze.py --base=0x08804000` finds **42,641 functions** in 18 s. With no symbols, recall cannot be measured.
