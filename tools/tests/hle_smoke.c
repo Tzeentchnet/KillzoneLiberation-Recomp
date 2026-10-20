@@ -1796,6 +1796,7 @@ static void test_mpeg_eof(CpuState *cpu) {
     const uint32_t attr_addr = 0x0881c420u;
     const uint32_t buffer_addr = 0x0881c430u;
     const uint32_t init_addr = 0x0881c434u;
+    const uint32_t mode_addr = 0x0881c440u;
     const uint32_t callback_addr = 0x0881d000u;
     const uint32_t context_addr = 0x08830000u;
     const uint32_t ring_data_addr = 0x08850000u;
@@ -1826,6 +1827,23 @@ static void test_mpeg_eof(CpuState *cpu) {
     check_u32("mpeg create",
               hle_call7(cpu, 0xd8c5f121u, mpeg_addr, context_addr, 0x10000,
                         ring_addr, 512, 0, 0), 0);
+    MEM_W32(mode_addr, 0);
+    MEM_W32(mode_addr + 4, 0);
+    check_u32("mpeg AVC decode mode 5650",
+              hle_call(cpu, 0xa11c7026u, mpeg_addr, mode_addr, 0, 0), 0);
+    MEM_W32(mode_addr + 4, 3);
+    check_u32("mpeg AVC decode mode 8888",
+              hle_call(cpu, 0xa11c7026u, mpeg_addr, mode_addr, 0, 0), 0);
+    MEM_W32(mode_addr + 4, 4);
+    check_u32("mpeg AVC unknown decode mode",
+              hle_call(cpu, 0xa11c7026u, mpeg_addr, mode_addr, 0, 0), 0);
+    check_u32("mpeg AVC decode mode null",
+              hle_call(cpu, 0xa11c7026u, mpeg_addr, 0, 0, 0), 0xffffffffu);
+    check_u32("mpeg AVC decode mode bad handle",
+              hle_call(cpu, 0xa11c7026u, 0, mode_addr, 0, 0), 0xffffffffu);
+    MEM_W32(mode_addr + 4, 3);
+    check_u32("mpeg AVC restore decode mode",
+              hle_call(cpu, 0xa11c7026u, mpeg_addr, mode_addr, 0, 0), 0);
     check_u32("mpeg stream offset",
               hle_call(cpu, 0x21ff80e4u, mpeg_addr, header_addr, offset_addr, 0), 0);
     check_u32("mpeg stream offset value", MEM_R32(offset_addr), 2048);

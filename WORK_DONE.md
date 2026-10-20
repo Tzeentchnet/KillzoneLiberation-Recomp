@@ -5,6 +5,21 @@ findings or tasks it touched. Items move here from [TODO.md](TODO.md) when they 
 
 ---
 
+## 2026-10-20 — Session 3i: real PMF video/audio and sync (T-5.4)
+- Enabled the existing Media Foundation H.264 path for D3D12; it had been compiled but guarded exclusively by
+  `SR_SDL3VK`, leaving native D3D12 movie buffers blank. `sceMpegAvcDecodeMode` now has focused address/handle and
+  5650/8888/unknown-mode coverage.
+- Extended the program-stream demux with PSP private-stream audio. Complete `0F D0` ATRAC3+ frames feed the same
+  standalone decoder used by sceAtrac, while PES timestamps and a one-audio-block lead gate keep movie audio from
+  racing ahead of 29.97 fps video. Decoder failures remain explicit; unavailable AUs return `NO_DATA`.
+- A no-input live run played the complete 81.248 s game intro through Media Foundation's 480×272 NV12 output:
+  2,424 H.264 frames and 1,735 decoded stereo ATRAC frames, no decode errors, and at most 11,874/90,000 s (132 ms)
+  PTS separation while both streams were active.
+- Standalone probes decoded all six packaged PMFs: 918/974/1,051 video frames for the attract movies, 6,388 and
+  6,290 for the credits movies, and 2,426 for the intro, with 664/704/761/4,605/4,533/1,752 corresponding stereo
+  audio frames. Strict MinGW, both clang-cl builds and CTests pass; the final scripted WARP run passes all 50
+  protected frames with a 5,149-pixel peak over delta 64. → F-080
+
 ## 2026-10-20 — Session 3h: real ATRAC3+ music and streaming (T-5.3)
 - Replaced the silence-only Atrac control model with PPSSPP's standalone FFmpeg-derived ATRAC3/ATRAC3+ decoder,
   retained under LGPL-2.1-or-later with its license and attribution. A small C ABI keeps the C runtime independent

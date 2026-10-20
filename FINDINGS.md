@@ -1133,6 +1133,36 @@ looping. All 50 graphics frames remain below the existing comparison gate.
 - **Impact:** T-5.3 is complete: music data is decoded, loop/restart paths are exercised, streaming seeks retain
   sound, and codec failures are observable instead of being converted into successful silence.
 
+### F-080 D3D12 had compiled Media Foundation but never entered its decode path — Confirmed
+`h264_mf.c` was present in every root build, but every create/feed/frame call in `mpeg.c` was guarded only by
+`SR_SDL3VK`. The D3D12 runtime therefore advanced PSMF timestamps and cleared the movie destination without ever
+opening the OS decoder. The guard now covers both native GPU builds. Media Foundation initially advertises its
+default 1,920×1,080 output type, then the KZL SPS triggers the expected stream change to NV12 480×272, stride 480.
+
+PMF audio is private stream 1. Its PES payload contains concatenated `0F D0` PSP ATRAC3+ frames; the frame header
+encodes a 560-byte compressed payload for these movies. The demux now queues those frames and their 90 kHz PES PTS,
+and `sceMpegAtracDecode` emits 2,048 stereo samples through the standalone decoder. `sceMpegGetAtracAu` admits a
+frame only when it exists and is no more than one audio block ahead of video. During the complete 81.248 s intro,
+the maximum active-stream separation was 11,874 ticks (132 ms); the movie produced 2,424 native video frames and
+1,735 audio frames before its logical PSMF tail and exited normally.
+
+Direct probes of every packaged PMF independently produced H.264 frames and stereo audio:
+
+| Asset group | Video frames | Audio frames |
+|---|---:|---:|
+| `attractmovie_psp` | 918 | 664 |
+| `attractmovie1_psp` | 974 | 704 |
+| `attractmovie2_psp` | 1,051 | 761 |
+| `credits_psp` | 6,388 | 4,605 |
+| `creditsinterface_psp` | 6,290 | 4,533 |
+| `gameintro_psp` | 2,426 | 1,752 |
+
+The PSP pixel-mode setter was already present; focused tests now cover both valid native formats used here, an
+unknown mode, invalid guest memory and a bad MPEG handle. The normal scripted gameplay capture still passes 50/50
+against the protected PPSSPP oracle after enabling real movie decode.
+- **Impact:** T-5.4 is complete. Intro, attract and credits assets all have verified native video/audio decode, and
+  movie PTS cannot drift unbounded even when the game polls audio and video at different rates.
+
 ---
 
 ## D. Assets and content
