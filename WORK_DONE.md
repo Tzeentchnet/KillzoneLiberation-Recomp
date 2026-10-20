@@ -5,6 +5,23 @@ findings or tasks it touched. Items move here from [TODO.md](TODO.md) when they 
 
 ---
 
+## 2026-10-20 — Session 3x: static libraries and SN vtable recovery (T-1.4, T-1.5)
+- Exported 4,446 Ghidra string references and used only direct evidence to label 25 functions: Lua 4.0
+  `lua_getinfo`/string-library registration, SN terminate/pure-virtual handling, the libc main-thread guard,
+  libgu's SceGuSignal setup, `hkWorld` construction, three exact Havok methods, TextInput/BaseWidget/SystemContext,
+  and sixteen HwSoundSystemPSP methods.
+- Identified Havok as the Physics 3.x API family from its build-version diagnostic, 3.0 conversion path, reflection
+  types and hkWorld/packfile/constraint/vehicle classes. No numeric point-release literal exists, so the report
+  deliberately avoids a false precision claim.
+- Ran PPSSPP-style knownfuncs immediate masking and CityHash64 against all 22,378 Ghidra functions; this SN build yielded
+  zero exact database matches. The matcher and tests remain checked in, but no zero-confidence names were applied.
+- Recovered the SN C++ ABI: virtual tables are 8-byte `{signed this_delta, function}` pairs. Relocated
+  rodata/data/linkonce scanning found 1,978 candidates. Source-file xrefs and functions that materialize/store those
+  addresses linked 34 SV TagModule classes to vtable installers and 8–18-entry primary tables.
+- Applied 127 class/vtable/string symbols headlessly, increasing named functions from 302 to 395. Generated
+  `research/kzl_class_recovery.txt` and `kzl_library_labels.txt` preserve the non-copyrighted results; public tests
+  cover method parsing and the pair-table ABI. → F-096, F-097
+
 ## 2026-10-20 — Session 3w: reproducible Ghidra/Allegrex project (T-1.3)
 - Installed a portable, version-matched analysis stack: Ghidra 12.1.3, ghidra-allegrex v21.4 and Microsoft
   OpenJDK 21.0.12. The PSP loader identified `KZL.PRX` automatically as Allegrex little-endian ELF.

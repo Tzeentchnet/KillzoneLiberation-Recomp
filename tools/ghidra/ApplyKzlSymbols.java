@@ -33,6 +33,12 @@ public class ApplyKzlSymbols extends GhidraScript {
                     throw new IllegalArgumentException("malformed CSV line: " + line);
                 }
                 Address address = toAddr(Long.decode(fields[0]));
+                if (fields[2].startsWith("vtable:")) {
+                    createLabel(address, fields[1], true, SourceType.USER_DEFINED);
+                    setPlateComment(address, fields[2]);
+                    applied++;
+                    continue;
+                }
                 Function function = getFunctionAt(address);
                 if (function == null) {
                     disassemble(address);

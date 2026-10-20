@@ -1,0 +1,64 @@
+# KZL SN C++ class recovery
+vtable_layout={signed_this_delta,u32_function}
+vtable_candidates=1978
+recovered_tag_classes=34
+evidence_backed_symbols=127
+class=ButtonTagModule source_anchor=0x08a0beb8 vtable_init=0x08a0c020 vtable=0x08e663d0 entries=8
+class=LineTagModule source_anchor=0x08a0c0f0 vtable_init=0x08a0c250 vtable=0x08e66410 entries=8
+class=SetVariableTagModule source_anchor=0x08a0c320 vtable_init=0x08a0c480 vtable=0x08e66450 entries=8
+class=RectangleTagModule source_anchor=0x08a0c550 vtable_init=0x08a0c6e0 vtable=0x08e66490 entries=17
+class=QuickLinkTagModule source_anchor=0x08a0c948 vtable_init=0x08a0caa8 vtable=0x08e66558 entries=8
+class=SelectTagModule source_anchor=0x08a0cb78 vtable_init=0x08a0cce8 vtable=0x08e66598 entries=10
+class=ImageTagModule source_anchor=0x08a0cdb8 vtable_init=0x08a0cf9c vtable=0x08e665e8 entries=18
+class=StaticImageTagModule source_anchor=0x08a0d958 vtable_init=0x08a0daf0 vtable=0x08e666d8 entries=17
+class=TextAreaTagModule source_anchor=0x08a0e100 vtable_init=0x08a0e270 vtable=0x08e667a0 entries=8
+class=TextInputTagModule source_anchor=0x08a0e340 vtable_init=0x08a0e508 vtable=0x08e667e0 entries=8
+class=PasswordInputTagModule source_anchor=0x08a0e5d8 vtable_init=0x08a0e79c vtable=0x08e66820 entries=8
+class=RadioInputTagModule source_anchor=0x08a0e86c vtable_init=0x08a0ea30 vtable=0x08e66860 entries=9
+class=CheckboxInputTagModule source_anchor=0x08a0eb00 vtable_init=0x08a0ecc4 vtable=0x08e668a8 entries=9
+class=FormTagModule source_anchor=0x08a0ed94 vtable_init=0x08a0f020 vtable=0x08e668f0 entries=8
+class=SubmitInputTagModule source_anchor=0x08a0f0f0 vtable_init=0x08a0f2b4 vtable=0x08e66930 entries=8
+class=LogoutTagModule source_anchor=0x08a0f384 vtable_init=0x08a0f4e4 vtable=0x08e66970 entries=9
+class=GridTagModule source_anchor=0x08a0f5b4 vtable_init=0x08a0f71c vtable=0x08e669b8 entries=9
+class=URLListTagModule source_anchor=0x08a0f7ec vtable_init=0x08a0fa24 vtable=0x08e66a00 entries=8
+class=GroupTagModule source_anchor=0x08a0faf4 vtable_init=0x08a0fd40 vtable=0x08e66a40 entries=8
+class=PopupTagModule source_anchor=0x08a0fe10 vtable_init=0x08a0ff70 vtable=0x08e66a80 entries=8
+class=HiddenInputTagModule source_anchor=0x08a10040 vtable_init=0x08a10204 vtable=0x08e66ac0 entries=8
+class=RedirectTagModule source_anchor=0x08a102d4 vtable_init=0x08a109d8 vtable=0x08e66b00 entries=8
+class=DataTagModule source_anchor=0x08a10aa8 vtable_init=0x08a1142c vtable=0x08e66b40 entries=8
+class=ListBoxTagModule source_anchor=0x08a114fc vtable_init=0x08a1165c vtable=0x08e66b80 entries=8
+class=PageIDTagModule source_anchor=0x08a1172c vtable_init=0x08a118cc vtable=0x08e66bc0 entries=17
+class=LoginTagModule source_anchor=0x08a11b44 vtable_init=0x08a11f50 vtable=0x08e86b30 entries=13
+class=CreateGameTagModule source_anchor=0x08a13b98 vtable_init=0x08a13d70 vtable=0x08e66d30 entries=9
+class=GenericListBoxTagModule source_anchor=0x08a13e40 vtable_init=0x08a13fa8 vtable=0x08e66d78 entries=9
+class=TickerTagModule source_anchor=0x08a14078 vtable_init=0x08a14210 vtable=0x08e66dc0 entries=17
+class=BrowserInitTagModule source_anchor=0x08a145f4 vtable_init=0x08a14754 vtable=0x08e66e90 entries=11
+class=FormDataPluginTagModule source_anchor=0x08a16720 vtable_init=0x08a168bc vtable=0x08e66f28 entries=9
+class=MultiScreenPluginTagModule source_anchor=0x08a1698c vtable_init=0x08a16b80 vtable=0x08e66f70 entries=17
+class=BuddyIgnoreListTagModule source_anchor=0x08a18968 vtable_init=0x08a18c48 vtable=0x08e670e0 entries=16
+class=TextTagModule source_anchor=0x08a1d280 vtable_init=0x08a1d614 vtable=0x08e67370 entries=17
+string_function=0x08804530 sn_libc_main_thread_guard
+string_function=0x08a06a88 sn_runtime_terminate_handler
+string_function=0x08a22798 TextInputTag_scrollTextRightToFillWindow
+string_function=0x08a6da74 libgu_signal_event_setup
+string_function=0x08a82b68 lua_getinfo
+string_function=0x08a8db58 lua_strlib_open
+string_function=0x08a94b10 HwSoundSystemPSP_LockFreeVoice
+string_function=0x08a94ba4 HwSoundSystemPSP_LockFreeResource
+string_function=0x08a94c0c HwSoundSystemPSP_LockFreeInstance
+string_function=0x08a95168 HwSoundSystemPSP_ClaimVoice
+string_function=0x08a951a4 HwSoundSystemPSP_ReleaseVoice
+string_function=0x08a95270 HwSoundSystemPSP_CreateStreamingResource
+string_function=0x08a9555c HwSoundSystemPSP_FreeResource
+string_function=0x08a95708 HwSoundSystemPSP_IsVoicePlaying
+string_function=0x08a958f8 HwSoundSystemPSP_IsInstancePlaying
+string_function=0x08a95a0c HwSoundSystemPSP_GetPlayPosition
+string_function=0x08a95d84 HwSoundSystemPSP_FreeVoice
+string_function=0x08a95df0 HwSoundSystemPSP_FreeInstance
+string_function=0x08a975ac HwSoundSystemPSP_PlayInstance
+string_function=0x08ac2e80 BaseWidget_ChangeResource
+string_function=0x08addba4 CSystemContext_HandleSVModeTransition
+string_function=0x08bddc08 TthkShapeCollection_getAabb
+string_function=0x08bddf40 TthkShapeCollection_getMaximumProjection
+string_function=0x08c2a694 hkWorld_constructor
+string_function=0x08c2dd50 LthkWorld_getPenetrations

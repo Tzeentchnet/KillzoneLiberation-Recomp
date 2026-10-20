@@ -38,5 +38,23 @@ Apply labels and export reports:
   -postScript ExportKzlFunctions.java "$PWD\out\ghidra\kzl_functions.csv"
 ```
 
+Export string xrefs, then recover and apply evidence-backed library/class names:
+
+```powershell
+& $headless out\ghidra KZL -process KZL.PRX -noanalysis `
+  -scriptPath tools\ghidra `
+  -postScript ExportKzlStringXrefs.java "$PWD\out\ghidra\kzl_string_xrefs.tsv"
+
+python tools\kzl\class_recovery.py `
+  --functions out\ghidra\kzl_functions.csv `
+  --string-xrefs out\ghidra\kzl_string_xrefs.tsv `
+  --symbols out\ghidra\kzl_class_symbols.csv `
+  --report research\kzl_class_recovery.txt
+
+& $headless out\ghidra KZL -process KZL.PRX -noanalysis `
+  -scriptPath tools\ghidra `
+  -postScript ApplyKzlSymbols.java "$PWD\out\ghidra\kzl_class_symbols.csv"
+```
+
 The scripts fail on missing functions or malformed labels instead of silently
 creating a success-shaped report.

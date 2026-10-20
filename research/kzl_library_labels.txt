@@ -1,0 +1,33 @@
+# KZL statically linked library labels
+#
+# Evidence: Ghidra string xrefs + SN vtable installers, 2026-10-20.
+# PPSSPP knownfuncs.ini CityHash attempt: 0 exact matches against 22,378
+# Ghidra function boundaries (SN compiler/layout differs from its database).
+
+[libraries]
+Havok = Physics 3.x family; hkWorld/reflection/constraint/vehicle classes and packfile runtime
+Lua = Lua 4.0
+libgu = statically linked GU command/signal layer
+SN_runtime = ProDG exception/pure-virtual runtime
+libc = SN main-thread guard and embedded scalar C runtime
+
+[labels]
+0x08804530 sn_libc_main_thread_guard
+0x08a06a88 sn_runtime_terminate_handler
+0x08a6da74 libgu_signal_event_setup
+0x08a82b68 lua_getinfo
+0x08a8db58 lua_strlib_open
+0x08bddc08 TthkShapeCollection_getAabb
+0x08bddf40 TthkShapeCollection_getMaximumProjection
+0x08c2a694 hkWorld_constructor
+0x08c2dd50 LthkWorld_getPenetrations
+
+# Additional exact Class::Method strings label TextInputTag, BaseWidget,
+# CSystemContext, and sixteen HwSoundSystemPSP functions. Full addresses are in
+# research/kzl_class_recovery.txt.
+
+[havok_version]
+# The linked SDK prints "** Havok libs built with version [...]", contains
+# legacy Havok-3.0 angle conversion handling, and uses the hkWorld/hkPackfile
+# API family. No numeric version literal is embedded, so the defensible label
+# is Havok Physics 3.x rather than an invented point release.

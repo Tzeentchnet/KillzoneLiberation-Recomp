@@ -1437,6 +1437,42 @@ only names, counts and addresses, and `tools/ghidra/README.md` contains the exac
 - **Impact:** T-1.3 is complete. Static analysis now has a correctly relocated, named, reproducible Allegrex project
   without adding copyrighted program databases to the repository.
 
+### F-096 String xrefs outperform generic signatures for this SN-linked image — Confirmed
+PPSSPP-style `knownfuncs.ini` hashing was attempted with immediate masking and CityHash64 over every Ghidra function
+boundary. It produced zero exact matches: the database's compiler variants/boundaries do not match this SN ProDG
+image. Applying near matches would be guesswork.
+
+KZL instead retains unusually strong direct labels in diagnostics. Ghidra xrefs identify:
+
+- `0x08A82B68 lua_getinfo` and `0x08A8DB58 lua_strlib_open` beside the exact `Lua 4.0` identity;
+- `0x08A06A88 sn_runtime_terminate_handler` from terminate/pure-virtual diagnostics;
+- `0x08804530 sn_libc_main_thread_guard` and `0x08A6DA74 libgu_signal_event_setup`;
+- `0x08C2A694 hkWorld_constructor`, plus exact `TthkShapeCollection::getAabb`,
+  `getMaximumProjection`, and `LthkWorld::getPenetrations`; and
+- exact TextInputTag, BaseWidget, CSystemContext and HwSoundSystemPSP methods.
+
+Havok's numeric version is formatted from runtime data rather than embedded as a literal. Its API/reflection set and
+legacy `anglesAreNotStoredInHavok30Format` path support **Havok Physics 3.x**, but not a defensible point release.
+- **Impact:** T-1.4 is complete with conservative evidence-backed labels. The failed generic signature attempt is
+  retained as a reproducible negative result instead of being converted into low-confidence names.
+
+### F-097 SN ProDG vtables are 8-byte adjustment/function pairs — Confirmed
+Treating `.data` as a flat run of code pointers found almost nothing because SN's PSP ABI represents each virtual
+slot as `{signed this adjustment, function pointer}`. Scanning relocated rodata, data and linkonce sections with
+that layout finds 1,978 candidate tables.
+
+The SVML classes provide an independent association chain: each `*TagModule.cpp` source string anchors a bounded
+function range; within it, a constructor-like function materializes a candidate table address and stores it into
+the object. This recovers 34 classes from Button/Line/Rectangle through Login, BrowserInit, MultiScreen and Text
+TagModule, including their installer function and primary table (typically 8–18 entries). The first shared table is
+the base TagModule table; each subsequent source range reuses the prior/base table before installing its new one.
+
+The headless pipeline applied 34 source anchors, 34 installer names, 34 vtable labels and 25 exact string-derived
+methods (127 symbols total), raising named functions from 302 to 395. Full addresses are generated in
+`research/kzl_class_recovery.txt`.
+- **Impact:** T-1.5 is complete. SVBrowser decompilation now has stable class/table landmarks, and the ABI scanner
+  can be extended to the remaining gameplay/Havok classes without changing its evidence standard.
+
 ---
 
 ## D. Assets and content

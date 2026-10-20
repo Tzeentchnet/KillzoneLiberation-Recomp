@@ -37,6 +37,7 @@ jobs:
         run: >-
           python -m unittest
           tools\tests\test_calltargets.py
+          tools\tests\test_class_recovery.py
           tools\tests\test_content_audit.py
           tools\tests\test_golden_frames.py
           tools\tests\test_ghidra_symbols.py

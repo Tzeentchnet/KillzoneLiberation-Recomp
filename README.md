@@ -112,6 +112,7 @@ The Python tools' public unit tests likewise use synthetic inputs:
 ```powershell
 python -m unittest `
   tools\tests\test_calltargets.py `
+  tools\tests\test_class_recovery.py `
   tools\tests\test_content_audit.py `
   tools\tests\test_golden_frames.py `
   tools\tests\test_ghidra_symbols.py `
