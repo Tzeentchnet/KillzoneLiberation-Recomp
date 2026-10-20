@@ -5,6 +5,21 @@ findings or tasks it touched. Items move here from [TODO.md](TODO.md) when they 
 
 ---
 
+## 2026-10-20 — Session 3r: bootloader UID and GE counter alignment (T-3.14)
+- Added target-defined skipped-boot state without making the generic runtime KZL-specific. Scheduler runs beginning
+  at KZL's `module_start` arm one pending UID; the first `sceKernelDelayThread` consumes it exactly once, modelling
+  PPSSPP's transient BOOT.BIN unload thread. Other starts and non-scheduler differential runs are unchanged.
+- A bounded live scheduler run recorded `module_start=0x11C`, `user_main=0x11D`, consumed bootloader UID `0x11E`,
+  then allocated the first DummyHeap FPL as `0x11F` and subsequent objects monotonically from `0x120`.
+- KZL now seeds GE `nextListID=41`; the same live run returned `0x35000029` for the first enqueue, followed by
+  `0x3500002A`, `0x3500002B`, and so on. Focused HLE coverage verifies both the one-shot UID checkpoint and the
+  first-list result.
+- Extended the PPSSPP v1.20.4 oracle patch with a public read-only GE counter accessor and
+  `# ge next_list_id=<n>` trace metadata; the runtime parser restores it. The tracked 22,978-byte patch matches the
+  validated oracle worktree byte-for-byte, applies to a clean `fa50bb1` worktree, and PPSSPPHeadless rebuilds.
+  Runtime-only/default/D3D12 builds, 7/7 and 8/8 CTests, 29 Python tests, the 207-file audit and the exact 71-step
+  prefix pass. Fork `133ce6f`. → F-090
+
 ## 2026-10-20 — Session 3q: interpreter fallback and zero-miss regression gate (T-2.10)
 - Linked `src/ref/interp.cpp` into every runtime target through a C++ adapter. It maps reads/writes directly through
   the runtime's watched guest-memory accessors, imports and exports scalar/FPU/VFPU state without allocating a

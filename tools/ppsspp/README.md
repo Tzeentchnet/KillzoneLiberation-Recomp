@@ -55,6 +55,7 @@ Before step 0 the trace carries the state the recompiled run must start from. Th
 # psp-recomp trace v1 oracle=ppsspp target=kzl start_pc=0x08804000 steps=200000
 # init r0=.. r31=.. hi=.. lo=.. f0=.. f31=.. fcr31=.. fpcond=.. v0=.. v127=.. vc0=.. vc15=..
 # kernel next_uid=0x11d
+# ge next_list_id=41
 # mem 0x09fff000 <256 bytes as hex>     (16 lines: top 4 KB of user RAM)
 ```
 

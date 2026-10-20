@@ -191,7 +191,10 @@ add_executable(kzl_driver ${RT}/driver.c ${KZL_RUNTIME_SRCS})
 kzl_configure_runtime_target(kzl_driver)
 target_compile_definitions(kzl_driver PRIVATE
   SR_EXPECTED_ISO_SIZE=568498176
-  SR_EXPECTED_ISO_SHA1="5bc4fc8cd8d72c9c2e7c1c03a4325a29bed6e69a")
+  SR_EXPECTED_ISO_SHA1="5bc4fc8cd8d72c9c2e7c1c03a4325a29bed6e69a"
+  SR_BOOT_UID_GAP_ENTRY=0x08804000u
+  SR_BOOT_UID_GAP_COUNT=1
+  SR_INITIAL_GE_LIST_ID=41)
 set_target_properties(kzl_driver PROPERTIES OUTPUT_NAME kzl)
 
 include(CTest)

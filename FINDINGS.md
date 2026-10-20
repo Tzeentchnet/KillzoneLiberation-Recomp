@@ -1318,6 +1318,24 @@ for all 71 steps and creates no miss log.
 - **Impact:** T-2.10 is complete. Rare supported dynamic code has a bounded correctness path, while any change to
   KZL's expected dispatch coverage remains a protected-test failure rather than silently becoming interpreter use.
 
+### F-090 Skipping BOOT.BIN requires deferred UID state but immediate GE state — Confirmed
+At KZL `module_start`, PPSSPP's next UID is 0x11D and its GE `nextListID` is already 41. The runtime must seed the GE
+counter immediately: a live scheduler run's first enqueues are `0x35000029`, `0x3500002A`, `0x3500002B`, matching
+PPSSPP's slot-41 start. The missing kernel UID cannot be consumed immediately, however. KZL first creates
+`user_main` as 0x11D; only when that thread reaches its first delay does PPSSPP finish
+`sceKernelStopUnloadSelfModuleWithStatus`, transiently create the bootloader thread as 0x11E, and unload it.
+
+The target therefore arms one deferred UID only for scheduler runs whose entry is KZL `module_start`.
+`sceKernelDelayThread`/`CB` consumes it once before sleeping. A measured run then allocates the first DummyHeap FPL
+as 0x11F, followed by 0x120 onward; consuming the gap earlier would incorrectly make `user_main` 0x11E.
+
+For later differential start points, constants are insufficient. The oracle patch now reads PPSSPP's actual
+`GPUCommon::nextListID` and writes `# ge next_list_id=<n>` beside `# kernel next_uid`; the generic driver restores
+both if present. The updated patch applies cleanly to PPSSPP v1.20.4 commit `fa50bb1` and the x64 Release
+PPSSPPHeadless target compiles.
+- **Impact:** T-3.14 is complete. Scheduler traces can compare real handles and GE IDs directly rather than carrying
+  known offsets, and later trace start points can restore the counters they actually observed.
+
 ---
 
 ## D. Assets and content

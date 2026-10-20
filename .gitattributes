@@ -1,2 +1,2 @@
 # Patches against upstream sources must keep their exact bytes.
-*.patch -text
+*.patch -text -whitespace

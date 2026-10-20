@@ -96,7 +96,7 @@ index b1d79f9..2bec8c5 100644
  	enum {
  		maxCount = 4096,
 diff --git a/Core/MIPS/MIPSTables.cpp b/Core/MIPS/MIPSTables.cpp
-index 4e3e820..adab7e5 100644
+index 4e3e820..8311840 100644
 --- a/Core/MIPS/MIPSTables.cpp
 +++ b/Core/MIPS/MIPSTables.cpp
 @@ -17,6 +17,8 @@
@@ -108,15 +108,17 @@ index 4e3e820..adab7e5 100644
  #include "Core/Core.h"
  #include "Core/MemMap.h"
  #include "Core/MIPS/MIPS.h"
-@@ -29,6 +31,7 @@
+@@ -29,6 +31,9 @@
  #include "Core/CoreTiming.h"
  #include "Core/Reporting.h"
  #include "Core/Debugger/Breakpoints.h"
 +#include "Core/HLE/sceKernel.h"
++#include "GPU/GPU.h"
++#include "GPU/GPUCommon.h"
  
  #include "JitCommon/JitCommon.h"
  
-@@ -990,6 +993,205 @@ static inline void RunUntilFast() {
+@@ -990,6 +995,206 @@ static inline void RunUntilFast() {
  	}
  }
  
@@ -269,6 +271,7 @@ index 4e3e820..adab7e5 100644
 +	fprintf(fp, "\n");
 +	// Kernel object handles are allocated in order, so the next one must match too.
 +	fprintf(fp, "# kernel next_uid=0x%x\n", kernelObjects.PeekNextHandle());
++	fprintf(fp, "# ge next_list_id=%d\n", gpu ? gpu->PrRecompNextListID() : 0);
 +	const u32 memLo = 0x09FFF000, memHi = 0x0A000000, chunk = 256;
 +	for (u32 a = memLo; a < memHi; a += chunk) {
 +		if (!Memory::IsValidRange(a, chunk))
@@ -322,7 +325,7 @@ index 4e3e820..adab7e5 100644
  static void RunUntilWithChecks(u64 globalTicks) {
  	MIPSState *curMips = currentMIPS;
  	// NEVER stop in a delay slot!
-@@ -1027,10 +1229,37 @@ static void RunUntilWithChecks(u64 globalTicks) {
+@@ -1027,10 +1232,37 @@ static void RunUntilWithChecks(u64 globalTicks) {
  					break;
  			}
  
@@ -360,7 +363,7 @@ index 4e3e820..adab7e5 100644
  			// The reason we have to check this is the delay slot hack in Int_Syscall.
  			if (curMips->inDelaySlot && wasInDelaySlot) {
  				curMips->pc = curMips->nextPC;
-@@ -1049,7 +1278,7 @@ int MIPSInterpret_RunUntil(u64 globalTicks) {
+@@ -1049,7 +1281,7 @@ int MIPSInterpret_RunUntil(u64 globalTicks) {
  		CoreTiming::Advance();
  
  		uint64_t ticksLeft = globalTicks - CoreTiming::GetTicks();
@@ -369,6 +372,21 @@ index 4e3e820..adab7e5 100644
  			RunUntilWithChecks(globalTicks);
  		else
  			RunUntilFast();
+diff --git a/GPU/GPUCommon.h b/GPU/GPUCommon.h
+index b4e69fb..56cbc1c 100644
+--- a/GPU/GPUCommon.h
++++ b/GPU/GPUCommon.h
+@@ -262,6 +262,10 @@ class GPUCommon : public GPUDebugInterface {
+ 		return primsLastFrame_;
+ 	}
+ 
++	int PrRecompNextListID() const {
++		return nextListID;
++	}
++
+ 	void NotifyFlush();
+ 
+ protected:
 diff --git a/headless/Headless.cpp b/headless/Headless.cpp
 index 293878d..efe3431 100644
 --- a/headless/Headless.cpp

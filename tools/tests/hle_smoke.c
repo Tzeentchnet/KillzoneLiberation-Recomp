@@ -2169,6 +2169,27 @@ static void test_offline_network(CpuState *cpu) {
         (void)hle_call(cpu, imported_nids[i], 0, 0, 0, 0);
 }
 
+static void test_boot_seed_state(CpuState *cpu) {
+    sr_set_next_uid(0x500);
+    sr_set_boot_uid_gap(1);
+    sr_boot_uid_delay_checkpoint();
+    check_u32("bootloader UID gap next", sr_get_next_uid(), 0x501);
+    check_u32("bootloader UID gap allocation", sr_alloc_uid(), 0x501);
+    sr_boot_uid_delay_checkpoint();
+    check_u32("bootloader UID gap once", sr_get_next_uid(), 0x502);
+
+    sr_ge_set_next_list_id(41);
+    check_u32("bootloader GE next list", sr_ge_get_next_list_id(), 41);
+    const uint32_t list = 0x0881f000u;
+    MEM_W32(list + 0, 0x0f000000u);
+    MEM_W32(list + 4, 0x0c000000u);
+    check_u32(
+        "bootloader first GE list id",
+        hle_call(cpu, 0xab49e76au, list, 0, 0, 0),
+        0x35000029u);
+    check_u32("bootloader following GE list", sr_ge_get_next_list_id(), 42);
+}
+
 int main(void) {
     char root[128], local_app_data[128];
     snprintf(root, sizeof(root), "kzl_hle_test_fs_%lu", (unsigned long)GetCurrentProcessId());
@@ -2204,6 +2225,7 @@ int main(void) {
     test_mpeg_eof(&cpu);
     test_async_io(&cpu, root);
     test_offline_network(&cpu);
+    test_boot_seed_state(&cpu);
 
     if (failures) {
         fprintf(stderr, "HLE smoke tests: %d failure(s)\n", failures);
