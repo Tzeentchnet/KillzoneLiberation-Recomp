@@ -11,6 +11,10 @@
 static int failures;
 static uint32_t backend_dirty_addr;
 static uint32_t backend_dirty_bytes;
+static uint32_t backend_read_addr;
+static uint32_t backend_read_bytes;
+static uint32_t backend_write_addr;
+static uint32_t backend_write_bytes;
 static GeVtx backend_triangle[3];
 static int backend_triangle_count;
 static int backend_triangle_perspective;
@@ -65,6 +69,16 @@ static void test_backend_dirty(uint32_t addr, uint32_t bytes) {
     backend_dirty_bytes = bytes;
 }
 
+static void test_backend_read(uint32_t addr, uint32_t bytes) {
+    backend_read_addr = addr;
+    backend_read_bytes = bytes;
+}
+
+static void test_backend_write(uint32_t addr, uint32_t bytes) {
+    backend_write_addr = addr;
+    backend_write_bytes = bytes;
+}
+
 static int test_backend_triangle(const GeVtx *a, const GeVtx *b,
                                  const GeVtx *c, int perspective) {
     backend_triangle[0] = *a;
@@ -80,6 +94,8 @@ static void test_ge_backend_interface(void) {
     memset(&backend, 0, sizeof(backend));
     backend.name = "test";
     backend.vram_dirty = test_backend_dirty;
+    backend.vram_read = test_backend_read;
+    backend.vram_write = test_backend_write;
 
     if (ge_backend_get() != NULL) {
         fprintf(stderr, "FAIL: GE backend was registered before the interface test\n");
@@ -93,6 +109,26 @@ static void test_ge_backend_interface(void) {
     sr_gpu_vram_dirty(0x04012340u, 0x800u);
     check_u32("GE backend dirty address", backend_dirty_addr, 0x04012340u);
     check_u32("GE backend dirty size", backend_dirty_bytes, 0x800u);
+
+    MEM_W32(0x04012340u, 0x78563412u);
+    sr_gpu_vram_watch_reads(1);
+    check_u32("GE watched VRAM value",
+              MEM_R32(0x04012340u), 0x78563412u);
+    sr_gpu_vram_watch_reads(0);
+    check_u32("GE backend read address", backend_read_addr, 0x04012340u);
+    check_u32("GE backend read size", backend_read_bytes, 4);
+
+    sr_gpu_vram_watch_writes(1);
+    MEM_W16(0x04012344u, 0x55aau);
+    sr_gpu_vram_watch_writes(0);
+    check_u32("GE watched VRAM store",
+              MEM_R16(0x04012344u), 0x55aau);
+    check_u32("GE backend pre-write address",
+              backend_write_addr, 0x04012344u);
+    check_u32("GE backend pre-write size", backend_write_bytes, 2);
+    check_u32("GE backend watched dirty address",
+              backend_dirty_addr, 0x04012344u);
+    check_u32("GE backend watched dirty size", backend_dirty_bytes, 2);
 
     backend_dirty_addr = 0;
     backend_dirty_bytes = 0;
@@ -109,6 +145,10 @@ static void test_ge_backend_interface(void) {
     check_u32("GE block-transfer dirty size", backend_dirty_bytes, 22);
 
     ge_set_backend(NULL);
+    check_u32("GE cleared VRAM read watch",
+              (uint32_t)g_sr_gpu_vram_read_watch, 0);
+    check_u32("GE cleared VRAM write watch",
+              (uint32_t)g_sr_gpu_vram_write_watch, 0);
     if (ge_backend_get() != NULL) {
         fprintf(stderr, "FAIL: GE software fallback did not clear the backend\n");
         failures++;

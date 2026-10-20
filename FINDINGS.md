@@ -833,6 +833,51 @@ Hardware and WARP produce identical keys and full hashes in ten-frame boots. A g
 - **Impact:** T-4.8 is complete. Native draw submission can bind stable texture resources while T-4.9 adds
   GPU-resident framebuffer aliases and render-to-texture transitions over the same dirty-range model.
 
+### F-069 Framebuffer identity and CPU visibility require versioned targets plus explicit ownership — Confirmed
+A PSP framebuffer is a typed view over aliased eDRAM, not an object identified by address alone. D3D12 therefore
+uses a canonical 16-byte key containing normalized physical color/depth addresses, color/depth strides, and color
+format. Zero color stride means 512, zero depth stride inherits color stride, and all fixed 512×272 color/depth
+ranges must remain inside the 2 MiB PSP eDRAM aperture. Color data is stored as BGRA8 on the GPU; tested reversible
+conversion preserves the PSP's 5650, 5551, 4444, and `0xAABBGGRR` 8888 layouts.
+
+The cache owns sixteen color and sixteen depth resources with serial-protected handles, capture generations,
+explicit D3D12 states, and fenced LRU reuse. A format or stride reinterpretation first materializes any
+GPU-newer overlapping target, then creates the requested view from authoritative guest bytes. Views already
+referenced by the current capture generation cannot be evicted, so batches before and after a reinterpretation
+retain the resource they captured. Clean targets retain a full CPU-content hash, catching unnotified eDRAM
+changes before presentation or reuse without imposing watched callbacks on every software-rasterizer pixel.
+
+An unswizzled, single-level texture with matching format and stride can reference a cached target directly when
+its rectangle remains inside the 512×272 resource. Sampling the target currently bound for rendering first copies
+it to a reusable feedback snapshot; non-feedback aliases use the target SRV. Cached display buffers bypass the
+software upload and copy their visible 480×272 rectangle directly into the existing presentation texture.
+Uncached and movie buffers retain the original conversion/upload fallback.
+
+CPU visibility is an ownership transition. `gpu_newer` color targets enable fast-gated VRAM read and pre-write
+hooks in the generated memory accessors. A CPU load synchronously reads back overlapping GPU-owned data. A CPU
+store reads it back before writing, then the normal dirty callback invalidates overlapping framebuffer and
+texture views. DMA, MPEG output/clears, and CPU `TRXKICK` fallback perform the same pre-write preservation around
+their bulk host-memory operations. Vulkan now participates in this shared contract as well. GPU-owned depth
+readback is deliberately deferred to T-4.10, where depth range and stencil behavior become authoritative.
+
+Compatible `TRXKICK` operations decode the PSP's masked strides, encoded dimensions, pixel size, and source/
+destination coordinates into an exact D3D12 texture copy. Both cached views must be distinct, in bounds, and
+identical in format, stride, and bytes per pixel; the source must be GPU-authoritative. Successful copies also
+update the guest-VRAM mirror and invalidate overlapping aliases. All incompatible cases fall back to the existing
+CPU implementation rather than approximating a copy.
+
+Default and D3D12 clang-cl builds and CTests, focused Make/shader checks, and strict MinGW compilation pass.
+Hardware and WARP boots create the same two observed color/depth pairs. Safe mode performs two GPU readbacks for
+each cached presentation (762 readbacks over 381 hits) without failure. The exact final binary reaches PSP vcount
+1,200 with 490,296 texture lookups, 490,236 hits, 60 uploads, 18 texture invalidations, 122,580 framebuffer
+uploads, 61,291 cached presentations, two live color targets, two live depth targets, and no stale handles,
+descriptor exhaustion, resource-state errors, or D3D12 failure. The no-ISO workload naturally performs no
+render-to-texture alias or GPU block-transfer operations, so those paths currently rely on focused metadata and
+resource-binding coverage. Native draw calls remain disabled; cached targets mirror the authoritative software
+renderer until the remaining shader state is complete.
+- **Impact:** T-4.9 is complete. T-4.10 can make color/depth targets GPU-authoritative through native draws while
+  retaining a tested identity, aliasing, presentation, copy, and CPU-coherency foundation.
+
 ---
 
 ## D. Assets and content

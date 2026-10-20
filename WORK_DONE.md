@@ -5,6 +5,34 @@ findings or tasks it touched. Items move here from [TODO.md](TODO.md) when they 
 
 ---
 
+## 2026-10-19 — Session 2x: D3D12 framebuffer cache and VRAM ownership (T-4.9)
+- Added canonical framebuffer and transfer metadata with physical-alias normalization, PSP stride defaults and
+  limits, exact 512×272 VRAM bounds, byte-range overlap tests, and reversible 5650/5551/4444/8888 conversion to
+  D3D12 BGRA8. Focused tests cover target identity, depth-stride inheritance, channel ordering, direct texture
+  aliases, invalid aliases, transfer decoding, and exact copy coordinates.
+- Added 16 persistent color targets and 16 persistent depth targets. Color resources are BGRA8 RTV/SRV/copy
+  resources; depth resources are D16 DSV/copy resources. Serial-protected handles, capture generations, explicit
+  resource states, fenced LRU reuse, and readback-before-reinterpretation preserve every batch's target view,
+  including multiple format or stride interpretations captured in one generation.
+- Primitive batches now retain their color/depth binding as well as their expanded texture binding. Exact
+  unswizzled, single-level texture views can alias a cached target directly, while same-target feedback uses a
+  reusable snapshot. Presentation copies the visible 480×272 rectangle from a compatible cached 512×272 target
+  and falls back to the existing software-framebuffer upload for uncached and movie frames.
+- Added an immediate direct-queue allocator/list/fence plus a reusable readback buffer. GPU-newer color targets
+  are materialized lazily before watched CPU reads or writes; pre-write synchronization preserves untouched
+  pixels before the normal dirty notification invalidates overlapping targets and textures. DMA, MPEG output,
+  and CPU block-transfer bulk writes now use the same preservation contract. Clean targets also retain a CPU
+  content hash so unnotified writes are detected before GPU reuse.
+- Added compatible `TRXKICK` image copies between distinct cached targets, followed by the matching guest-VRAM
+  copy and overlap invalidation. The Vulkan backend participates in the shared lazy read/pre-write hooks, and
+  D3D12 exposes `SR_D3D12_FRAMEBUFFER_LOG=1` plus `SR_D3D12_FRAMEBUFFER_SAFE=1` for cache diagnostics and
+  full cached-target GPU round trips. Native draws remain disabled, so current cached targets mirror the
+  authoritative software renderer; GPU-authoritative depth readback remains part of T-4.10.
+- Default and D3D12 clang-cl builds/CTests, Make and shader checks, and strict MinGW validation pass. Hardware
+  and WARP boots pass; safe mode records 762 readbacks across 381 cached presentations. The exact final binary
+  reaches PSP vcount 1,200 with 490,296 texture lookups, 61,291 cached presentations, two color/depth pairs,
+  zero framebuffer evictions or failures, and no D3D12 diagnostics. T-4.9 is complete. → F-069
+
 ## 2026-10-19 — Session 2w: D3D12 texture cache (T-4.8)
 - Extended the shared GE state and authoritative software decoder from one level of direct/CLUT4/CLUT8 input to
   all eight PSP mip descriptors and every texture format: 5650, 5551, 4444, 8888, CLUT4/8/16/32, and the PSP
