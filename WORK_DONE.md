@@ -5,6 +5,19 @@ findings or tasks it touched. Items move here from [TODO.md](TODO.md) when they 
 
 ---
 
+## 2026-10-20 — Session 3v: prove SVBrowser local-page I/O (T-3.12)
+- Audited all five KZL `sceHttp` imports: LoadDefaultCert, HttpInit/End and HttpsInit/End. The executable imports no
+  template, connection, request, send, receive or read-data function, so its local browser cannot fetch JSP pages
+  through sceHttp. Public tests lock that exact set and confirm the offline runtime registers all five lifecycle NIDs.
+- Re-inventoried the supported PSP.DAT: 775 JSP records represent 655 unique paths under
+  `/interface/svo/svml/<language>/kzpsp/` (correcting the early 56-name-pool estimate).
+- A live `SR_IOLOG` scheduler boot opened only `disc0:/PSP_GAME/USRDIR/PSP.DAT` for the UI archive. Its 108 fd-3
+  reads through 0x01070800 fully covered 45 unique JSP records by extent, including English `index.jsp`,
+  `newmenu/languageselect.jsp` and `newmenu/bootmessage.jsp`.
+- Added `research/kzl_svbrowser_io.txt` with reproduction commands, import list, archive counts and mapped live
+  offsets. No runtime change is needed: the path is sceIo → PSP.DAT → KZL archive reader → SVBrowser. The expanded
+  public suite has 42 tests and the content audit covers 229 files. → F-094
+
 ## 2026-10-20 — Session 3u: PSP/PPSSPP secure savedata round-trip (T-3.11)
 - Confirmed the two-layer format. KZL owns a 1,664-byte plaintext `SaveableData` payload beginning `KZPP_` with its
   internal size/hash checks; PSP savedata wraps it in a 16-byte Chnnlsv envelope. PPSSPP's real file is 1,680 bytes

@@ -1,0 +1,50 @@
+# KZL SVBrowser local-page audit
+#
+# Target: UCUS-98646 v1.20 (config/kzl.toml)
+# Measured: 2026-10-20
+
+[imports]
+sceHttp = 0x87797bdd sceHttpsLoadDefaultCert
+sceHttp = 0xab1abe07 sceHttpInit
+sceHttp = 0xd1c8945e sceHttpEnd
+sceHttp = 0xe4d21302 sceHttpsInit
+sceHttp = 0xf9d8eb63 sceHttpsEnd
+
+# KZL imports no sceHttpCreateTemplate, CreateConnection, CreateRequest,
+# SendRequest, ReadData, or equivalent HTTP data-plane call. The five imported
+# functions can initialize/tear down the online stack but cannot fetch a page.
+
+[archive]
+path = disc0:/PSP_GAME/USRDIR/PSP.DAT
+records = 5005
+jsp_records = 775
+unique_jsp_paths = 655
+
+# Reproduce the inventory:
+# python tools/kzl/pspdat.py <supported ISO> --csv=<temporary CSV>
+#
+# The local SVML tree is /interface/svo/svml/<language>/kzpsp/. It contains
+# index.jsp, newmenu/languageselect.jsp, newmenu/bootmessage.jsp, main-menu,
+# chapter-select, ad-hoc, and debug pages.
+
+[live_runtime]
+environment = SR_IOLOG=1 SR_NOVBPACE=1 SR_NOAUDIO=1
+open = Open(disc0:/PSP_GAME/USRDIR/PSP.DAT) flags=0x1
+descriptor = 3
+logged_read_calls = 108
+largest_observed_end = 0x01070800
+jsp_records_fully_covered = 45
+unique_jsp_paths_fully_covered = 45
+
+# Mapping the logged fd=3 offset/size ranges against pspdat.py's inventory
+# covers these early menu examples directly:
+#   0x00527000 /interface/svo/svml/en/kzpsp/index.jsp
+#   0x0052b000 /interface/svo/svml/en/kzpsp/newmenu/languageselect.jsp
+#   0x00537000 /interface/svo/svml/en/kzpsp/newmenu/bootmessage.jsp
+#
+# No individual .jsp host path is expected: KZL's own PSP.DAT reader resolves
+# the virtual archive path and performs the underlying reads through sceIo.
+
+[conclusion]
+local_pages_use = sceIo -> PSP.DAT -> game archive reader -> SVBrowser
+sceHttp_role = online service lifecycle only

@@ -90,8 +90,9 @@ There are about 320 `hk`/`HK_` strings: `hkWorld::getPenetrations`, `HK_SHAPE_TR
   operations (otherwise ragdolls and explosions drift from the original).
 
 ### F-014 The front end is an SVML "browser" — Confirmed
-The UI runs on Sony's SVO/SVML markup. `SVBrowser.cpp`, `*TagModule.cpp` (Form, TextInput, Grid, URLList…)
-and **56 `.jsp` pages** in PSP.DAT (`svo/svml/kzpsp/…`: mainmenu, chapterselect, adhoc lobby, `debugoptions.jsp`).
+The UI runs on Sony's SVO/SVML markup. `SVBrowser.cpp`, `*TagModule.cpp` (Form, TextInput, Grid, URLList…) and
+**775 `.jsp` records / 655 unique paths** in PSP.DAT (`svo/svml/kzpsp/…`: mainmenu, chapterselect, adhoc lobby,
+`debugoptions.jsp`). The earlier count of 56 came from shared names in the name pool, not full paths.
 - **Impact:** menus are rendered by game code, so no special HLE work is needed. Check that local pages never go
   through `sceHttp` (T-3.12). `debugoptions.jsp` is a debug menu that could be unlocked — worth investigating (T-6.6).
 
@@ -1398,6 +1399,26 @@ runtime as 1,664 bytes beginning `KZPP_`. Conversely, explicit migration of a le
 Flipping one ciphertext byte is rejected with `0x80110306`.
 - **Impact:** T-3.11 is complete. Existing plaintext users have an opt-in migration path, and all new secure saves
   round-trip with PPSSPP/PSP while retaining KZL's own header and hash unchanged inside the envelope.
+
+### F-094 SVBrowser's local JSP path has no HTTP data plane — Confirmed
+The KZL module imports exactly five sceHttp-family functions:
+`sceHttpsLoadDefaultCert`, `sceHttpInit`, `sceHttpEnd`, `sceHttpsInit`, and `sceHttpsEnd`. It imports none of
+`sceHttpCreateTemplate`, connection/request creation, send, receive, or read-data. Those lifecycle calls support
+the separate online SVO/Medius flows, but cannot retrieve a local page.
+
+The archive evidence agrees. PSP.DAT contains 775 JSP records at 655 unique paths. During a live scheduler boot,
+`SR_IOLOG` recorded `Open(disc0:/PSP_GAME/USRDIR/PSP.DAT)` as fd 3 followed by 108 reads through offset
+0x01070800. Mapping those extents with `pspdat.py` fully covers 45 JSP records, including:
+
+- `0x00527000 /interface/svo/svml/en/kzpsp/index.jsp`
+- `0x0052B000 /interface/svo/svml/en/kzpsp/newmenu/languageselect.jsp`
+- `0x00537000 /interface/svo/svml/en/kzpsp/newmenu/bootmessage.jsp`
+
+Individual JSP host paths never reach HLE because KZL's own archive reader resolves them inside PSP.DAT; the
+underlying data is nevertheless read through sceIo. The exact imports, commands, counts and mappings are preserved
+in `research/kzl_svbrowser_io.txt`.
+- **Impact:** T-3.12 is complete with no runtime change. Local menus already use
+  sceIo → PSP.DAT → game archive reader → SVBrowser; sceHttp remains online-service lifecycle only.
 
 ---
 

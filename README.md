@@ -116,6 +116,7 @@ python -m unittest `
   tools\tests\test_golden_frames.py `
   tools\tests\test_scheduler_trace.py `
   tools\tests\test_source_bundle.py `
+  tools\tests\test_svbrowser_io.py `
   external\psp-recomp\tools\tests\test_codegen_dispatch.py `
   external\psp-recomp\tools\tests\test_ppmdiff.py `
   external\psp-recomp\tools\tests\test_tracediff.py
