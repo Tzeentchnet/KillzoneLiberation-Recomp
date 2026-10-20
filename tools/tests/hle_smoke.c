@@ -1814,7 +1814,10 @@ static void test_mpeg_eof(CpuState *cpu) {
     guest_mpeg_timestamp(header_addr + 0x54, first_timestamp);
     guest_mpeg_timestamp(header_addr + 0x5a, last_timestamp);
     MEM_W32(buffer_addr, 0);
-    sr_register(callback_addr, mpeg_fill_callback);
+    static const SrDispatchEntry mpeg_dispatch[] = {
+        {0x0881d000u, mpeg_fill_callback},
+    };
+    sr_set_dispatch_table(mpeg_dispatch, 1);
     mpeg_callback_packets = 0;
     mpeg_callback_end_packet = end_packet;
     mpeg_callback_duration = last_timestamp - first_timestamp;
@@ -2061,10 +2064,13 @@ static void test_async_io(CpuState *cpu, const char *root) {
     check_u32("create async test file", result, 0);
     if (result != 0) return;
 
+    static const SrDispatchEntry async_dispatch[] = {
+        {0x08804000u, async_test_entry},
+        {0x08804010u, wait_end_worker},
+        {0x08804020u, turbo_delay_worker},
+    };
     const uint32_t entry = 0x08804000u;
-    sr_register(entry, async_test_entry);
-    sr_register(0x08804010u, wait_end_worker);
-    sr_register(0x08804020u, turbo_delay_worker);
+    sr_set_dispatch_table(async_dispatch, 3);
     memset(cpu, 0, sizeof(*cpu));
     cpu->r[29] = 0x09ff0000u;
     _putenv_s("SR_NOVBPACE", "1");

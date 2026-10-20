@@ -1263,6 +1263,22 @@ automated publication path.
 - **Impact:** T-8.3 is complete. Every automated release carries audited corresponding source even though a
   redistributable game binary is intentionally not published today.
 
+### F-087 KZL's fixed dispatch hash spent most startup probes resolving collisions — Confirmed
+The old 65,536-slot hash accepted all 42,600 generated functions, but replaying its exact insertion algorithm over
+KZL's addresses measured 65.0% load, 161,357 total probes and 118,757 collision probes. 13,915 entries collided;
+the worst insertion/lookup chain reached 309 slots. Startup also wrote two fixed arrays totaling 786,432 bytes
+before any guest code could run.
+
+Codegen now writes one immutable address-sorted `SrDispatchEntry` array into `kzl_recomp_register.c` and installs
+it in one call. The generic runtime validates strict ordering, alignment and function presence, then binary
+searches the table in at most 16 comparisons. This removes the capacity ceiling, collision tails and 42,600
+registration calls while keeping unknown-target behavior unchanged. A scale-matched C test checks every entry
+and every four-byte gap; regenerated KZL output contains exactly 42,600 entries, no trapping stubs and no legacy
+registration calls. The PPSSPP `module_start` oracle still matches all 71 executed steps before its expected
+non-scheduler return.
+- **Impact:** T-2.14 is complete. Dispatch capacity is generated from the target rather than assumed by the
+  generic runtime, and computed transfers have a deterministic logarithmic bound.
+
 ---
 
 ## D. Assets and content

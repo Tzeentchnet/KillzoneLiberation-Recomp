@@ -104,7 +104,7 @@ else()
 endif()
 
 set(KZL_RUNTIME_SRCS
-  ${RT}/recomp.c ${RT}/vfpu_interp.c ${RT}/vfpu_asin.c ${RT}/hle.c ${RT}/net.c ${RT}/kmem.c ${RT}/intr.c ${RT}/gelist.c ${RT}/callback.c ${RT}/sched.c
+  ${RT}/recomp.c ${RT}/dispatch_table.c ${RT}/vfpu_interp.c ${RT}/vfpu_asin.c ${RT}/hle.c ${RT}/net.c ${RT}/kmem.c ${RT}/intr.c ${RT}/gelist.c ${RT}/callback.c ${RT}/sched.c
   ${RT}/iso.c ${RT}/mpeg.c ${RT}/pgf.c ${RT}/gui.c ${RT}/input_config.c ${RT}/startup_check.c
   ${RT}/audio_mixer.c ${RT}/audio_xaudio2.cpp ${RT}/sas_reverb.c ${RT}/h264_mf.c ${RT}/savedata.c
   ${RT}/osk_win.c ${RT}/ge.c)
@@ -187,6 +187,13 @@ if(BUILD_TESTING)
   target_compile_definitions(kzl_input_tests PRIVATE _CRT_SECURE_NO_WARNINGS)
   target_compile_options(kzl_input_tests PRIVATE ${KZL_FP_FLAGS})
   add_test(NAME kzl_input_config COMMAND kzl_input_tests)
+
+  add_executable(kzl_dispatch_tests EXCLUDE_FROM_ALL
+    ${PSP_RECOMP_DIR}/tools/tests/dispatch_table_test.c
+    ${RT}/dispatch_table.c)
+  target_include_directories(kzl_dispatch_tests PRIVATE "${RT}")
+  target_compile_options(kzl_dispatch_tests PRIVATE ${KZL_FP_FLAGS})
+  add_test(NAME kzl_dispatch_table COMMAND kzl_dispatch_tests)
 
   add_executable(kzl_hle_tests EXCLUDE_FROM_ALL tools/tests/hle_smoke.c ${KZL_RUNTIME_SRCS})
   kzl_configure_runtime_target(kzl_hle_tests)

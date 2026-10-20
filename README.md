@@ -110,6 +110,7 @@ python -m unittest `
   tools\tests\test_content_audit.py `
   tools\tests\test_golden_frames.py `
   tools\tests\test_source_bundle.py `
+  external\psp-recomp\tools\tests\test_codegen_dispatch.py `
   external\psp-recomp\tools\tests\test_ppmdiff.py
 python tools\kzl\content_audit.py
 ```

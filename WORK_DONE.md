@@ -5,6 +5,18 @@ findings or tasks it touched. Items move here from [TODO.md](TODO.md) when they 
 
 ---
 
+## 2026-10-20 — Session 3o: generated immutable dispatch table (T-2.14)
+- Replaced the runtime's mutable 65,536-slot open-addressing hash with a target-generated, immutable sorted
+  `SrDispatchEntry` array. Codegen emits the table and installs it once; the generic runtime validates alignment,
+  ordering and non-null functions, then performs a bounded binary search for computed calls.
+- KZL's real 42,600 entries previously required 161,357 startup probes: 13,915 inserts collided, adding 118,757
+  probes with a worst chain of 309 at 65.0% load. The new lookup has a 16-comparison maximum, removes all 42,600
+  registration calls and drops the fixed 786,432-byte writable hash arrays.
+- Added generator-contract tests plus a C lookup test that checks every exact address and gap in a 42,600-entry
+  table. Regeneration emitted 230 game TUs, the table and zero stubs. Strict GCC, runtime-only/default/D3D12
+  clang-cl builds, 23 public Python tests, the 202-file content audit, 5/5 default and 6/6 D3D12 CTests, and the
+  complete 71-step PPSSPP `module_start` trace prefix pass. Fork commit `ec503a3`. → F-087
+
 ## 2026-10-20 — Session 3n: deterministic GPL release source bundles (T-8.3)
 - Added `tools/kzl/source_bundle.py`, which rejects dirty trees, requires the selected parent ref to be checked out,
   verifies that `external/psp-recomp` is exactly the gitlink pinned there, and runs the full content audit before
