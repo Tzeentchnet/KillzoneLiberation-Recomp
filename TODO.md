@@ -13,7 +13,8 @@ Priority: **P0** blocks the next milestone · **P1** is needed for 1.0 · **P2**
 - [x] **T-0.2 P0** `git init`, plus a `.gitignore` that excludes `*.ISO`, `*.PRX`, `*.DAT`, `CHAPTER5.BIN`, `/build`, `/gen` and `/external/*/build`.
 - [x] **T-0.3 P0** Fork `sal063/PSP-recompilation-project` and add it as the submodule `external/psp-recomp`. Pin `da17b0e`. → F-040
   *Done as a private mirror, `Tzeentchnet/psp-recomp` (`main` = upstream `da17b0e`, our work on `kzl`).*
-- [ ] **T-0.4 P1** MSYS2 UCRT64 (gcc, sdl3, vulkan-loader, lld): build unmodified sal063 against one homebrew ELF to get a known-good baseline.
+- [x] **T-0.4 P1** MSYS2 UCRT64 (gcc, sdl3, vulkan-loader, lld): build unmodified sal063 against one homebrew ELF to get a known-good baseline.
+  *Done 2026-10-20: a portable MSYS2 20260927 UCRT64 environment with GCC 16.2, SDL3 3.4.18, Vulkan 1.4.363, lld 23.1.3, make 4.4.1 and Python 3.14.8 built the tracked-clean upstream `da17b0e`. `homebrew_elf.py` generates a 524-byte ET_SCE_PRX (`jr ra; nop`, module-info section, zero imports); upstream produced 1/1 functions, 0 stubs, a 68-byte image and 475,136-byte exe (SHA-256 `50c5f6fa…3eb56`). The executable ran to `done (hit_hle=0)` with exit 0. Full evidence is in `research/msys2_homebrew_baseline.txt` (F-098).*
 - [x] **T-0.5 P0** Get the PPSSPP desktop build and `PPSSPPHeadless.exe`. Confirm KZL boots there and capture a reference log.
   *Desktop 1.20.4 (official zip, SHA-256 checked) in `D:\Tools\PPSSPP-1.20.4`; PPSSPPHeadless built from the v1.20.4 tag in `D:\Github\ppsspp` (`Windows\x64\Release\PPSSPPHeadless.exe`). Both boot KZL (F-047).*
 - [x] **T-0.6 P1** Add `LICENSE` (GPL-2.0-or-later), `CREDITS.md` (PPSSPP, sal063) and a README stating that the user supplies the game.

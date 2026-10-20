@@ -1,0 +1,43 @@
+# Unmodified sal063 homebrew baseline
+#
+# Measured: 2026-10-20
+
+upstream=https://github.com/sal063/PSP-recompilation-project.git
+commit=da17b0e1db209206a407d097d132201e516e3855
+tracked_worktree=clean
+
+[toolchain]
+msys2_base=20260927
+environment=UCRT64
+gcc=16.2.0-6
+sdl3=3.4.18-1
+vulkan_loader=1.4.363.0-1
+vulkan_headers=1.4.363.0-1
+lld=23.1.3-1
+make=4.4.1-3
+python=3.14.8
+
+[input]
+generator=tools/kzl/homebrew_elf.py
+size=524
+type=ET_SCE_PRX
+load_base=0x08804000
+entry_offset=0x00000000
+instructions=jr_ra,nop
+module_info=.rodata.sceModuleInfo
+imports=0
+
+[outputs]
+recompiled_functions=1
+trapping_stubs=0
+image_bytes=68
+generated_c_bytes=971
+executable_bytes=475136
+executable_sha256=50c5f6fa51c73e426c9a3000e2ad8c64b5b08a7dc303d1f31c4594074133eb56
+
+[run]
+exit=0
+message=done (hit_hle=0)
+
+# Upstream emits warning-only diagnostics in its generated helper, HLE, and
+# Vulkan initializers; none blocked the baseline compile/link/run.

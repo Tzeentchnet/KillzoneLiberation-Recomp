@@ -1473,6 +1473,22 @@ methods (127 symbols total), raising named functions from 302 to 395. Full addre
 - **Impact:** T-1.5 is complete. SVBrowser decompilation now has stable class/table landmarks, and the ABI scanner
   can be extended to the remaining gameplay/Havok classes without changing its evidence standard.
 
+### F-098 The upstream pipeline requires a PRX-shaped homebrew, not only MIPS code — Confirmed
+A generic ET_EXEC containing `jr $ra; nop` passed the analyzer/codegen but failed the stock import step because it
+lacked `.rodata.sceModuleInfo`; upstream `prxload.py` also treats segment addresses as offsets from the requested
+base. The minimal valid baseline is therefore a zero-based ET_SCE_PRX with:
+
+- one PT_LOAD, `.text` at offset/address zero and entry offset zero;
+- `.rodata.sceModuleInfo` with an empty libstub range; and
+- an explicit host load base of 0x08804000.
+
+The deterministic generator produces 524 bytes. A tracked-clean `da17b0e` checkout under MSYS2 UCRT64 generated
+one function, zero imports/stubs, a 68-byte image and a 475,136-byte executable. GCC/SDL/Vulkan/lld linked the full
+stock runtime, and the executable returned `done (hit_hle=0)` with SHA-256
+`50c5f6fa51c73e426c9a3000e2ad8c64b5b08a7dc303d1f31c4594074133eb56`.
+- **Impact:** T-0.4 is complete. The original toolkit and UCRT64 dependency stack have a game-independent,
+  reproducible known-good baseline distinct from all KZL fork changes.
+
 ---
 
 ## D. Assets and content

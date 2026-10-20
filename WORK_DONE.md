@@ -5,6 +5,18 @@ findings or tasks it touched. Items move here from [TODO.md](TODO.md) when they 
 
 ---
 
+## 2026-10-20 — Session 3y: clean upstream MSYS2 homebrew baseline (T-0.4)
+- Installed portable MSYS2 20260927 under `D:\Tools` and its UCRT64 GCC 16.2, SDL3 3.4.18, Vulkan
+  loader/headers 1.4.363, lld 23.1.3, make 4.4.1 and Python 3.14.8 packages.
+- Added `homebrew_elf.py`, a deterministic 524-byte ET_SCE_PRX generator with one `jr ra; nop` function, a valid
+  `.rodata.sceModuleInfo`, zero imports and load base 0x08804000. Its public unit test locks the ELF type, machine,
+  entry and instructions.
+- Cloned upstream sal063 at exact commit `da17b0e` and left every tracked file unmodified. Its stock Makefile
+  generated 1/1 functions with zero trapping stubs, an empty import map, a 68-byte relocated image and a
+  475,136-byte executable. The exe SHA-256 is `50c5f6fa51c73e426c9a3000e2ad8c64b5b08a7dc303d1f31c4594074133eb56`.
+- A seeded `--image` execution returned `done (hit_hle=0)` and exit 0. Upstream warning-only diagnostics are
+  preserved in the raw build log; no warning was treated as a baseline failure. → F-098
+
 ## 2026-10-20 — Session 3x: static libraries and SN vtable recovery (T-1.4, T-1.5)
 - Exported 4,446 Ghidra string references and used only direct evidence to label 25 functions: Lua 4.0
   `lua_getinfo`/string-library registration, SN terminate/pure-virtual handling, the libc main-thread guard,

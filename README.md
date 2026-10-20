@@ -116,6 +116,7 @@ python -m unittest `
   tools\tests\test_content_audit.py `
   tools\tests\test_golden_frames.py `
   tools\tests\test_ghidra_symbols.py `
+  tools\tests\test_homebrew_elf.py `
   tools\tests\test_knownfuncs.py `
   tools\tests\test_scheduler_trace.py `
   tools\tests\test_source_bundle.py `
