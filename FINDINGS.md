@@ -692,6 +692,47 @@ presentation unchanged.
 - **Impact:** T-4.4 is complete. T-4.5 can upload decoded vertices and bind real state/texture descriptors without
   another root-signature revision.
 
+### F-065 The existing GE seam is the complete D3D12 CPU vertex decoder — Confirmed
+`ge.c` already resolves the PSP-specific work before invoking a backend:
+- u8, u16, and float texture coordinates, normals, positions, and weights;
+- 5650, 5551, 4444, and 8888 colors;
+- zero through eight skinning weights, transform/lighting, viewport projection, clipping, and fog;
+- through-mode coordinates;
+- non-indexed, u8, u16, and u32 index streams;
+- points, lines/strips, triangles/strips/fans, and rectangle pair assembly.
+
+The four backend primitive hooks therefore receive the same finished `GeVtx` values used by the reference
+rasterizer. Duplicating raw PSP layouts in D3D12 would create a second decoder and a correctness risk. T-4.5
+instead packs that seam into the reflected HLSL ABI:
+
+| Offset | Field | D3D12 input |
+|---:|---|---|
+| 0 | `x, y, z, rw` | `POSITION0`, `float4` |
+| 16 | `u, v` | `TEXCOORD0`, `float2` |
+| 24 | fog | `TEXCOORD1`, `float` |
+| 28 | clamped packed RGBA | `COLOR0`, `R8G8B8A8_UNORM` |
+
+The 32-byte size and every semantic offset are compile-time assertions. Screen x/y use the Vulkan path's exact
+`floor(value * 16 + 0.375) / 16` snap. Flat triangles and lines copy the PSP's last provoking-vertex color.
+Rectangles recover perspective UVs from `u*rw`/`v*rw`, apply the half-texel adjustment, and emit six vertices;
+lines and points likewise become six-vertex triangle-list quads. A compact batch record retains each primitive's
+range, kind, and perspective flag for the PSO stage.
+
+GE hooks run before presentation, while the D3D12 upload allocator becomes valid only after the swapchain frame
+fence is acquired. The backend therefore grows CPU-side pending arrays during GE execution, then copies the
+finished stream into the active frame's persistent upload partition during `present`. The frame limit is 240,000
+vertices (7.68 MB, about 7.32 MiB), leaving about 692 KiB in the 8 MiB partition for the 544 KiB BGRA
+presentation upload.
+Capacity, allocation, and partial-capture failures are fatal and explicit. Until T-4.6 records native draws, all
+hooks return zero and the reference rasterizer still generates the displayed framebuffer.
+
+Focused tests lock down packing and every expansion rule. A `ge_execute_op` matrix independently proves that
+u8/u16/float positions and UVs, all four packed colors, and non-indexed/u8/u16/u32 indices reach the decoded
+backend callback correctly. Default/D3D12 clang-cl builds, both CTest configurations, warning-clean MinGW builds,
+hardware/WARP boots, and a 1,200-vblank capture stress run all pass without upload exhaustion.
+- **Impact:** T-4.5 is complete. T-4.6 can create PSOs against one triangle-list vertex ABI and use retained batch
+  boundaries without revisiting PSP vertex formats or changing upload lifetime.
+
 ---
 
 ## D. Assets and content

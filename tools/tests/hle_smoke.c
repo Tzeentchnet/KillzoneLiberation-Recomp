@@ -11,6 +11,9 @@
 static int failures;
 static uint32_t backend_dirty_addr;
 static uint32_t backend_dirty_bytes;
+static GeVtx backend_triangle[3];
+static int backend_triangle_count;
+static int backend_triangle_perspective;
 
 static void fail_u32(const char *what, uint32_t got, uint32_t expected) {
     fprintf(stderr, "FAIL: %s: got 0x%08x, expected 0x%08x\n", what, got, expected);
@@ -19,6 +22,13 @@ static void fail_u32(const char *what, uint32_t got, uint32_t expected) {
 
 static void check_u32(const char *what, uint32_t got, uint32_t expected) {
     if (got != expected) fail_u32(what, got, expected);
+}
+
+static void check_float(const char *what, float got, float expected) {
+    if (got < expected - 0.000001f || got > expected + 0.000001f) {
+        fprintf(stderr, "FAIL: %s: got %.9g, expected %.9g\n", what, got, expected);
+        failures++;
+    }
 }
 
 static void check_guest_bytes(const char *what, uint32_t addr, const uint8_t *expected,
@@ -55,6 +65,16 @@ static void test_backend_dirty(uint32_t addr, uint32_t bytes) {
     backend_dirty_bytes = bytes;
 }
 
+static int test_backend_triangle(const GeVtx *a, const GeVtx *b,
+                                 const GeVtx *c, int perspective) {
+    backend_triangle[0] = *a;
+    backend_triangle[1] = *b;
+    backend_triangle[2] = *c;
+    backend_triangle_count++;
+    backend_triangle_perspective = perspective;
+    return 1;
+}
+
 static void test_ge_backend_interface(void) {
     GeBackend backend;
     memset(&backend, 0, sizeof(backend));
@@ -78,6 +98,155 @@ static void test_ge_backend_interface(void) {
         fprintf(stderr, "FAIL: GE software fallback did not clear the backend\n");
         failures++;
     }
+}
+
+static uint32_t align_u32(uint32_t value, uint32_t alignment) {
+    return (value + alignment - 1) & ~(alignment - 1);
+}
+
+static void guest_float(uint32_t addr, float value) {
+    uint32_t bits;
+    memcpy(&bits, &value, sizeof(bits));
+    MEM_W32(addr, bits);
+}
+
+static uint32_t write_test_vertex(uint32_t addr, int tc_format, int color_format,
+                                  int position_format, int vertex_index) {
+    uint32_t tc_size = 1u << (tc_format - 1);
+    uint32_t color_size = color_format == 7 ? 4u : 2u;
+    uint32_t position_size = 1u << (position_format - 1);
+    uint32_t max_alignment = tc_size;
+    if (color_size > max_alignment) max_alignment = color_size;
+    if (position_size > max_alignment) max_alignment = position_size;
+
+    uint32_t offset = 0;
+    offset = align_u32(offset, tc_size);
+    uint32_t tc_offset = offset;
+    offset += tc_size * 2;
+    offset = align_u32(offset, color_size);
+    uint32_t color_offset = offset;
+    offset += color_size;
+    offset = align_u32(offset, position_size);
+    uint32_t position_offset = offset;
+    offset += position_size * 3;
+    uint32_t stride = align_u32(offset, max_alignment);
+
+    uint32_t u = 10u + (uint32_t)vertex_index;
+    uint32_t v = 20u + (uint32_t)vertex_index;
+    if (tc_format == 1) {
+        MEM_W8(addr + tc_offset, (uint8_t)u);
+        MEM_W8(addr + tc_offset + 1, (uint8_t)v);
+    } else if (tc_format == 2) {
+        MEM_W16(addr + tc_offset, (uint16_t)u);
+        MEM_W16(addr + tc_offset + 2, (uint16_t)v);
+    } else {
+        guest_float(addr + tc_offset, (float)u);
+        guest_float(addr + tc_offset + 4, (float)v);
+    }
+
+    if (color_format == 4) MEM_W16(addr + color_offset, 0x001fu);
+    else if (color_format == 5) MEM_W16(addr + color_offset, 0x801fu);
+    else if (color_format == 6) MEM_W16(addr + color_offset, 0xf00fu);
+    else MEM_W32(addr + color_offset, 0xff0000ffu);
+
+    int x = 30 + vertex_index;
+    int y = 40 + vertex_index;
+    int z = 50 + vertex_index;
+    if (position_format == 1) {
+        MEM_W8(addr + position_offset, (uint8_t)x);
+        MEM_W8(addr + position_offset + 1, (uint8_t)y);
+        MEM_W8(addr + position_offset + 2, (uint8_t)z);
+    } else if (position_format == 2) {
+        MEM_W16(addr + position_offset, (uint16_t)x);
+        MEM_W16(addr + position_offset + 2, (uint16_t)y);
+        MEM_W16(addr + position_offset + 4, (uint16_t)z);
+    } else {
+        guest_float(addr + position_offset, (float)x);
+        guest_float(addr + position_offset + 4, (float)y);
+        guest_float(addr + position_offset + 8, (float)z);
+    }
+    return stride;
+}
+
+static void test_ge_decoded_vertex_boundary(void) {
+    static const struct {
+        int tc_format;
+        int color_format;
+        int position_format;
+        int index_format;
+    } cases[] = {
+        {1, 4, 1, 0},
+        {2, 5, 2, 1},
+        {3, 6, 3, 2},
+        {3, 7, 3, 3},
+    };
+    GeBackend backend;
+    memset(&backend, 0, sizeof(backend));
+    backend.name = "decoded-vertex-test";
+    backend.tri = test_backend_triangle;
+    ge_set_backend(&backend);
+
+    for (uint32_t case_index = 0;
+         case_index < sizeof(cases) / sizeof(cases[0]); case_index++) {
+        const uint32_t vertex_addr = 0x08820000u + case_index * 0x100u;
+        const uint32_t index_addr = 0x08821000u + case_index * 0x10u;
+        uint32_t stride = 0;
+        for (int vertex_index = 0; vertex_index < 3; vertex_index++) {
+            uint32_t wrote = write_test_vertex(
+                vertex_addr + (uint32_t)vertex_index * stride,
+                cases[case_index].tc_format,
+                cases[case_index].color_format,
+                cases[case_index].position_format,
+                vertex_index);
+            if (!stride) stride = wrote;
+        }
+
+        if (cases[case_index].index_format == 1) {
+            MEM_W8(index_addr, 2);
+            MEM_W8(index_addr + 1, 0);
+            MEM_W8(index_addr + 2, 1);
+        } else if (cases[case_index].index_format == 2) {
+            MEM_W16(index_addr, 2);
+            MEM_W16(index_addr + 2, 0);
+            MEM_W16(index_addr + 4, 1);
+        } else if (cases[case_index].index_format == 3) {
+            MEM_W32(index_addr, 2);
+            MEM_W32(index_addr + 4, 0);
+            MEM_W32(index_addr + 8, 1);
+        }
+
+        uint32_t vtype =
+            (uint32_t)cases[case_index].tc_format |
+            ((uint32_t)cases[case_index].color_format << 2) |
+            ((uint32_t)cases[case_index].position_format << 7) |
+            ((uint32_t)cases[case_index].index_format << 11) |
+            (1u << 23);
+        backend_triangle_count = 0;
+        ge_execute_op(0x10080000u, 0);
+        ge_execute_op(0x01000000u | (vertex_addr & 0x00ffffffu), 0);
+        ge_execute_op(0x02000000u | (index_addr & 0x00ffffffu), 0);
+        ge_execute_op(0x12000000u | vtype, 0);
+        ge_execute_op(0x04030003u, 0);
+
+        check_u32("decoded triangle callback count", backend_triangle_count, 1);
+        check_u32("decoded through-mode perspective", backend_triangle_perspective, 0);
+        int first_vertex = cases[case_index].index_format ? 2 : 0;
+        check_float("decoded position x", backend_triangle[0].x,
+                    (float)(30 + first_vertex));
+        check_float("decoded position y", backend_triangle[0].y,
+                    (float)(40 + first_vertex));
+        check_float("decoded position z", backend_triangle[0].z,
+                    (float)(50 + first_vertex));
+        check_float("decoded texture u", backend_triangle[0].u,
+                    (float)(10 + first_vertex));
+        check_float("decoded texture v", backend_triangle[0].v,
+                    (float)(20 + first_vertex));
+        check_u32("decoded color red", (uint32_t)backend_triangle[0].r, 255);
+        check_u32("decoded color green", (uint32_t)backend_triangle[0].g, 0);
+        check_u32("decoded color blue", (uint32_t)backend_triangle[0].b, 0);
+        check_u32("decoded color alpha", (uint32_t)backend_triangle[0].a, 255);
+    }
+    ge_set_backend(NULL);
 }
 
 static uint32_t hle_call(CpuState *cpu, uint32_t nid, uint32_t a0, uint32_t a1,
@@ -668,6 +837,7 @@ int main(void) {
     sr_mem_init();
     CpuState cpu;
     test_ge_backend_interface();
+    test_ge_decoded_vertex_boundary();
     test_default_vfs_root(&cpu, local_app_data);
     _putenv_s("SR_FSDIR", root);
     test_threadman(&cpu);

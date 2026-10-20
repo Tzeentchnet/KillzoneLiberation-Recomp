@@ -5,6 +5,27 @@ findings or tasks it touched. Items move here from [TODO.md](TODO.md) when they 
 
 ---
 
+## 2026-10-19 — Session 2t: D3D12 decoded vertex capture and upload (T-4.5)
+- Added a dedicated D3D12 vertex module that consumes the authoritative post-transform `GeVtx` hooks rather than
+  duplicating PSP decoding. This preserves `ge.c` support for u8/u16/float attributes, all packed colors, up to
+  eight skinning weights, through mode, every index width, transform/lighting, clipping, and primitive assembly.
+- Packed the exact asserted 32-byte HLSL input, including 1/16-pixel snapping, clamped RGBA8, PSP last-vertex flat
+  shading, perspective/through rectangle UV rules, and six-vertex expansions for rectangles, lines, and points.
+  Per-primitive batch records retain source kind, perspective mode, and vertex range for T-4.6.
+- Captured CPU data is copied only after the current swapchain frame fence is acquired, into the same 8 MiB
+  per-frame upload partition as presentation data. A 240,000-vertex bound leaves room for the framebuffer upload;
+  allocation/capacity failures are explicit and never produce partial native data. Hooks return zero, preserving
+  the software rasterizer as the displayed result until PSOs are available.
+- Added a focused C++ test for ABI offsets, snapping, color packing, provoking colors, perspective and through
+  rectangles, every primitive expansion, batch offsets, upload alignment/reset, content hashing, and dynamic
+  storage growth. The HLE test now drives `ge.c` with u8/u16/float vertices, every packed color, and
+  non-indexed/u8/u16/u32 index streams to prove they converge on the backend seam.
+- Validation: default and D3D12 clang-cl builds pass; focused CTest passes 2/2 for D3D12 and 1/1 without it; the
+  new test and both D3D12 sources compile warning-free under MinGW C++17. Ten-frame hardware and WARP boots
+  capture identical early vertex counts/hashes while retaining software presentation. A 1,200-vblank hardware
+  stress run completed with no capture/upload exhaustion; its observed maximum was 72 vertices per present.
+  T-4.5 is complete. → F-065
+
 ## 2026-10-19 — Session 2s: D3D12 root signature and sampler ring (T-4.4)
 - Added a serialized D3D12 1.0 root signature matching the reflected shader ABI: 16 pixel-stage root constants
   at `b0`, a contiguous `t0` texture/`t1` CLUT SRV table, one dynamic `s0` sampler table, and static

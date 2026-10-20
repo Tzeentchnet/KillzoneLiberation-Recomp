@@ -75,7 +75,9 @@ set(KZL_RUNTIME_SRCS
   ${RT}/iso.c ${RT}/mpeg.c ${RT}/pgf.c ${RT}/gui.c ${RT}/audio.c ${RT}/h264_mf.c ${RT}/savedata.c
   ${RT}/osk_win.c ${RT}/ge.c)
 if(KZL_ENABLE_D3D12)
-  list(APPEND KZL_RUNTIME_SRCS ${RT}/gpu_d3d12/device.cpp)
+  list(APPEND KZL_RUNTIME_SRCS
+    ${RT}/gpu_d3d12/device.cpp
+    ${RT}/gpu_d3d12/vertex.cpp)
 endif()
 
 function(kzl_configure_runtime_target target)
@@ -102,4 +104,15 @@ if(BUILD_TESTING)
   add_executable(kzl_hle_tests EXCLUDE_FROM_ALL tools/tests/hle_smoke.c ${KZL_RUNTIME_SRCS})
   kzl_configure_runtime_target(kzl_hle_tests)
   add_test(NAME kzl_hle_smoke COMMAND kzl_hle_tests)
+  if(KZL_ENABLE_D3D12)
+    add_executable(kzl_d3d12_vertex_tests EXCLUDE_FROM_ALL
+      ${PSP_RECOMP_DIR}/tools/tests/d3d12_vertex_test.cpp
+      ${RT}/gpu_d3d12/vertex.cpp)
+    target_include_directories(kzl_d3d12_vertex_tests PRIVATE "${RT}")
+    target_compile_definitions(kzl_d3d12_vertex_tests PRIVATE SR_D3D12)
+    target_compile_features(kzl_d3d12_vertex_tests PRIVATE cxx_std_17)
+    target_compile_options(kzl_d3d12_vertex_tests PRIVATE ${KZL_FP_FLAGS})
+    target_link_libraries(kzl_d3d12_vertex_tests PRIVATE d3d12)
+    add_test(NAME kzl_d3d12_vertex COMMAND kzl_d3d12_vertex_tests)
+  endif()
 endif()
