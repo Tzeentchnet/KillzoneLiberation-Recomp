@@ -72,7 +72,7 @@ endif()
 set(RT "${PSP_RECOMP_DIR}/src/rt")
 set(KZL_RUNTIME_SRCS
   ${RT}/recomp.c ${RT}/vfpu_interp.c ${RT}/vfpu_asin.c ${RT}/hle.c ${RT}/net.c ${RT}/kmem.c ${RT}/intr.c ${RT}/gelist.c ${RT}/callback.c ${RT}/sched.c
-  ${RT}/iso.c ${RT}/mpeg.c ${RT}/pgf.c ${RT}/gui.c ${RT}/audio.c ${RT}/h264_mf.c ${RT}/savedata.c
+  ${RT}/iso.c ${RT}/mpeg.c ${RT}/pgf.c ${RT}/gui.c ${RT}/audio.c ${RT}/sas_reverb.c ${RT}/h264_mf.c ${RT}/savedata.c
   ${RT}/osk_win.c ${RT}/ge.c)
 if(KZL_ENABLE_D3D12)
   list(APPEND KZL_RUNTIME_SRCS

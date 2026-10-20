@@ -118,7 +118,8 @@ Priority: **P0** blocks the next milestone · **P1** is needed for 1.0 · **P2**
   *Done 2026-10-20: the vertex shader now raw-loads the canonical 32-byte post-T&L GE stream through a space-1 root SRV, eliminating the fixed input layout while preserving `ge.c` as the sole PSP format/T&L/clip decoder. Adjacent primitives from one logical GE draw share one immutable state record, and identical 160-byte fragment blocks skip redundant root-constant uploads. A 120-presentation WARP boot reduced 39,291 primitive records to 12,509 batches (68.2%) and reused 1,595 constant states; focused tests, shader checks, clang-cl builds, strict MinGW, cold/warm WARP caches, and clean WARP/RTX 5070 exits pass (F-076).*
 
 ## Phase 5 — Audio, video, input
-- [ ] **T-5.1 P0** SasCore gaps: ADSR (`SetADSR`, `SetADSRmode`, `SetSimpleADSR`, `SetSL`), reverb (`RevType`, `RevParam`, `RevEVOL`, `RevVON`), noise and pause. → F-031
+- [x] **T-5.1 P0** SasCore gaps: ADSR (`SetADSR`, `SetADSRmode`, `SetSimpleADSR`, `SetSL`), reverb (`RevType`, `RevParam`, `RevEVOL`, `RevVON`), noise and pause. → F-031
+  *Done 2026-10-20: the gate-only mixer now has PPSSPP-compatible per-sample ADSR state/rate/curve handling, simple-envelope decoding and release tails; pause masks freeze voices; noise voices use a deterministic frequency-divided LFSR; and dry/effect sends feed the nine PSX-style SAS reverb presets with validated type/parameter/volume controls. PSP error contracts, focused mixing tests, strict MinGW, default/D3D12 clang-cl builds, 2/2 CTests, and a protected 50-frame WARP gameplay capture all pass (F-077).*
 - [ ] **T-5.2 P0** sceAudio `Output2*` (SRC channel). Mic input stubbed to "no device".
   *2026-10-19: `Output2Reserve/OutputBlocking/ChangeLength/Release` done (host mixer channel 8, F-053). Mic input (`sceAudioInput*`) still to do.*
 - [ ] **T-5.3 P1** Atrac3+ gaps: `GetInternalErrorInfo`. Confirm looping BGM.

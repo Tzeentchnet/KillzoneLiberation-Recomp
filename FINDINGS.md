@@ -1076,6 +1076,27 @@ all pass.
   Native replay can consume one contiguous raw stream and one state record per logical draw when it becomes the
   authoritative presentation path.
 
+### F-077 SAS must keep playback, key state and envelope state separate — Confirmed
+The original runtime used one `on` bit for all three concepts: key-off stopped a VAG immediately, envelope height
+was a fixed gate, pause was a no-op, and all ADSR/reverb/noise imports returned success without retaining state.
+That cannot model the PSP contract: a keyed-off voice remains playing through its release curve, a paused voice
+must preserve both its decoder position and envelope height, and `GetEndFlag` changes only when playback actually
+ends. The runtime now keeps those states independently and advances PPSSPP's six curve modes per output sample,
+including simple-envelope rate decoding and the key-on delay.
+
+`SetVolume`'s effect pair now feeds a separate send bus. Dry and wet routing, effect-return volume and the nine
+SAS effect types use a bounded C port of PPSSPP's PSX-style SPU preset processor; the PSP-validated delay and
+feedback values are retained just as in PPSSPP, whose fixed presets define the current processing coefficients.
+Noise voices use a deterministic frequency-divided LFSR, and pause is a full 32-bit voice mask. Every new handler
+returns the hardware-observed errors for invalid voices, rates, modes, frequencies, preset parameters and volumes.
+
+Focused tests exercise the API failures and actual sample/envelope transitions rather than registration alone.
+Default and D3D12 clang-cl builds, strict MinGW C11 and both CTests pass. The changed runtime also completed the
+protected 50-frame WARP path through C1M1; comparison against the validated PPSSPP oracle passed all 50 frames,
+peaking at 5,130 pixels above channel delta 64 versus the 6,000-pixel gate.
+- **Impact:** T-5.1 is complete. KZL's ACX voices can now attack, sustain, pause, release and route effects without
+  success-shaped no-ops or immediate key-off cuts.
+
 ---
 
 ## D. Assets and content

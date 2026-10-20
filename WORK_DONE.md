@@ -5,6 +5,20 @@ findings or tasks it touched. Items move here from [TODO.md](TODO.md) when they 
 
 ---
 
+## 2026-10-20 — Session 3f: SAS envelopes, effects, noise and pause (T-5.1)
+- Replaced the 11 permissive SAS no-ops with PSP error contracts and persistent state. Voices now honor all four
+  ADSR rates and curve modes, decode `SetSimpleADSR` bitfields, expose real envelope heights, retain key-off release
+  tails, and preserve PPSSPP's key-on delay. Pause masks freeze both samples and envelopes; deterministic
+  frequency-divided LFSR voices cover `SetNoise`.
+- Routed the effect volumes already accepted by `SetVolume` into a separate send bus. `RevVON` selects dry/wet
+  output, `RevEVOL` scales the return, and `RevType` drives a bounded C port of PPSSPP's nine PSX-style SPU reverb
+  presets. `RevParam` retains the validated delay/feedback state used by the PSP API.
+- Focused HLE tests cover invalid voices/rates/modes/frequencies/reverb controls, signed dry/effect volumes, pause
+  invariants, exact attack/release heights, audible noise, simple ADSR, wet-only routing and a delayed room tail.
+  Strict MinGW C11, default and D3D12 clang-cl builds, and both CTests pass. A WARP run completed the protected
+  50-frame path through C1M1 gameplay; all frames passed the validated PPSSPP oracle (peak 5,130 pixels over delta
+  64, under the 6,000-pixel gate). → F-077
+
 ## 2026-10-20 — Session 3e: raw vertex fetch and draw-state batching (T-4.16)
 - Replaced the fixed D3D12 input layout with a vertex-visible root SRV. `psp_vs.hlsl` uses `SV_VertexID` to
   raw-load and unpack the canonical 32-byte `GeD3D12Vertex` stream; PSP layouts, morphing, skinning, lighting,

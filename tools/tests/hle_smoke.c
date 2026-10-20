@@ -1218,6 +1218,141 @@ static uint32_t write_file(CpuState *cpu, uint32_t path_addr, const char *path,
     return hle_call(cpu, 0x810c4bc3u, fd, 0, 0, 0);
 }
 
+static int guest_audio_nonzero(uint32_t addr, int frames) {
+    for (int i = 0; i < frames * 2; i++)
+        if ((int16_t)MEM_R16(addr + (uint32_t)i * 2) != 0) return 1;
+    return 0;
+}
+
+static void clear_guest_audio(uint32_t addr, int frames) {
+    for (int i = 0; i < frames * 2; i++)
+        MEM_W16(addr + (uint32_t)i * 2, 0);
+}
+
+static void configure_sas_noise(CpuState *cpu, uint32_t core, uint32_t output) {
+    check_u32("SAS init",
+              hle_call7(cpu, 0x42778a9fu, core, 64, 32, 0, 44100, 0, 0), 0);
+    check_u32("SAS noise voice",
+              hle_call(cpu, 0xb7660a23u, core, 0, 63, 0), 0);
+    check_u32("SAS volume and send",
+              hle_call7(cpu, 0x440ca7d8u, core, 0, 0x1000, 0x1000,
+                        0x1000, 0x1000, 0), 0);
+    check_u32("SAS ADSR modes",
+              hle_call7(cpu, 0x9ec3676au, core, 0, 15, 0, 5, 5, 1), 0);
+    check_u32("SAS ADSR rates",
+              hle_call7(cpu, 0x019b25ebu, core, 0, 15, 0x40000000u,
+                        0x40000000u, 0x40000000u, 0x01000000u), 0);
+    check_u32("SAS sustain level",
+              hle_call(cpu, 0x5f9529f6u, core, 0, 0x40000000u, 0), 0);
+    check_u32("SAS key on",
+              hle_call(cpu, 0x76f01acau, core, 0, 0, 0), 0);
+    clear_guest_audio(output, 64);
+}
+
+static void test_sas(CpuState *cpu) {
+    const uint32_t core = 0x0881b000u;
+    const uint32_t output = 0x0881c000u;
+
+    check_u32("SAS invalid noise voice",
+              hle_call(cpu, 0xb7660a23u, core, 0xffffffffu, 1, 0), 0x80420010u);
+    check_u32("SAS invalid noise frequency",
+              hle_call(cpu, 0xb7660a23u, core, 0, 64, 0), 0x80420011u);
+    check_u32("SAS invalid ADSR rate",
+              hle_call7(cpu, 0x019b25ebu, core, 0, 1, 0xffffffffu, 0, 0, 0),
+              0x80420019u);
+    check_u32("SAS ignored invalid ADSR rate",
+              hle_call7(cpu, 0x019b25ebu, core, 0, 0, 0xffffffffu, 0, 0, 0), 0);
+    check_u32("SAS invalid ADSR mode",
+              hle_call7(cpu, 0x9ec3676au, core, 0, 1, 1, 1, 1, 1),
+              0x80420013u);
+    check_u32("SAS invalid simple ADSR",
+              hle_call(cpu, 0xcbcd4f79u, core, 0, 0, 0x2000), 0x80420013u);
+    check_u32("SAS invalid pitch",
+              hle_call(cpu, 0xad84d37fu, core, 0, 0x4001, 0), 0x80420012u);
+    check_u32("SAS invalid dry volume",
+              hle_call7(cpu, 0x440ca7d8u, core, 0, 0x1001, 0, 0, 0, 0),
+              0x80420018u);
+    check_u32("SAS invalid effect volume",
+              hle_call7(cpu, 0x440ca7d8u, core, 0, 0, 0, 0xffffefffu, 0, 0),
+              0x80420018u);
+    check_u32("SAS invalid reverb delay",
+              hle_call(cpu, 0x267a6dd2u, core, 128, 0, 0), 0x80420022u);
+    check_u32("SAS invalid reverb feedback",
+              hle_call(cpu, 0x267a6dd2u, core, 0, 128, 0), 0x80420021u);
+    check_u32("SAS invalid reverb type",
+              hle_call(cpu, 0x33d4ab37u, core, 9, 0, 0), 0x80420020u);
+    check_u32("SAS invalid reverb volume",
+              hle_call(cpu, 0xd5a229c9u, core, 0x1001, 0, 0), 0x80420023u);
+
+    check_u32("SAS set pause mask",
+              hle_call(cpu, 0x787d04d5u, core, 0x80000003u, 1, 0), 0);
+    check_u32("SAS get pause mask",
+              hle_call(cpu, 0x2c8e6ab3u, core, 0, 0, 0), 0x80000003u);
+    check_u32("SAS clear pause mask",
+              hle_call(cpu, 0x787d04d5u, core, 0xffffffffu, 0, 0), 0);
+
+    configure_sas_noise(cpu, core, output);
+    check_u32("SAS duplicate key on",
+              hle_call(cpu, 0x76f01acau, core, 0, 0, 0), 0x80420016u);
+    check_u32("SAS noise mix",
+              hle_call(cpu, 0xa3589d81u, core, output, 0, 0), 0);
+    check_u32("SAS noise output", (uint32_t)guest_audio_nonzero(output, 64), 1);
+    uint32_t height = hle_call(cpu, 0x74ae582au, core, 0, 0, 0);
+    check_u32("SAS envelope attack", height, 0x40000000u);
+
+    check_u32("SAS pause voice",
+              hle_call(cpu, 0x787d04d5u, core, 1, 1, 0), 0);
+    clear_guest_audio(output, 64);
+    check_u32("SAS paused mix",
+              hle_call(cpu, 0xa3589d81u, core, output, 0, 0), 0);
+    check_u32("SAS paused output", (uint32_t)guest_audio_nonzero(output, 64), 0);
+    check_u32("SAS paused envelope",
+              hle_call(cpu, 0x74ae582au, core, 0, 0, 0), height);
+    check_u32("SAS key off while paused",
+              hle_call(cpu, 0xa0cf2fa4u, core, 0, 0, 0), 0x80420016u);
+    check_u32("SAS resume voice",
+              hle_call(cpu, 0x787d04d5u, core, 1, 0, 0), 0);
+    check_u32("SAS key off",
+              hle_call(cpu, 0xa0cf2fa4u, core, 0, 0, 0), 0);
+    clear_guest_audio(output, 64);
+    check_u32("SAS release mix",
+              hle_call(cpu, 0xa3589d81u, core, output, 0, 0), 0);
+    uint32_t released = hle_call(cpu, 0x74ae582au, core, 0, 0, 0);
+    check_u32("SAS release envelope", released, 0);
+
+    check_u32("SAS reinit for simple ADSR",
+              hle_call7(cpu, 0x42778a9fu, core, 64, 32, 0, 44100, 0, 0), 0);
+    check_u32("SAS simple ADSR",
+              hle_call(cpu, 0xcbcd4f79u, core, 0, 0x000fu, 0x5fc0u), 0);
+    check_u32("SAS simple noise",
+              hle_call(cpu, 0xb7660a23u, core, 0, 63, 0), 0);
+    check_u32("SAS wet-only volume",
+              hle_call7(cpu, 0x440ca7d8u, core, 0, 0, 0, 0x1000, 0x1000, 0), 0);
+    check_u32("SAS reverb off preset",
+              hle_call(cpu, 0x33d4ab37u, core, 0xffffffffu, 0, 0), 0);
+    check_u32("SAS reverb volume",
+              hle_call(cpu, 0xd5a229c9u, core, 0x1000, 0x1000, 0), 0);
+    check_u32("SAS wet-only route",
+              hle_call(cpu, 0xf983b186u, core, 0, 1, 0), 0);
+    check_u32("SAS simple key on",
+              hle_call(cpu, 0x76f01acau, core, 0, 0, 0), 0);
+    clear_guest_audio(output, 64);
+    check_u32("SAS wet-only mix",
+              hle_call(cpu, 0xa3589d81u, core, output, 0, 0), 0);
+    check_u32("SAS wet output", (uint32_t)guest_audio_nonzero(output, 64), 1);
+
+    check_u32("SAS room reverb preset",
+              hle_call(cpu, 0x33d4ab37u, core, 0, 0, 0), 0);
+    int room_tail = 0;
+    for (int i = 0; i < 64; i++) {
+        clear_guest_audio(output, 64);
+        check_u32("SAS room mix",
+                  hle_call(cpu, 0xa3589d81u, core, output, 0, 0), 0);
+        room_tail |= guest_audio_nonzero(output, 64);
+    }
+    check_u32("SAS room reverb output", (uint32_t)room_tail, 1);
+}
+
 static void test_threadman(CpuState *cpu) {
     const uint32_t name_addr = 0x08810000u;
     const uint32_t status_addr = 0x08811000u;
@@ -1884,6 +2019,7 @@ int main(void) {
     test_threadman(&cpu);
     test_utility_system_params(&cpu);
     test_atrac_reset_buffer_info(&cpu);
+    test_sas(&cpu);
     test_time(&cpu);
     test_io(&cpu, root);
     test_iso_directory(&cpu);
