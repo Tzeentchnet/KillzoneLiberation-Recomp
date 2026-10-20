@@ -13,6 +13,7 @@ from dataclasses import dataclass
 FRAME_COUNT = 50
 MANIFEST_HEADER = "# psp-recomp golden frames v2"
 PADSCRIPT_HEADER = "# psp-recomp pad script v3"
+DISPATCH_MISS_HEADER = "# KZL interpreter-fallback regression list v1"
 REQUIRED_SCENES = {"boot", "menu", "gameplay", "cutscene", "hud"}
 
 
@@ -35,6 +36,54 @@ class PadEvent:
     mask: int
     ppsspp_width: int
     runtime_width: int
+
+
+def read_dispatch_misses(path, missing_ok=False):
+    try:
+        stream = open(path, "r", encoding="ascii")
+    except FileNotFoundError:
+        if missing_ok:
+            return set()
+        raise
+    addresses = set()
+    with stream:
+        for line_number, raw_line in enumerate(stream, 1):
+            line = raw_line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if (
+                len(line) != 10
+                or not line.startswith("0x")
+                or any(character not in "0123456789abcdefABCDEF" for character in line[2:])
+            ):
+                raise GoldenFrameError(
+                    f"{path}:{line_number}: invalid dispatch-miss address"
+                )
+            address = int(line, 16)
+            if address in addresses:
+                raise GoldenFrameError(
+                    f"{path}:{line_number}: duplicate dispatch-miss address {line}"
+                )
+            addresses.add(address)
+    return addresses
+
+
+def validate_dispatch_misses(expected_path, actual_path):
+    expected = read_dispatch_misses(expected_path)
+    actual = read_dispatch_misses(actual_path, missing_ok=True)
+    if actual != expected:
+        unexpected = sorted(actual - expected)
+        missing = sorted(expected - actual)
+        details = []
+        if unexpected:
+            details.append(
+                "unexpected " + ", ".join(f"0x{address:08x}" for address in unexpected)
+            )
+        if missing:
+            details.append(
+                "missing " + ", ".join(f"0x{address:08x}" for address in missing)
+            )
+        raise GoldenFrameError("dispatch-miss regression: " + "; ".join(details))
 
 
 def read_manifest(path):
@@ -279,7 +328,13 @@ def capture(args, frames):
     runtime_memstick_template = _resolve_directory(
         args.runtime_memstick_template, "runtime golden memstick template"
     )
+    dispatch_misses = _resolve_file(
+        args.dispatch_misses, "dispatch-miss regression list"
+    )
     output = os.path.abspath(args.output)
+    dispatch_miss_log = os.path.join(output, "dispatch_misses.txt")
+    if os.path.exists(dispatch_miss_log):
+        os.remove(dispatch_miss_log)
     oracle_dir = os.path.join(output, "ppsspp")
     d3d12_dir = os.path.join(output, "d3d12")
     _prepare_capture_dir(oracle_dir, frames)
@@ -333,6 +388,7 @@ def capture(args, frames):
                 "SR_MEMSTICK": runtime_memstick,
                 "SR_NOVBPACE": "1",
                 "SR_PADSCRIPT": padscript,
+                "SR_INTERP_MISS_LOG": dispatch_miss_log,
                 "PSP_VFPU_TABLES": os.path.join(
                     root, "external", "psp-recomp", "assets", "vfpu"
                 ),
@@ -351,6 +407,7 @@ def capture(args, frames):
             d3d12_dir,
         )
         _validate_capture(d3d12_dir, frames)
+        validate_dispatch_misses(dispatch_misses, dispatch_miss_log)
     return oracle_dir, d3d12_dir
 
 
@@ -426,6 +483,10 @@ def parse_args(argv):
         "--output",
         default=os.path.join(root, "build", "kzl", "golden_frames"),
     )
+    parser.add_argument(
+        "--dispatch-misses",
+        default=os.path.join(root, "config", "kzl_dispatch_misses.txt"),
+    )
     parser.add_argument("--timeout", type=_nonnegative, default=1200)
     parser.add_argument("--warp", action="store_true")
     parser.add_argument("--compare-only", action="store_true")
@@ -464,6 +525,10 @@ def main(argv=None):
             d3d12_dir = os.path.join(output, "d3d12")
             _validate_capture(oracle_dir, frames)
             _validate_capture(d3d12_dir, frames)
+            validate_dispatch_misses(
+                os.path.abspath(args.dispatch_misses),
+                os.path.join(output, "dispatch_misses.txt"),
+            )
         else:
             oracle_dir, d3d12_dir = capture(args, frames)
         compare(args, oracle_dir, d3d12_dir)

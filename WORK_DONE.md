@@ -5,6 +5,23 @@ findings or tasks it touched. Items move here from [TODO.md](TODO.md) when they 
 
 ---
 
+## 2026-10-20 — Session 3q: interpreter fallback and zero-miss regression gate (T-2.10)
+- Linked `src/ref/interp.cpp` into every runtime target through a C++ adapter. It maps reads/writes directly through
+  the runtime's watched guest-memory accessors, imports and exports scalar/FPU/VFPU state without allocating a
+  second 64 MB image, and interprets until the original guest return PC so a generated caller resumes naturally.
+- Dispatch misses now always log their target once and execute supported code. Direct syscalls, unsupported
+  instructions, memory faults and the default 1,000,000-instruction budget stop with PC/op/address diagnostics;
+  `SR_INTERP_MAX_STEPS` is range checked. Fake success remains only behind the pre-existing explicit
+  `SR_DISPATCH_PERMISSIVE` diagnostic.
+- Added `SR_INTERP_MISS_LOG` and the empty investigated baseline `config/kzl_dispatch_misses.txt`. The golden
+  harness deletes stale logs, records each unique fallback, compares the exact set after capture, and preserves a
+  failing log as a workflow artifact. Thus a newly survivable miss still fails the protected regression gate.
+- Focused tests execute an unknown function through real `dispatch`, verify its store/return and scalar/VFPU state,
+  prove one-line logging across repeat calls, and cover memory fault, infinite-loop budget and unsupported opcode.
+  The reference interpreter selftest, strict G++, runtime-only/default/D3D12 builds, 7/7 and 8/8 CTests, 29 public
+  Python tests, actionlint, the 207-file audit and the exact zero-miss 71-step oracle prefix pass. Fork `f171a09`.
+  → F-089
+
 ## 2026-10-20 — Session 3p: measured hot/cold build and PSP float mode (T-2.9)
 - Extended split codegen with a strict `--hot-functions` report. The committed 90-second call-target audit maps
   4,552 effective observed functions plus `module_start` into 20 hot TUs; the remaining 38,047 functions go into

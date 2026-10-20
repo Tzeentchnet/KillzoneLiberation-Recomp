@@ -123,6 +123,9 @@ python tools\kzl\content_audit.py
 Full HLE, renderer, movie/audio, and protected 50-frame comparison tests require
 locally generated code and a user-supplied disc; they are run only on the
 trusted self-hosted workflow.
+That workflow also compares the runtime's unique interpreter-fallback targets
+against `config/kzl_dispatch_misses.txt`; the supported capture currently
+allows no generated-dispatch misses.
 
 ## Repository layout
 

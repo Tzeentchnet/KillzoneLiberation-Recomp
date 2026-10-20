@@ -111,6 +111,35 @@ class GoldenFrameTests(unittest.TestCase):
         self.assertEqual(args.max_threshold_pixels, 6000)
         self.assertEqual(args.max_channel_delta, 255)
 
+    def test_dispatch_miss_regression_accepts_empty_log(self):
+        expected = os.path.join(self.temp.name, "expected.txt")
+        with open(expected, "w", encoding="ascii") as stream:
+            stream.write(golden_frames.DISPATCH_MISS_HEADER + "\n")
+        golden_frames.validate_dispatch_misses(
+            expected, os.path.join(self.temp.name, "missing-actual.txt")
+        )
+
+    def test_dispatch_miss_regression_rejects_new_target(self):
+        expected = os.path.join(self.temp.name, "expected.txt")
+        actual = os.path.join(self.temp.name, "actual.txt")
+        with open(expected, "w", encoding="ascii") as stream:
+            stream.write(golden_frames.DISPATCH_MISS_HEADER + "\n")
+        with open(actual, "w", encoding="ascii") as stream:
+            stream.write("# psp-recomp interpreter misses v1\n0x08812340\n")
+        with self.assertRaisesRegex(
+            golden_frames.GoldenFrameError, "unexpected 0x08812340"
+        ):
+            golden_frames.validate_dispatch_misses(expected, actual)
+
+    def test_dispatch_miss_regression_rejects_duplicate(self):
+        actual = os.path.join(self.temp.name, "actual.txt")
+        with open(actual, "w", encoding="ascii") as stream:
+            stream.write("0x08812340\n0x08812340\n")
+        with self.assertRaisesRegex(
+            golden_frames.GoldenFrameError, "duplicate dispatch-miss"
+        ):
+            golden_frames.read_dispatch_misses(actual)
+
     def test_capture_validation_requires_exact_files_and_marker(self):
         frames = golden_frames.read_manifest(self.write_manifest())
         capture_dir = os.path.join(self.temp.name, "capture")

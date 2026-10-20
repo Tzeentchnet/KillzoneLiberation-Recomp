@@ -111,11 +111,15 @@ jobs:
           if (Test-Path -LiteralPath $report -PathType Leaf) {
             Copy-Item -LiteralPath $report -Destination 'artifacts\ppmdiff.json'
           }
+          $misses = 'build\kzl\golden_frames\dispatch_misses.txt'
+          if (Test-Path -LiteralPath $misses -PathType Leaf) {
+            Copy-Item -LiteralPath $misses -Destination 'artifacts\dispatch_misses.txt'
+          }
           Remove-Item -LiteralPath 'build\kzl\golden_frames' -Recurse -Force -ErrorAction SilentlyContinue
 
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: golden-frame-report
-          path: artifacts/ppmdiff.json
+          path: artifacts
           if-no-files-found: ignore

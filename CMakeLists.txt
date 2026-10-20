@@ -137,7 +137,9 @@ else()
 endif()
 
 set(KZL_RUNTIME_SRCS
-  ${RT}/recomp.c ${RT}/dispatch_table.c ${RT}/fpu_mode.c ${RT}/vfpu_interp.c ${RT}/vfpu_asin.c ${RT}/hle.c ${RT}/net.c ${RT}/kmem.c ${RT}/intr.c ${RT}/gelist.c ${RT}/callback.c ${RT}/sched.c
+  ${RT}/recomp.c ${RT}/dispatch_table.c ${RT}/fpu_mode.c ${RT}/interp_runtime.cpp
+  ${PSP_RECOMP_DIR}/src/ref/interp.cpp
+  ${RT}/vfpu_interp.c ${RT}/vfpu_asin.c ${RT}/hle.c ${RT}/net.c ${RT}/kmem.c ${RT}/intr.c ${RT}/gelist.c ${RT}/callback.c ${RT}/sched.c
   ${RT}/iso.c ${RT}/mpeg.c ${RT}/pgf.c ${RT}/gui.c ${RT}/input_config.c ${RT}/startup_check.c
   ${RT}/audio_mixer.c ${RT}/audio_xaudio2.cpp ${RT}/sas_reverb.c ${RT}/h264_mf.c ${RT}/savedata.c
   ${RT}/osk_win.c ${RT}/ge.c)
@@ -234,6 +236,20 @@ if(BUILD_TESTING)
   target_include_directories(kzl_fpu_mode_tests PRIVATE "${RT}")
   target_compile_options(kzl_fpu_mode_tests PRIVATE ${KZL_FP_FLAGS})
   add_test(NAME kzl_fpu_mode COMMAND kzl_fpu_mode_tests)
+
+  add_executable(kzl_interp_tests EXCLUDE_FROM_ALL
+    ${PSP_RECOMP_DIR}/tools/tests/interp_fallback_test.cpp
+    ${RT}/recomp.c
+    ${RT}/dispatch_table.c
+    ${RT}/fpu_mode.c
+    ${RT}/interp_runtime.cpp
+    ${PSP_RECOMP_DIR}/src/ref/interp.cpp)
+  target_include_directories(kzl_interp_tests PRIVATE
+    "${RT}" "${PSP_RECOMP_DIR}/src/ref")
+  target_compile_definitions(kzl_interp_tests PRIVATE _CRT_SECURE_NO_WARNINGS)
+  target_compile_features(kzl_interp_tests PRIVATE cxx_std_17)
+  target_compile_options(kzl_interp_tests PRIVATE ${KZL_FP_FLAGS})
+  add_test(NAME kzl_interpreter_fallback COMMAND kzl_interp_tests)
 
   add_executable(kzl_hle_tests EXCLUDE_FROM_ALL tools/tests/hle_smoke.c ${KZL_RUNTIME_SRCS})
   kzl_configure_runtime_target(kzl_hle_tests)

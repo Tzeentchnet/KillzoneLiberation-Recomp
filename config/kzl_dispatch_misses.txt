@@ -1,0 +1,5 @@
+# KZL interpreter-fallback regression list v1
+#
+# One expected guest target per line as 0x12345678. The protected 50-frame run
+# currently reaches no dispatch misses; add an address only after investigating
+# why static code generation cannot cover it.

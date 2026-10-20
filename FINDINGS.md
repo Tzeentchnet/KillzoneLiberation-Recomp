@@ -1298,6 +1298,26 @@ zero under GCC and clang-cl.
 - **Impact:** T-2.9 is complete. The generated target builds well inside the ten-minute budget without applying
   maximum optimization to unobserved code, and host floating-point denormal behavior now matches the PSP.
 
+### F-089 A fallback must stop at the generated caller's guest return PC — Confirmed
+A dispatch miss can occur inside a generated `jalr`: the host caller has already executed the guest link and delay
+slot, then expects `dispatch()` to return so the rest of that same generated C function can continue. Looking only
+for another registered function entry is therefore insufficient—the guest return address may be an instruction in
+the middle of the active generated function. The interpreter bridge snapshots that original `$ra`, starts at the
+missing target, executes delay slots normally, and stops before fetching the return PC.
+
+The bridge uses external-memory callbacks rather than copying the 64 MB reference `Memory` vector. Reads and
+writes go through the runtime accessors, retaining VRAM watch/dirty behavior, while scalar, FPU, VFPU and prefix
+state are copied bit-for-bit around the run. A synthetic unknown function stores `42`, returns through its delay
+slot and resumes at the requested PC in four steps; repeated real `dispatch()` calls log that target exactly once.
+Separate cases prove explicit memory-fault, unsupported-op and step-limit stops.
+
+Successful interpretation must not hide analyzer regressions. `SR_INTERP_MISS_LOG` records unique addresses, and
+the deterministic golden harness compares the exact set against `config/kzl_dispatch_misses.txt` (currently
+empty), rejecting both new and stale expected entries. The normal module-start differential prefix remains exact
+for all 71 steps and creates no miss log.
+- **Impact:** T-2.10 is complete. Rare supported dynamic code has a bounded correctness path, while any change to
+  KZL's expected dispatch coverage remains a protected-test failure rather than silently becoming interpreter use.
+
 ---
 
 ## D. Assets and content
