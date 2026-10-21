@@ -6,6 +6,17 @@ remaining work, start with the repository README and [TODO.md](TODO.md).
 
 ---
 
+## 2026-10-20 — Session 4g: publish the source-preview repositories (T-8.4)
+- Audited every blob reachable from the parent `main`, runtime `main`, and runtime `kzl` branches for protected
+  game payloads, generated output, save data, oversized blobs, executable/media signatures, known game hashes,
+  and credential patterns. Local agent checkpoint refs contain save fixtures but are not ancestors of or present
+  on any published remote ref.
+- Made the runtime fork public first and set `kzl` as its default branch. The parent CI rerun then passed recursive
+  checkout, 61 synthetic tests, the tracked-content audit, and the clang-cl runtime-only build.
+- Made the parent repository public and verified a credential-free `git clone --recurse-submodules`: parent
+  `d0aaf08` pins and checks out runtime `02dd4dd` with a clean worktree. The deterministic `v0.1.0-rc`
+  corresponding-source dry run audited 266 files and produced a 6,634,690-byte archive.
+
 ## 2026-10-20 — Session 4f: disable retired website action and fix menu audio loops (F-022, F-077)
 - Made the `KILLZONE.COM` control non-selectable through a length-preserving in-memory overlay of its local SVML
   button tag; PSP.DAT remains untouched. Its dedicated callback is also disabled before the retired online/BOOT.BIN

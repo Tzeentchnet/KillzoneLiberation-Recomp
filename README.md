@@ -1,5 +1,7 @@
 # Killzone: Liberation Recomp
 
+[![CI](https://github.com/Tzeentchnet/KillzoneLiberation-Recomp/actions/workflows/ci.yml/badge.svg)](https://github.com/Tzeentchnet/KillzoneLiberation-Recomp/actions/workflows/ci.yml)
+
 Experimental, source-only native Windows static recompilation of
 **Killzone: Liberation v1.20 (UCUS-98646)**. The PSP Allegrex module is
 translated to C and linked with a game-specific HLE runtime, Direct3D 12
