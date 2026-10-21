@@ -1182,10 +1182,11 @@ gamepad names, up to four alternatives per PSP action, four keyboard analog dire
 power-curve response and optional Y inversion. Arrow keys intentionally bind both D-pad and analog movement by
 default. XInput/DirectInput and SDL use the same configured action list, including shoulder/trigger alternatives.
 
-The default file is created at `%LOCALAPPDATA%\KZLRecomp\input.ini`; an explicit `SR_INPUT_CONFIG` path must exist
-and parse, while `SR_INPUT_CONFIG=0` selects built-in defaults without file IO. Invalid files report the exact line
-and stop window startup rather than silently changing controls. Deterministic `SR_PADSCRIPT` input remains above
-this layer in sceCtrl and is ORed with configured live input, which the unchanged 50-frame script verified.
+The default file is created as portable `input.ini` beside the executable; `SR_SETTINGS_DIR` can isolate all
+settings for automation, an explicit `SR_INPUT_CONFIG` path must exist and parse, and `SR_INPUT_CONFIG=0` selects
+built-in defaults without file IO. Invalid files report the exact line and stop window startup rather than silently
+changing controls. Deterministic `SR_PADSCRIPT` input remains above this layer in sceCtrl and is ORed with
+configured live input, which the unchanged 50-frame script verified.
 - **Impact:** T-5.5 is complete. Keyboard and gamepad controls are persistent and backend-consistent, keyboard
   gameplay has analog movement, and analog tuning is measurable/tested rather than presenter-specific magic.
 

@@ -14,6 +14,7 @@ set(PSP_RECOMP_DIR "${CMAKE_SOURCE_DIR}/external/psp-recomp" CACHE PATH "sal063 
 
 option(KZL_ENABLE_D3D12 "Build the SDL3/D3D12 backend" OFF)
 option(KZL_RUNTIME_ONLY "Compile the redistributable runtime without generated game code" OFF)
+option(KZL_ENABLE_INSTRUCTION_TRACE "Keep per-instruction trace hooks in generated game code" OFF)
 if(KZL_RUNTIME_ONLY AND KZL_ENABLE_D3D12)
   message(FATAL_ERROR "KZL_RUNTIME_ONLY currently supports the dependency-free Windows runtime only")
 endif()
@@ -86,6 +87,8 @@ if(NOT KZL_RUNTIME_ONLY)
   # Recompiled game code. Float behaviour must match the PSP: no FMA contraction, no fast-math (F-013).
   add_library(kzl_game STATIC ${KZL_GEN_SRCS})
   target_include_directories(kzl_game PRIVATE "${PSP_RECOMP_DIR}/src/rt" "${KZL_GEN_DIR}")
+  target_compile_definitions(kzl_game PRIVATE
+    "SR_ENABLE_INSTRUCTION_TRACE=$<BOOL:${KZL_ENABLE_INSTRUCTION_TRACE}>")
   if(_KZL_OPTIMIZED_SPLIT)
     if(CMAKE_C_SIMULATE_ID STREQUAL "MSVC")
       set(_KZL_HOT_OPT /O2)
@@ -167,7 +170,9 @@ set(KZL_RUNTIME_SRCS
   ${RT}/recomp.c ${RT}/dispatch_table.c ${RT}/fpu_mode.c ${RT}/interp_runtime.cpp
   ${PSP_RECOMP_DIR}/src/ref/interp.cpp
   ${RT}/vfpu_interp.c ${RT}/vfpu_asin.c ${RT}/hle.c ${RT}/net.c ${RT}/kmem.c ${RT}/intr.c ${RT}/gelist.c ${RT}/callback.c ${RT}/sched.c
-  ${RT}/iso.c ${RT}/mpeg.c ${RT}/pgf.c ${RT}/gui.c ${RT}/input_config.c ${RT}/startup_check.c
+  ${RT}/iso.c ${RT}/mpeg.c ${RT}/pgf.c ${RT}/gui.c
+  ${RT}/settings_path.c ${RT}/graphics_config.c ${RT}/graphics_settings.c
+  ${RT}/input_config.c ${RT}/startup_check.c
   ${RT}/audio_mixer.c ${RT}/audio_xaudio2.cpp ${RT}/sas_reverb.c ${RT}/h264_mf.c ${RT}/savedata.c
   ${RT}/osk_win.c ${RT}/ge.c)
 if(KZL_ENABLE_D3D12)
@@ -250,11 +255,23 @@ if(BUILD_TESTING)
 
   add_executable(kzl_input_tests EXCLUDE_FROM_ALL
     ${PSP_RECOMP_DIR}/tools/tests/input_config_test.c
-    ${RT}/input_config.c)
+    ${RT}/input_config.c
+    ${RT}/settings_path.c)
   target_include_directories(kzl_input_tests PRIVATE "${RT}")
   target_compile_definitions(kzl_input_tests PRIVATE _CRT_SECURE_NO_WARNINGS)
   target_compile_options(kzl_input_tests PRIVATE ${KZL_FP_FLAGS})
   add_test(NAME kzl_input_config COMMAND kzl_input_tests)
+
+  add_executable(kzl_graphics_config_tests EXCLUDE_FROM_ALL
+    ${PSP_RECOMP_DIR}/tools/tests/graphics_config_test.c
+    ${RT}/graphics_config.c
+    ${RT}/settings_path.c)
+  target_include_directories(kzl_graphics_config_tests PRIVATE "${RT}")
+  target_compile_definitions(
+    kzl_graphics_config_tests PRIVATE _CRT_SECURE_NO_WARNINGS)
+  target_compile_options(
+    kzl_graphics_config_tests PRIVATE ${KZL_FP_FLAGS})
+  add_test(NAME kzl_graphics_config COMMAND kzl_graphics_config_tests)
 
   add_executable(kzl_dispatch_tests EXCLUDE_FROM_ALL
     ${PSP_RECOMP_DIR}/tools/tests/dispatch_table_test.c

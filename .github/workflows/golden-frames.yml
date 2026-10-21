@@ -78,6 +78,7 @@ jobs:
             -DCMAKE_C_COMPILER=clang-cl `
             -DCMAKE_CXX_COMPILER=clang-cl `
             -DKZL_ENABLE_D3D12=ON `
+            -DKZL_ENABLE_INSTRUCTION_TRACE=ON `
             -DKZL_GEN_DIR="$env:KZL_GEN_DIR" `
             -DCMAKE_PREFIX_PATH="$env:SDL3_DIR" `
             -DKZL_DXC_EXECUTABLE="$env:KZL_DXC"
@@ -87,6 +88,7 @@ jobs:
         run: |
           cmake --build out\build\golden --target `
             kzl_driver kzl_startup_tests kzl_audio_mixer_tests kzl_input_tests `
+            kzl_graphics_config_tests `
             kzl_dispatch_tests kzl_fpu_mode_tests kzl_savedata_crypto_tests `
             kzl_interp_tests kzl_hle_tests `
             kzl_d3d12_vertex_tests kzl_d3d12_shaders_check

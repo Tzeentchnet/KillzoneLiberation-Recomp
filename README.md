@@ -68,33 +68,46 @@ flush-to-zero and denormals-are-zero to match the PSP's single-precision mode.
 
 From a Visual Studio x64 developer shell, configure the native D3D12 build.
 Point `CMAKE_PREFIX_PATH` at the SDL3 package directory containing
-`SDL3Config.cmake`:
+`SDL3Config.cmake`. The standard `clang-cl` preset enables D3D12:
 
 ```powershell
-cmake -S . -B out\build\d3d12 -G Ninja `
-  -DCMAKE_BUILD_TYPE=Release `
-  -DCMAKE_C_COMPILER=clang-cl `
-  -DCMAKE_CXX_COMPILER=clang-cl `
-  -DKZL_ENABLE_D3D12=ON `
-  -DCMAKE_PREFIX_PATH=C:\path\to\SDL3
-cmake --build out\build\d3d12 --target kzl_driver
+cmake --preset clang-cl -DCMAKE_PREFIX_PATH=C:\path\to\SDL3
+cmake --build --preset clang-cl --target kzl_driver
 ```
 
+D3D12 hardware rendering is selected automatically in a D3D12-enabled build.
+Set `SR_GPU=sw` only when the reference CPU rasterizer is needed for comparison.
 Run with the same verified ISO:
 
 ```powershell
 $env:PSP_ISO = 'C:\path\to\Killzone_Liberation_v1.20_US.ISO'
-$env:SR_GPU = 'd3d12'
-out\build\d3d12\kzl.exe --boot `
+out\build\clang-cl\kzl.exe --boot `
   build\kzl\gen\kzl_image.bin 08804000 08804000 none --gui
 ```
 
 Standalone boot rechecks the ISO size and SHA-1 before allocating guest memory;
 a missing or different image exits with an explicit supported-version error.
 
-The first windowed run writes the rebinding/analog configuration to
-`%LOCALAPPDATA%\KZLRecomp\input.ini`. Detailed controls and runtime environment
-settings are documented in
+The first windowed run opens a native graphics launcher. It defaults to D3D12
+at 2x internal resolution (960x544), then writes `graphics.ini` beside
+`kzl.exe`. Run `kzl.exe --configure` to reopen it, or edit the portable file:
+
+```ini
+renderer = d3d12
+internal_resolution = 2
+```
+
+At scaled resolutions, supported GPUs keep geometry, coverage, and depth at
+the selected resolution while shading direct draws at PSP-native fragment
+density. This avoids multiplying the original game's heavy framebuffer effects
+by four or sixteen; set `SR_D3D12_VRS=0` to force full-rate fragment shading.
+
+The rebinding/analog configuration is also portable: `input.ini` is created
+beside `kzl.exe`, not under AppData. The default PC scheme uses WASD for the
+analog stick, arrow keys for the D-pad, left mouse to fire, right mouse to aim,
+middle mouse to reload, Space for Cross/interact, G for grenades, and Q/E for
+the shoulder buttons. SDL-compatible gamepads are mapped automatically and can
+be used at the same time. Detailed controls and runtime environment settings are documented in
 [external/psp-recomp/README.md](external/psp-recomp/README.md).
 
 ## Public verification without game data

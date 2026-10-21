@@ -1886,6 +1886,10 @@ static void test_atrac_reset_buffer_info(CpuState *cpu) {
     check_u32("ATRAC streamed remain after add",
               hle_call(cpu, 0x9ae849a7u, atrac_id, info_addr, 0, 0), 0);
     check_u32("ATRAC streamed added frames", MEM_R32(info_addr), 7);
+    check_u32("ATRAC streamed decode remaining-frame contract",
+              sr_atrac_remaining_frames(40, 8, 1), 5);
+    check_u32("ATRAC resident decode remaining-frame contract",
+              sr_atrac_remaining_frames(40, 8, 0), 0xffffffffu);
     check_u32("ATRAC streamed reset info",
               hle_call(cpu, 0x2dd3e298u, atrac_id, 4096, info_addr, 0), 0);
     check_u32("ATRAC streamed reset pointer", MEM_R32(info_addr), data_addr);

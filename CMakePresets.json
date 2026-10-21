@@ -12,7 +12,8 @@
       "cacheVariables": {
         "CMAKE_C_COMPILER": "clang-cl",
         "CMAKE_CXX_COMPILER": "clang-cl",
-        "CMAKE_BUILD_TYPE": "Release"
+        "CMAKE_BUILD_TYPE": "Release",
+        "KZL_ENABLE_D3D12": "ON"
       },
       "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Windows" }
     }

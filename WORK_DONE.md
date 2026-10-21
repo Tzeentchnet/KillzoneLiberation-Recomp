@@ -5,6 +5,25 @@ findings or tasks it touched. Items move here from [TODO.md](TODO.md) when they 
 
 ---
 
+## 2026-10-20 — Session 4d: portable graphics launcher and internal scaling (T-7.1)
+- Added a dependency-free native first-run/`--configure` graphics launcher. It validates and atomically writes
+  portable `graphics.ini` beside the executable with renderer and 1x-8x internal-resolution choices; D3D12 at
+  2x (960x544) is the measured default. Environment overrides remain available for deterministic automation.
+- Moved the default `input.ini` location from AppData to the executable directory without importing legacy
+  AppData settings. Save data remains under the writable VFS root because it is game data rather than configuration.
+- Scaled D3D12 color/depth resources, the 512x512 framebuffer texture envelope, destination and feedback snapshots,
+  viewport/scissor state, CPU uploads/readback, `TRXKICK`, CPU-presented movie frames, display conversion and capture.
+  Guest addresses and transfer rectangles remain PSP-logical; readback/capture center-sample each logical pixel,
+  and dithering derives its coordinates from physical `SV_Position / scale`.
+- Added strict config/parser/persistence and scaled-scissor coverage, updated protected automation to force 1x for
+  the golden oracle, regenerated DXIL, and passed focused CTests, the full clang-cl build, automated launcher
+  selection/persistence, a 120-presentation 4x hardware boot and the scripted Chapter 1 gameplay path.
+- Profiling found two avoidable per-frame costs: scaled D16 was uploaded unconditionally (~11.69 ms) despite native
+  GPU ownership, and a disabled-log vertex hash scanned roughly 3 MB (~2.33 ms). Invalidation-driven depth uploads
+  and lazy hashes reduce D3D12 backend time to 0.51-0.59 ms. Uncapped 2x gameplay sustains 65.51-69.70 FPS across
+  five 120-frame windows and passes a 60 FPS gate. A same-template 50-frame legacy/optimized A/B passes the standard
+  visual gate; 30 frames are exact and the rest differ at only 17 pixels each.
+
 ## 2026-10-20 — Session 4c: prove the retail debug menu is orphaned (T-6.6)
 - Audited all 655 unique JSP pages. Eight localized `debugoptions.jsp` pages expose invulnerability, ammunition,
   camera, item/script and mission-completion controls, but only their eight descendant `giveitem.jsp` pages link
@@ -281,7 +300,7 @@ findings or tasks it touched. Items move here from [TODO.md](TODO.md) when they 
 - Replaced three divergent hard-coded maps with `input_config.c`: GDI's Win32/XInput/DirectInput path and the
   D3D12/Vulkan SDL3 paths now translate physical state through the same PSP bindings. Keyboard directions drive
   both the D-pad and analog stick by default, making gameplay possible without a controller.
-- First windowed launch writes `%LOCALAPPDATA%\KZLRecomp\input.ini`. Each PSP action accepts up to four
+- First windowed launch writes portable `input.ini` beside the executable. Each PSP action accepts up to four
   comma-separated keyboard/gamepad inputs or `none`; keyboard analog directions are independently bindable.
   `SR_INPUT_CONFIG=<path>` selects another file and `0` selects immutable defaults.
 - Analog input uses a shared radial transform with configurable dead-zone `[0, 0.95]`, curve `[0.1, 4]` and Y
