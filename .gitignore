@@ -12,6 +12,7 @@
 *.PBP
 *.elf
 CHAPTER5.BIN
+/memstick/
 
 # Generated code derived from the game binary (rebuilt locally from the ISO)
 /gen/

@@ -1,15 +1,39 @@
 # Killzone: Liberation Recomp
 
-Experimental native Windows static recompilation of **Killzone: Liberation
-v1.20 (UCUS-98646)**. The PSP MIPS module is translated to C and linked with a
-game-specific HLE runtime, Direct3D 12 renderer, XAudio2 audio, Media Foundation
-movie decoder, and SDL3 window/gamepad layer.
+Experimental, source-only native Windows static recompilation of
+**Killzone: Liberation v1.20 (UCUS-98646)**. The PSP Allegrex module is
+translated to C and linked with a game-specific HLE runtime, Direct3D 12
+renderer, XAudio2 audio, Media Foundation movie decoder, and SDL3
+window/gamepad layer.
 
-This is a work in progress, not a finished replacement for the original game.
-The deterministic automated path currently boots through the menus, Chapter 1
-storyboard, and C1M1 tutorial gameplay. See [PLAN.md](PLAN.md),
-[TODO.md](TODO.md), [WORK_DONE.md](WORK_DONE.md), and
-[FINDINGS.md](FINDINGS.md) for exact status and evidence.
+This project is not affiliated with or endorsed by Guerrilla or Sony
+Interactive Entertainment. It does not distribute a game executable, generated
+game code, disc data, saves, or other game assets.
+
+## Project status
+
+| Area | Current state |
+|---|---|
+| Platform | Windows 10/11 x64; clang-cl and Direct3D 12 are the primary path |
+| Gameplay | Boot, menus, the Chapter 1 presentation, tutorial, and Mission 1 have been completed |
+| Graphics | Native D3D12 renderer, software reference path, and 1x-8x internal scaling; 2x is the measured default |
+| Audio/video/input | XAudio2, SAS/ATRAC, Media Foundation PMF playback, keyboard/mouse, and SDL gamepads are implemented |
+| Saves | PSP-compatible secure savedata is implemented; full-game validation remains in progress |
+| Online | Original infrastructure services are gone; ad-hoc multiplayer is not implemented |
+| Distribution | Source release only; no redistributable game executable is published |
+
+This is still a work in progress rather than a finished replacement for the
+original game. Chapters 2-4, challenges, user-supplied Chapter 5, and long soak
+testing remain release validation work.
+
+## Documentation
+
+- [Project documentation index](docs/README.md)
+- [Remaining work and release gates](docs/TODO.md)
+- [Evidence-backed technical findings](docs/FINDINGS.md)
+- [Original architecture and implementation plan](docs/PLAN.md)
+- [Development archive](docs/WORK_DONE.md)
+- [Credits and third-party provenance](CREDITS.md)
 
 ## You must supply the game
 
@@ -27,7 +51,9 @@ This is **not** byte-identical to Redump's retail USA disc, which is
 
 Extraction verifies that identity and the hashes of every required file.
 Do not upload or commit the ISO, PRX, `PSP.DAT`, generated C, savedata, or
-`CHAPTER5.BIN`; the repository ignore rules intentionally exclude them.
+`CHAPTER5.BIN`; the repository ignore rules intentionally exclude them,
+including the local `memstick/` tree. This project does not provide or help
+locate copyrighted game data.
 
 ## Requirements
 
@@ -44,7 +70,7 @@ Do not upload or commit the ISO, PRX, `PSP.DAT`, generated C, savedata, or
 
 PIX for Windows is optional but recommended for GPU debugging.
 
-## Build from your own disc
+## Build from source
 
 Clone with the runtime fork:
 
@@ -88,6 +114,8 @@ out\build\clang-cl\kzl.exe --boot `
 Standalone boot rechecks the ISO size and SHA-1 before allocating guest memory;
 a missing or different image exits with an explicit supported-version error.
 
+## Configuration and controls
+
 The first windowed run opens a native graphics launcher. It defaults to D3D12
 at 2x internal resolution (960x544), then writes `graphics.ini` beside
 `kzl.exe`. Run `kzl.exe --configure` to reopen it, or edit the portable file:
@@ -110,9 +138,30 @@ the shoulder buttons. SDL-compatible gamepads are mapped automatically and can
 be used at the same time. Detailed controls and runtime environment settings are documented in
 [external/psp-recomp/README.md](external/psp-recomp/README.md).
 
+The original infrastructure-mode servers are gone. Selecting **Downloads**
+therefore shows an unavailable-service notice and returns to the menu instead
+of handing control to the unsupported PSP bootloader downloader. User-supplied
+Chapter 5 data remains supported through the mapped `ms0:` game-data folder.
+The retired **KILLZONE.COM** main-menu button is non-selectable.
+
+Higher internal resolutions are available but remain experimental. The 2x
+default is the validated performance/quality target.
+
 ## Public verification without game data
 
-The public CI path compiles every redistributable runtime source without
+The public [CI workflow](.github/workflows/ci.yml) uses only tracked source and
+synthetic fixtures. To run its tool coverage locally:
+
+```powershell
+python -m unittest discover -s tools\tests -p "test_*.py"
+python -m unittest `
+  external\psp-recomp\tools\tests\test_codegen_dispatch.py `
+  external\psp-recomp\tools\tests\test_ppmdiff.py `
+  external\psp-recomp\tools\tests\test_tracediff.py
+python tools\kzl\content_audit.py
+```
+
+The runtime-only build compiles every redistributable runtime source without
 generated game code:
 
 ```powershell
@@ -123,28 +172,6 @@ cmake -S . -B out\build\runtime-only -G Ninja `
   -DKZL_RUNTIME_ONLY=ON `
   -DBUILD_TESTING=OFF
 cmake --build out\build\runtime-only --target kzl_runtime_compile
-```
-
-The Python tools' public unit tests likewise use synthetic inputs:
-
-```powershell
-python -m unittest `
-  tools\tests\test_calltargets.py `
-  tools\tests\test_class_recovery.py `
-  tools\tests\test_content_audit.py `
-  tools\tests\test_golden_frames.py `
-  tools\tests\test_ghidra_symbols.py `
-  tools\tests\test_homebrew_elf.py `
-  tools\tests\test_knownfuncs.py `
-  tools\tests\test_provenance.py `
-  tools\tests\test_scheduler_trace.py `
-  tools\tests\test_source_bundle.py `
-  tools\tests\test_svbrowser_io.py `
-  tools\tests\test_version_match.py `
-  external\psp-recomp\tools\tests\test_codegen_dispatch.py `
-  external\psp-recomp\tools\tests\test_ppmdiff.py `
-  external\psp-recomp\tools\tests\test_tracediff.py
-python tools\kzl\content_audit.py
 ```
 
 Full HLE, renderer, movie/audio, and protected 50-frame comparison tests require
@@ -160,29 +187,38 @@ the JSON pass/fail summary is retained.
 
 ## Repository layout
 
+- `docs/` - plan, task list, findings, and development history
 - `config/` - pinned disc/module configuration and codegen overrides
 - `tools/kzl/` - extraction, archive, trace, and golden-frame tools
 - `research/` - reproducible static/runtime analysis reports
 - `external/psp-recomp/` - pinned recompiler/runtime fork
 - `build/` and `out/` - ignored local generated/build output
 
-## License and attribution
+## Releases
 
-Project-authored and PPSSPP-derived code is licensed **GPL-2.0-or-later**; see
-[LICENSE](LICENSE). The secure-savedata path includes GPL-3.0-or-later libkirk,
-so linked binaries must comply with GPL-3.0-or-later. Third-party provenance
-and separately licensed components are documented in [CREDITS.md](CREDITS.md) and
-[external/psp-recomp/CREDITS.md](external/psp-recomp/CREDITS.md).
-
-The license covers this project's source, not the original game or its assets.
 Every `v*` tag is published with a deterministic corresponding-source zip
 containing the parent tree and the exact pinned `external/psp-recomp` tree.
-The release job refuses dirty or mismatched trees and runs the content audit
-before publishing. Build the same archive locally from a clean checkout with:
+Use that attached `-source.zip` rather than GitHub's automatically generated
+source archive, which records only the submodule gitlink. The
+[release workflow](.github/workflows/release.yml) refuses dirty or mismatched
+trees and runs the content audit before publishing.
+
+Build the same archive locally from a clean checkout with:
 
 ```powershell
-python tools\kzl\source_bundle.py --version v1.0.0
+python tools\kzl\source_bundle.py --version v0.1.0
 ```
 
 No redistributable game executable is currently published: generated game code
 and the required game data remain user-supplied and outside this repository.
+
+## License and attribution
+
+Project-authored and PPSSPP-derived code is licensed **GPL-2.0-or-later**; see
+[LICENSE](LICENSE). The secure-savedata path includes GPL-3.0-or-later libkirk,
+so linked binaries must comply with GPL-3.0-or-later. The license covers this
+project's source, not the original game or its assets.
+
+Third-party provenance and separately licensed components are documented in
+[CREDITS.md](CREDITS.md) and
+[external/psp-recomp/CREDITS.md](external/psp-recomp/CREDITS.md).

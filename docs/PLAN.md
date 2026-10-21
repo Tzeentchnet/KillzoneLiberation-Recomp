@@ -1,5 +1,9 @@
 # Killzone Liberation: Windows / Direct3D 12 static recompilation plan
 
+> This is the original implementation plan and is retained for architectural
+> context. See [TODO.md](TODO.md) for remaining work, [WORK_DONE.md](WORK_DONE.md)
+> for completed work, and the repository README for the current public status.
+
 **Goal:** a native Windows x64 executable that runs *Killzone: Liberation* (UCUS-98646 v1.20) from a disc image
 the user supplies. The game's MIPS code is statically recompiled to C, system calls are high-level emulated (HLE),
 and the PSP GPU (the GE) is rendered through **Direct3D 12**. We ship no Sony or Guerrilla assets or code.
@@ -119,10 +123,10 @@ Mapping PSP GE features to D3D12 is where most of the risk sits:
 | GPL obligations | Publish everything. Never redistribute the ISO, PRX, assets or CHAPTER5.BIN. |
 | ISO provenance (plaintext PRX, F-003) | Pin the SHA-1 and support only that build at first. KZL.PRX.100 stays a later target. |
 
-## 6. Repository layout (target)
+## 6. Repository layout (historical target)
 
 ```
-/                          plan docs (this file, TODO, WORK_DONE, FINDINGS)
+/docs                     plan, task, findings and development-history documents
 /external/psp-recomp       fork of sal063 (submodule -> private mirror, branch kzl)
 /external/ppsspp           reference only (not linked), optional
 /tools/survey              reproducible static-survey scripts (done)

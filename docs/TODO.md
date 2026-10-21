@@ -5,6 +5,10 @@ with the date. `→ F-xxx` points to the finding that motivates the task. Phases
 
 Priority: **P0** blocks the next milestone · **P1** is needed for 1.0 · **P2** is nice to have or a stretch goal.
 
+The remaining release-critical work is the full-game/challenge/Chapter 5
+validation, soak testing, and an anonymous recursive-clone check after both
+repositories are made public. Enhancement tasks remain intentionally separate.
+
 ---
 
 ## Phase 0 — Environment and repo
@@ -40,7 +44,7 @@ Priority: **P0** blocks the next milestone · **P1** is needed for 1.0 · **P2**
 - [x] **T-1.8 P2** Function-match KZL.PRX against KZL.PRX.100 to carry names between versions and see what 1.20 changed.
   *Done 2026-10-20: both PRXs were relocation-aware Ghidra-analyzed at 0x08804000 (22,378 v1.20 functions, 20,949 v1.00). Immediate-normalized CityHash+size keys yielded 6,862 unique one-to-one matches covering 1,842,208 bytes; only 8 stayed at the same address, and 46 evidence-backed labels were applied to v1.00. v1.20 adds 424,968 PRX bytes / 206,516 relocated bytes, 1,429 Ghidra functions, 630 strings, and explicit Chapter 5/download support while upgrading DME/Medius/RT libraries from 3.0 to 3.1. Full evidence is in `research/kzl_version_match.txt` (F-099).*
 - [x] **T-1.9 P2** Check the plaintext-PRX provenance against Redump / a known-good retail dump. → F-003
-  *Done 2026-10-20: Redump's retail USA image is 581,632,000 bytes / SHA-1 `dda1a72c28ccdd8ddd2f3cbfd2fa3188962b0458`; it differs by 13,133,824 bytes and hash from the supported 568,498,176-byte / `5bc4fc8c…e69a` target. Public Archive.org metadata exactly matches the latter under a separately uploaded “v1.20 US” item dated 2022-01-02. Combined with PARAM.SFO version 1.20, plaintext KZL.PRX and embedded KZL.PRX.100, the target is classified as the community-distributed v1.20 image, not a Redump retail dump. Config, README, tests and `research/kzl_provenance.txt` now state this explicitly (F-100).*
+  *Done 2026-10-20: Redump's retail USA image is 581,632,000 bytes / SHA-1 `dda1a72c28ccdd8ddd2f3cbfd2fa3188962b0458`; it differs by 13,133,824 bytes and hash from the supported 568,498,176-byte / `5bc4fc8c…e69a` target. A public metadata snapshot exactly matches the latter as a separately uploaded “v1.20 US” image dated 2022-01-02. Combined with PARAM.SFO version 1.20, plaintext KZL.PRX and embedded KZL.PRX.100, the target is classified as the community-distributed v1.20 image, not a Redump retail dump. Config, README, tests and `research/kzl_provenance.txt` now state this explicitly without linking to a game distribution (F-100).*
 
 ## Phase 2 — Recompiler completion
 - [x] **T-2.1 P0** Codegen: `bvf/bvt/bvfl/bvtl` (cop2 rs=8). 25 functions. → F-016
@@ -64,7 +68,8 @@ Priority: **P0** blocks the next milestone · **P1** is needed for 1.0 · **P2**
   *Done 2026-10-20: runtime tracing can arm at a later guest PC, stop at an exact bounded count, write a completion marker and exit. `tracediff.py` now streams in constant memory (13.44 MiB observed comparing a 229 MB/5M-step file), filters only PPSSPP kernel/BOOT.BIN execution replaced natively, and normalizes syscall-line cross-thread deltas. A fixed trace-only RTC tick removes host launch-time noise; the gate also exposed and fixed PPSSPP's reschedule-time `hleSkipDeadbeef` policy. Protected comparisons pass 4,999,995 retained steps from `module_start`, 199,859 after the static sort, and 200,000 at `user_main`—5,399,854 zero-divergence game steps. The self-hosted workflow runs all three and retains only JSON (F-091).*
 - [x] **T-2.13 P0** Wire `codegen_ext.py` into the forked codegen: try `codegen_ext.effect()` before the base decoder; add `bv*` to `is_cond_branch/cond_expr/is_likely`; in `function_flow`, follow switch and computed-goto targets as intra-function labels; emit `jr` through `emit_switch_jr()`; treat `[[jal_next]]` as link-only; read the jump register before the delay slot for every `jr`/`jalr` (F-019). Exit: 0 trapping stubs and no `jr` to an unknown label. Needs T-0.3. → F-016, F-018, F-019
   *Done: 42,300/42,300 functions, 0 stubs, all TUs pass `gcc -fsyntax-only -Wall` (also fixed the analyzer's stale-`lui` bug, F-015).*
-- [ ] **T-2.12 P2** Codegen performance: keep the GPRs in locals within a function, elide `sr_begin/sr_end` hooks in release builds, and turn constant-address `jalr` into direct calls.
+- [x] **T-2.12 P2** Codegen performance: keep the GPRs in locals within a function, elide `sr_begin/sr_end` hooks in release builds, and turn constant-address `jalr` into direct calls.
+  *Done 2026-10-20: release builds cache used guest GPRs in locals, compile instruction hooks out, and emit guarded direct calls for read-only constant `jalr` targets. Focused codegen tests cover register synchronization, direct-call fallback, and control-flow merge invalidation.*
 
 ## Phase 3 — Runtime and HLE bring-up (headless)
 - [x] **T-3.1 P0** Loader: map the image at 0x08804000, apply relocations at runtime (or use the prxload image), run `.ctors`/`.cplinit`, create the start thread (prio 0x20, stack 0x400) and call `module_start` with the T-1.6 argv.
@@ -186,3 +191,4 @@ Priority: **P0** blocks the next milestone · **P1** is needed for 1.0 · **P2**
   *Done 2026-10-20: `content_audit.py` scans tracked and pending files in the root and submodule, rejecting game/container paths, ELF/PSP/PSMF/ISO signatures, generated images/C, unexpected DAT/DLL/PGF files and any renamed file matching the pinned game SHA-1 inventory. The only fonts are PPSSPP v1.20.4's two free replacements, pinned by SHA-256. Three synthetic audit tests, the live 196-file audit and public CI step pass (F-085).*
 - [x] **T-8.3 P1** GPL source bundle published with every binary.
   *Done 2026-10-20: every `v*` tag runs the content audit, verifies a clean parent tree and exact checked-out runtime gitlink, then publishes a deterministic corresponding-source zip to the GitHub release before any future binary can be added to that release path. The archive expands both Git trees, records both commit IDs and license pointers, and excludes Git metadata and ignored/user payloads. Two independent 6,430,293-byte builds had identical SHA-256 `db8ca350ee71edbcd0143af6c7d51f99850eb2296e1040d73bc76f1f35b69ebe`; 22 tests, the 199-file audit and actionlint pass (F-086).*
+- [ ] **T-8.4 P0** Make the parent repository and `Tzeentchnet/psp-recomp` runtime fork publicly readable, then verify an unauthenticated `git clone --recurse-submodules` and the first tagged source-bundle release from a clean checkout.

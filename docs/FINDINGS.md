@@ -6,7 +6,7 @@ and WORK_DONE.md can cite them.
 
 Confidence levels: **Confirmed** (measured directly) · **Likely** (strong inference) · **Hypothesis** (still to verify).
 
-Raw data lives in [research/](research/). The scripts that produced it are in [tools/survey/](tools/survey/).
+Raw data lives in [research/](../research/). The scripts that produced it are in [tools/survey/](../tools/survey/).
 
 ---
 
@@ -48,7 +48,7 @@ inflate/Adler-32 routine. It checks for a downloaded update, loads it with `sceK
   `"modulename\0-patch_failed\0"` (`args = 25`); KZL.PRX checks this through `DidPatchFailToLoad`.
 - BOOT.BIN's own options `-nopatch` and `-patch_binary` (strings at 0x09F026CC/0x09F02704) only steer the update step.
 - **Impact:** the runtime loads KZL.PRX directly and calls `module_start(11, "modulename")`. Recorded in
-  [config/kzl.toml](config/kzl.toml) `[boot]`. The update servers are gone (F-022), so the patch path never applies.
+  [config/kzl.toml](../config/kzl.toml) `[boot]`. The update servers are gone (F-022), so the patch path never applies.
 
 ---
 
@@ -114,7 +114,7 @@ The UI runs on Sony's SVO/SVML markup. `SVBrowser.cpp`, `*TagModule.cpp` (Form, 
 ### F-016 sal063 codegen runs on KZL.PRX today — Confirmed
 `tools/codegen.py` emitted **42,641 of 42,641 functions, 77 of them trapping stubs**, in 26 s.
 The output is **237 MB of C, about 3.0M lines, in one file**.
-Unsupported encodings ([research/codegen_trapping_stubs.txt](research/codegen_trapping_stubs.txt)):
+Unsupported encodings ([research/codegen_trapping_stubs.txt](../research/codegen_trapping_stubs.txt)):
 | Codegen error | Functions | Likely instruction (check against PPSSPP's MIPSTables) |
 |---|---|---|
 | `cop2 sub 8` | 25 | `bvf`/`bvt`/`bvfl`/`bvtl`: branch on VFPU condition code |
@@ -128,7 +128,7 @@ Exact sub-ops present in KZL (all instances in `.text`, from `tools/kzl/mipsdis.
 `bvf/bvt/bvfl/bvtl` 53 · `vi2f` 37 · `vfad` 37 · `bitrev` 22 · `vuc2i` 22 · `wsbw` 7 · `vus2i` 4 · `vs2i` 4 ·
 `vmscl` 4 · `vf2in` 1 · `vsgn` 1 · `cache` 1. "VFPU7" is `vuc2i/vus2i/vs2i` (no `vf2h`), and the BSHFL gap is
 `bitrev` + `wsbw` (`wsbh/seb/seh` were already handled).
-- **Status (2026-10-19): closed.** Emitters for all of these are in [external/psp-recomp/tools/codegen_ext.py](external/psp-recomp/tools/codegen_ext.py), checked against Python models of
+- **Status (2026-10-19): closed.** Emitters for all of these are in [external/psp-recomp/tools/codegen_ext.py](../external/psp-recomp/tools/codegen_ext.py), checked against Python models of
   PPSSPP's interpreter by a gcc-compiled test suite (`external/psp-recomp/tools/tests/test_codegen_ext.py`, 198 cases). Translating the switch cases (F-018) exposed
   two more: `vasin` (13 functions, now a bit-exact port of PPSSPP's `vfpu_asin` in `src/rt/vfpu_asin.c`, checked on all
   2,130,706,440 inputs in [-1, 1]) and `vnop`/`vflush` (18 functions, no-ops). The codegen now emits **42,300 of
@@ -147,7 +147,7 @@ virtual calls, which do work.
   The analysis side is done: see F-018.
 
 ### F-018 240 of the 243 computed jumps are switch tables — Confirmed
-`tools/kzl/jumptab.py` recovers **240 tables with 4,480 cases** into [research/kzl_jumptables.toml](research/kzl_jumptables.toml).
+`tools/kzl/jumptab.py` recovers **240 tables with 4,480 cases** into [research/kzl_jumptables.toml](../research/kzl_jumptables.toml).
 Variants handled: `slti` and `sltiu` bounds; biased indices from sparse switches split into ranges
 (`addiu rI, rS, -LO` with the bound on `rS`, on a separately biased temp, or in the guard's delay slot, plus one
 positive bias); bound checks in a predecessor block; bounds on a copy of the index; table bases kept in an
@@ -157,7 +157,7 @@ s-register since the prologue.
   (GCC's hole filling).
 - The 3 other sites: `0x08CC5B48` is a computed tail call through a handler table (stays on `dispatch()`), and
   `0x08B219AC`/`0x08B219BC` are hand-written computed gotos in a native-call thunk (F-019). Their targets are in
-  [config/kzl_overrides.toml](config/kzl_overrides.toml).
+  [config/kzl_overrides.toml](../config/kzl_overrides.toml).
 - **Impact:** the codegen can emit a `switch` for every computed jump. Unknown targets still fall to `dispatch()`,
   so a wrong table fails loudly instead of silently.
 
@@ -177,12 +177,12 @@ The routine around 0x08B218A0 (probably the script → C++ call bridge) walks a 
 ## C. System-call (HLE) surface
 
 ### F-030 300 imported functions from 34 libraries — Confirmed
-See [research/kzl_imports.toml](research/kzl_imports.toml) and [research/kzl_prx_survey.txt](research/kzl_prx_survey.txt).
-All 300 NIDs have names in [research/nid_names.tsv](research/nid_names.tsv) (1,759 NIDs taken from PPSSPP's HLE tables
+See [research/kzl_imports.toml](../research/kzl_imports.toml) and [research/kzl_prx_survey.txt](../research/kzl_prx_survey.txt).
+All 300 NIDs have names in [research/nid_names.tsv](../research/nid_names.tsv) (1,759 NIDs taken from PPSSPP's HLE tables
 by `tools/kzl/nidnames.py`).
 
 ### F-031 sal063 already implements 159 of the 300 imports — Confirmed
-See [research/hle_coverage_vs_sal063.txt](research/hle_coverage_vs_sal063.txt). The 141 missing imports split as follows:
+See [research/hle_coverage_vs_sal063.txt](../research/hle_coverage_vs_sal063.txt). The 141 missing imports split as follows:
 - **About 69 networking imports, all safe to stub for an offline build:** sceNetInet 22, sceNetAdhoc 16,
   sceNetAdhocctl 7, sceNetApctl 6, sceNetResolver 5, sceHttp 5, sceNet 3, sceNetAdhocMatching 2, sceSsl 2,
   sceOpenPSID 1. They should report "WLAN switch off" (the game has an `ERROR_WLAN_SWITCH_OFF` path).
@@ -219,7 +219,7 @@ PPSSPPHeadless (`-i --graphics=software --timeout=40`). Both boot to the front e
   the archive (F-020).
 - At start-up it probes free memory with ~24 MB allocations that back off in halving steps (`BlockAllocator` errors in
   the log are expected).
-- 79 HLE functions are called; **22 have no sal063 handler** ([research/ppsspp_boot_hle_60s.txt](research/ppsspp_boot_hle_60s.txt),
+- 79 HLE functions are called; **22 have no sal063 handler** ([research/ppsspp_boot_hle_60s.txt](../research/ppsspp_boot_hle_60s.txt),
   from `tools/kzl/hlesummary.py`): `sceKernelDelayThreadCB`, `sceGeListUpdateStallAddr`, `sceCtrlReadBufferPositive`,
   `sceGeContinue`, `sceGeListSync`, `sceGeUnsetCallback`, Fpl (`Create/Delete/TryAllocate`), Vpl (`Create/Delete/TryAllocate`),
   `sceKernelCheckCallback`, `sceKernelTerminateThread`, `sceUmdReplaceProhibit`, `sceImposeGetLanguageMode`,
@@ -232,8 +232,8 @@ PPSSPPHeadless (`-i --graphics=software --timeout=40`). Both boot to the front e
   (`RunUntilWithChecks` in `Core/MIPS/MIPSTables.cpp`).
 
 ### F-048 PPSSPP traces: what the recompiled side must match — Confirmed
-[tools/ppsspp/psprecomp-trace.patch](tools/ppsspp/psprecomp-trace.patch) (PPSSPP v1.20.4) makes PPSSPPHeadless write the
-psp-recomp trace format from its interpreter loop; [tools/kzl/ppsspp_trace.py](tools/kzl/ppsspp_trace.py) records a
+[tools/ppsspp/psprecomp-trace.patch](../tools/ppsspp/psprecomp-trace.patch) (PPSSPP v1.20.4) makes PPSSPPHeadless write the
+psp-recomp trace format from its interpreter loop; [tools/kzl/ppsspp_trace.py](../tools/kzl/ppsspp_trace.py) records a
 trace (5M steps from `module_start` in 3 s, 229 MB). Things the first steps show:
 - **Thread start state** (PPSSPP `PSPThreadContext::reset`): r1–r31, hi, lo = `0xDEADBEEF`; f0–f31 and v0–v127 =
   `0x7f800001`; VFPU prefixes S/T = `0xe4`, D = 0; VFPU CC = `0x3f`; REV = `0x7772ceab`; RCX0–7 = `0x3f800001`,
@@ -530,7 +530,7 @@ disabled while either trace mode is active.
 
 `tools/kzl/ppsspp_calls.py` runs a bounded capture; `tools/kzl/calltargets.py` validates the format, relocates and
 analyzes KZL.PRX, classifies targets outside KZL (the seven observed targets are in the loaded MPEG module), and
-fails if any KZL executable target is absent. Its report is [research/kzl_calltargets.txt](research/kzl_calltargets.txt).
+fails if any KZL executable target is absent. Its report is [research/kzl_calltargets.txt](../research/kzl_calltargets.txt).
 
 The 90-second deterministic boot capture found:
 
@@ -1096,6 +1096,9 @@ SAS effect types use a bounded C port of PPSSPP's PSX-style SPU preset processor
 feedback values are retained just as in PPSSPP, whose fixed presets define the current processing coefficients.
 Noise voices use a deterministic frequency-divided LFSR, and pause is a full 32-bit voice mask. Every new handler
 returns the hardware-observed errors for invalid voices, rates, modes, frequencies, preset parameters and volumes.
+VAG loop markers are now conditional on `__sceSasSetVoice`'s loop-mode argument. Several menu effects contain
+embedded loop metadata even when requested as one-shots; accepting those markers unconditionally kept every
+selection effect alive and layered another permanent voice on each D-pad movement.
 
 Focused tests exercise the API failures and actual sample/envelope transitions rather than registration alone.
 Default and D3D12 clang-cl builds, strict MinGW C11 and both CTests pass. The changed runtime also completed the
@@ -1503,10 +1506,10 @@ Redump's public PSP dat snapshot lists retail USA Killzone: Liberation as:
 - SHA-1 `dda1a72c28ccdd8ddd2f3cbfd2fa3188962b0458`
 
 The project's target is 568,498,176 bytes and SHA-1
-`5bc4fc8cd8d72c9c2e7c1c03a4325a29bed6e69a`: 13,133,824 bytes smaller and not hash-equivalent. Public
-Archive.org metadata for `killzone-liberation-v-1.20-us`, uploaded 2022-01-02, exactly matches the supported
-filename, size and SHA-1. Locally it identifies itself as version 1.20, contains the older `KZL.PRX.100`, and ships
-the v1.20 KZL.PRX plaintext.
+`5bc4fc8cd8d72c9c2e7c1c03a4325a29bed6e69a`: 13,133,824 bytes smaller and not hash-equivalent. A public metadata
+snapshot dated 2022-01-02 exactly matches the supported filename, size and SHA-1; its distribution URL is
+intentionally not retained. Locally it identifies itself as version 1.20, contains the older `KZL.PRX.100`, and
+ships the v1.20 KZL.PRX plaintext.
 - **Impact:** T-1.9 is complete. The exact supported input is a community-distributed v1.20 image, not a
   known-good retail/Redump dump. Hash enforcement remains correct; every public/legal surface now states the
   distinction so users do not mistake compatibility for retail provenance.
@@ -1532,7 +1535,7 @@ stock runtime, and the executable returned `done (hit_hle=0)` with SHA-256
 ## D. Assets and content
 
 ### F-020 PSP.DAT archive — Confirmed (layout, reader and duplicate policy decoded)
-[tools/kzl/pspdat.py](tools/kzl/pspdat.py) lists and extracts it. Layout (little-endian u32):
+[tools/kzl/pspdat.py](../tools/kzl/pspdat.py) lists and extracts it. Layout (little-endian u32):
 - Header: `[0]` = TOC length after the first 0x18 bytes (TOC ends at 0x14F90), `[1]` = file records incl. duplicates
   (3,987), `[2]/[3]` = 0xFA3E01/0xFA3DB6, `[6]` = name pool size. The pool starts at 0x1C. The game reader at
   0x08814148 discards the complete first 0x18 bytes and begins with `[6]`; `[2]/[3]` are never compared or stored
@@ -1562,7 +1565,11 @@ Chapter 5 was free DLC that was downloaded into the save directory.
 ### F-022 Online features are permanently offline — Confirmed (the servers are gone)
 Infrastructure mode (sceHttp/SSL/Inet with SVO/Medius) handled score uploads and the DLC download.
 Ad-hoc mode handled co-op and versus.
-- **Impact:** phase 1 ships offline only. Ad-hoc over LAN/UDP is a stretch goal (PPSSPP's adhoc layer is the model).
+- **Impact:** phase 1 ships offline only. The `Downloads` action no longer enters the original non-returning
+  BOOT.BIN handoff: the runtime explains that the service is unavailable and returns to the menu. Ad-hoc over
+  LAN/UDP is a stretch goal (PPSSPP's adhoc layer is the model). The runtime overlays the retired `KILLZONE.COM`
+  button's `selectable` attribute while reading the local main-menu page, without modifying PSP.DAT, and retains
+  an inert callback override as defense in depth.
 
 ---
 

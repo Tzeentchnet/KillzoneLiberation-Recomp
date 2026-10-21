@@ -13,7 +13,7 @@ kzl_prx_format=plaintext ET_SCE_PRX
 embedded_v100_prx=true
 
 [public_metadata]
-source=https://archive.org/metadata/killzone-liberation-v-1.20-us
+source=public metadata snapshot (distribution URL intentionally omitted)
 item_public_date=2022-01-02
 item_filename=Killzone_Liberation_v1.20_US.ISO
 item_size=568498176

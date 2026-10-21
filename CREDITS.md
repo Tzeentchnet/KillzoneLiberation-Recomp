@@ -47,7 +47,7 @@ Parts of the runtime, renderer, tools, tests, and documentation were developed
 with AI assistance. This does not change the licenses or authorship of the
 human and third-party work identified above. Correctness claims are backed by
 the checked-in tests and reproducible validation described in
-[`WORK_DONE.md`](WORK_DONE.md), not by the use of an AI tool.
+[`docs/WORK_DONE.md`](docs/WORK_DONE.md), not by the use of an AI tool.
 
 ## License
 

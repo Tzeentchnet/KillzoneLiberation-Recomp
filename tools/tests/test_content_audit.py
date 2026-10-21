@@ -34,6 +34,10 @@ class ContentAuditTests(unittest.TestCase):
             self.audit_bytes("build/kzl_recomp_001.c", b"source"),
         )
         self.assertIn(
+            "tracked save/memory-stick data",
+            self.audit_bytes("memstick/PSP/SAVEDATA/save.bin", b"save"),
+        )
+        self.assertIn(
             "encrypted PSP executable signature",
             self.audit_bytes("payload.bin", b"~PSP" + bytes(32)),
         )

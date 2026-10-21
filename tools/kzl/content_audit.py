@@ -86,6 +86,8 @@ def audit_file(display_path, path, forbidden_hashes):
 
     if lower.startswith(("build/", "out/", "gen/")):
         issues.append("tracked build/generated output")
+    if lower == "memstick" or lower.startswith("memstick/"):
+        issues.append("tracked save/memory-stick data")
     if suffix in PROHIBITED_SUFFIXES:
         issues.append(f"prohibited game-container extension {suffix}")
     if suffix == ".dat" and not lower.startswith(ALLOWED_DAT_PREFIX):

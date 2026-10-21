@@ -1,9 +1,28 @@
-# WORK DONE — archive
+# WORK DONE — development archive
 
-A dated log of finished work, newest first. Each entry lists what was done, what it produced, and the
-findings or tasks it touched. Items move here from [TODO.md](TODO.md) when they are ticked off.
+A dated log of finished work, newest first. Each entry lists what was done,
+what it produced, and the findings or tasks it touched. For current status and
+remaining work, start with the repository README and [TODO.md](TODO.md).
 
 ---
+
+## 2026-10-20 — Session 4f: disable retired website action and fix menu audio loops (F-022, F-077)
+- Made the `KILLZONE.COM` control non-selectable through a length-preserving in-memory overlay of its local SVML
+  button tag; PSP.DAT remains untouched. Its dedicated callback is also disabled before the retired online/BOOT.BIN
+  path as a defense-in-depth fallback.
+- Fixed VAG playback so embedded loop markers are honored only when `__sceSasSetVoice` requests loop mode 1.
+  Main-menu selection effects requested as one-shots now reach their end flag instead of looping and stacking a
+  new permanent voice after every D-pad movement.
+- Added focused host-override and synthetic loop-marker regressions covering both one-shot and looping VAG modes.
+
+## 2026-10-20 — Session 4e: keep the offline Downloads action in-menu (F-022)
+- Traced the main-menu failure to `sceKernelLoadExec("disc0:/PSP_GAME/SYSDIR/BOOT.BIN", ...)`: KZL was handing
+  control to the original updater/downloader bootloader, which the static runtime intentionally skips, and the
+  missing HLE import terminated the process.
+- Added a validated codegen host-function override for the single non-returning bootloader bridge. It displays an
+  explicit unavailable-service notice, reports the PSP unsupported error, and returns to the existing menu caller;
+  normal game code, generic LoadExec handling, and protected gameplay paths are unchanged.
+- Added codegen parser and runtime regression coverage and documented the offline Downloads behavior.
 
 ## 2026-10-20 — Session 4d: portable graphics launcher and internal scaling (T-7.1)
 - Added a dependency-free native first-run/`--configure` graphics launcher. It validates and atomically writes
@@ -55,9 +74,9 @@ findings or tasks it touched. Items move here from [TODO.md](TODO.md) when they 
   `dda1a72c28ccdd8ddd2f3cbfd2fa3188962b0458`.
 - The supported target is 13,133,824 bytes smaller and has SHA-1
   `5bc4fc8cd8d72c9c2e7c1c03a4325a29bed6e69a`; it is not a Redump-identical retail disc.
-- Archive.org's public metadata for `killzone-liberation-v-1.20-us` exactly matches the supported filename,
-  size and SHA-1 and dates that upload to 2022-01-02. Local evidence adds PARAM.SFO 1.20, a plaintext v1.20 PRX
-  and embedded `KZL.PRX.100`.
+- A public metadata snapshot exactly matches the supported filename, size and SHA-1 and dates that upload to
+  2022-01-02. The distribution URL is intentionally omitted. Local evidence adds PARAM.SFO 1.20, a plaintext
+  v1.20 PRX and embedded `KZL.PRX.100`.
 - Added a pinned `[provenance]` config section, public regression test, README warning and
   `research/kzl_provenance.txt`. The project now accurately calls its input the community-distributed v1.20 image
   while retaining exact hash enforcement and the user-supplied-content boundary. → F-100
@@ -815,11 +834,11 @@ findings or tasks it touched. Items move here from [TODO.md](TODO.md) when they 
   cannot survive KZL's memory probe, so a `BlockAllocator` port comes first (new T-3.13). → F-049
 
 ## 2026-10-19 — Session 2e: PPSSPP trace oracle (T-2.11, oracle side)
-- [tools/ppsspp/psprecomp-trace.patch](tools/ppsspp/psprecomp-trace.patch) for PPSSPP v1.20.4: PPSSPPHeadless's interpreter
+- [tools/ppsspp/psprecomp-trace.patch](../tools/ppsspp/psprecomp-trace.patch) for PPSSPP v1.20.4: PPSSPPHeadless's interpreter
   writes the psp-recomp trace format. While tracing it forces the checked interpreter loop, turns off function
   replacements and the post-HLE `0xDEADBEEF` filling, and writes `<trace>.done` when finished. Applies cleanly to
-  a fresh v1.20.4 checkout; build steps in [tools/ppsspp/README.md](tools/ppsspp/README.md).
-- [tools/kzl/ppsspp_trace.py](tools/kzl/ppsspp_trace.py): records a KZL trace; 5M steps from `module_start` in 3 s.
+  a fresh v1.20.4 checkout; build steps in [tools/ppsspp/README.md](../tools/ppsspp/README.md).
+- [tools/kzl/ppsspp_trace.py](../tools/kzl/ppsspp_trace.py): records a KZL trace; 5M steps from `module_start` in 3 s.
   `tracediff.py` accepts the output.
 - Read off the thread start state, the `module_start` entry registers, and the coverage problem of the first
   5M steps (one sort loop). → F-048
@@ -830,7 +849,7 @@ findings or tasks it touched. Items move here from [TODO.md](TODO.md) when they 
 - Built PPSSPPHeadless from the v1.20.4 tag (`D:\Github\ppsspp`, MSBuild Release x64, 1 min 12 s, 0 errors).
 - Booted KZL in both (desktop 60 s with a debug log, headless 40 s on the interpreter with the software renderer).
   Confirmed the start arguments and load base, and that the game reads only PSP.DAT. → F-047
-- [tools/kzl/hlesummary.py](tools/kzl/hlesummary.py) and [research/ppsspp_boot_hle_60s.txt](research/ppsspp_boot_hle_60s.txt):
+- [tools/kzl/hlesummary.py](../tools/kzl/hlesummary.py) and [research/ppsspp_boot_hle_60s.txt](../research/ppsspp_boot_hle_60s.txt):
   79 HLE functions on the boot path, 22 without a sal063 handler. Logs are in `build/kzl/ref/` (not committed).
 
 ## 2026-10-19 — Session 2c: clang-cl build (T-0.1, T-2.9 started)
@@ -838,7 +857,7 @@ findings or tasks it touched. Items move here from [TODO.md](TODO.md) when they 
 - Codegen cleanups in the fork (`kzl` branch): a `j` to the function's own entry is a yielding loop instead of a self
   tail call (F-046); FPU compares fold their constant condition bits (13,489 warnings gone); split mode keeps the
   static inline helpers in the shared header. Result: 0 warnings.
-- [CMakeLists.txt](CMakeLists.txt) and [CMakePresets.json](CMakePresets.json): preset `clang-cl` (Ninja, Release)
+- [CMakeLists.txt](../CMakeLists.txt) and [CMakePresets.json](../CMakePresets.json): preset `clang-cl` (Ninja, Release)
   builds `kzl_game.lib` in 49 s. VS Code CMake Tools loads the MSVC environment from the preset. → T-2.9
 
 ## 2026-10-19 — Session 2b: sal063 fork, codegen complete (T-0.3, T-2.1 to T-2.6, T-2.8, T-2.13)
@@ -851,7 +870,7 @@ findings or tasks it touched. Items move here from [TODO.md](TODO.md) when they 
   bit for bit against PPSSPP's own code on every input in [-1, 1]. → F-016
 - Fixed the analyzer's stale-`lui` heuristic: 342 bogus function entries gone (6 had produced C that did not compile).
   → F-015
-- `codegen.py --split` and [tools/kzl/gen.py](tools/kzl/gen.py): 42,300/42,300 functions, **0 trapping stubs**, 230 TUs.
+- `codegen.py --split` and [tools/kzl/gen.py](../tools/kzl/gen.py): 42,300/42,300 functions, **0 trapping stubs**, 230 TUs.
   All pass `gcc -fsyntax-only -Wall` cleanly; a full gcc `-O2` compile takes 2 min 49 s on 16 threads. → T-2.8, T-2.9
 - Noted that the generated code needs GNU C, so clang-cl is required on Windows. → F-045
 - Fork commit: `01494dc` on `kzl`.
@@ -859,30 +878,30 @@ findings or tasks it touched. Items move here from [TODO.md](TODO.md) when they 
 ## 2026-10-19 — Session 2: phase 1 tools, BOOT.BIN, PSP.DAT, codegen extensions
 
 **Phase 1 (T-1.1, T-1.2, T-1.6, T-1.7 done)**
-- [tools/kzl/iso9660.py](tools/kzl/iso9660.py): read-only ISO reader shared by the KZL tools.
-- [tools/kzl/extract.py](tools/kzl/extract.py): checks the ISO size and SHA-1, extracts the 7 files the build needs
+- [tools/kzl/iso9660.py](../tools/kzl/iso9660.py): read-only ISO reader shared by the KZL tools.
+- [tools/kzl/extract.py](../tools/kzl/extract.py): checks the ISO size and SHA-1, extracts the 7 files the build needs
   plus the PSP.DAT TOC to `build/kzl/disc/`, and checks each file's SHA-1. → T-1.1
-- [config/kzl.toml](config/kzl.toml): disc and file hashes, load base, entry, start-thread params, boot argv,
+- [config/kzl.toml](../config/kzl.toml): disc and file hashes, load base, entry, start-thread params, boot argv,
   PSP.DAT counts. → T-1.2
-- [tools/kzl/mipsdis.py](tools/kzl/mipsdis.py): an Allegrex disassembler with import-stub names, string xrefs and
-  call-site listings. [tools/kzl/nidnames.py](tools/kzl/nidnames.py) builds [research/nid_names.tsv](research/nid_names.tsv)
+- [tools/kzl/mipsdis.py](../tools/kzl/mipsdis.py): an Allegrex disassembler with import-stub names, string xrefs and
+  call-site listings. [tools/kzl/nidnames.py](../tools/kzl/nidnames.py) builds [research/nid_names.tsv](../research/nid_names.tsv)
   (1,759 NIDs from PPSSPP's HLE tables; all 300 KZL imports are named).
 - BOOT.BIN reversed: load path, retry thread, and `module_start(11, "modulename")`; `-patch_failed` is only passed
   after a failed update load. → T-1.6, F-004
-- [tools/kzl/pspdat.py](tools/kzl/pspdat.py): PSP.DAT TOC fully decoded (5,005 records, depth-first tree with child
+- [tools/kzl/pspdat.py](../tools/kzl/pspdat.py): PSP.DAT TOC fully decoded (5,005 records, depth-first tree with child
   pointers). The tree validates, and 165 files are duplicated up to 40 times for seek locality. → T-1.7, F-020
 
 **Phase 2 groundwork (T-2.1 to T-2.6: logic done, integration pending as T-2.13)**
-- Counted the exact trapping sub-ops in KZL (F-016) and wrote `codegen_ext.py` (now [external/psp-recomp/tools/codegen_ext.py](external/psp-recomp/tools/codegen_ext.py)):
+- Counted the exact trapping sub-ops in KZL (F-016) and wrote `codegen_ext.py` (now [external/psp-recomp/tools/codegen_ext.py](../external/psp-recomp/tools/codegen_ext.py)):
   `bitrev`, `wsbw`, `cache`, `vf2i*`, `vi2f`, `vuc2i/vc2i/vus2i/vs2i`, `vfad`, `vsgn`, `vmscl`, `bv*` conditions, a
   jump-table `switch` emitter and a `jal .+8` emitter. All 193 affected instructions in `.text` decode.
 - `external/psp-recomp/tools/tests/test_codegen_ext.py`: emits C, compiles it with gcc against a
   stand-in CpuState and runs 195 cases against Python models of PPSSPP's interpreter. Mutation check: injected bugs in
   `bv*`, `vf2in` rounding and `vus2i` are each caught.
-- [tools/kzl/jumptab.py](tools/kzl/jumptab.py): 240 of 243 computed `jr` recovered as switch tables (4,480 cases), with
+- [tools/kzl/jumptab.py](../tools/kzl/jumptab.py): 240 of 243 computed `jr` recovered as switch tables (4,480 cases), with
   a layout cross-check showing no over- or under-counted tables. → F-018
 - Found the native-call thunk with a `jal .+8` get-PC trick and `jr t4; addiu t4, t4, 8` ladders, which sal063
-  would mistranslate; recorded in [config/kzl_overrides.toml](config/kzl_overrides.toml). → F-019
+  would mistranslate; recorded in [config/kzl_overrides.toml](../config/kzl_overrides.toml). → F-019
 - Noted sal063 runtime limits at KZL scale (65,536-slot dispatch hash). → F-043
 
 **Toolchain:** MSVC 14.44, Windows SDK 10.0.26100 (dxc) and gcc 16.2 are now installed; clang-cl and PIX are not. → F-041
@@ -902,7 +921,7 @@ yet and the 77 trapping stubs are not regenerated. No PPSSPP install (T-0.5).
   bootloader ELF. `mpeg.prx` is `~SCE`-encrypted. → F-003, F-004, F-032
 - Parsed both PARAM.SFO files and UMD_DATA.BIN.
 
-**KZL.PRX static survey** (`tools/survey/prx.py` → [research/kzl_prx_survey.txt](research/kzl_prx_survey.txt))
+**KZL.PRX static survey** (`tools/survey/prx.py` → [research/kzl_prx_survey.txt](../research/kzl_prx_survey.txt))
 - Listed the 70 sections, the program headers and the module info (`Guerrilla`). Resolved the exports:
   `module_start` is at offset 0, and the start-thread params are prio 0x20, stack 0x400. → F-010
 - Counted the instruction mix: 1.45M instructions, VFPU and FPU usage, and 243 computed `jr`. → F-011, F-017
@@ -912,10 +931,10 @@ yet and the 77 trapping stubs are not regenerated. No PPSSPP install (T-0.5).
 **Reference framework trial** (sal063 `da17b0e`, cloned to a scratch folder and not vendored yet)
 - `analyze.py` found **42,641 functions** (18 s). → F-015
 - `codegen.py` translated **42,641 of 42,641 functions with 77 trapping stubs** (26 s) and wrote one 237 MB C file. The stubs fall into 7 opcode classes. → F-016
-  Stub list: [research/codegen_trapping_stubs.txt](research/codegen_trapping_stubs.txt)
-- `imports.py` produced the NID map. → [research/kzl_imports.toml](research/kzl_imports.toml)
+  Stub list: [research/codegen_trapping_stubs.txt](../research/codegen_trapping_stubs.txt)
+- `imports.py` produced the NID map. → [research/kzl_imports.toml](../research/kzl_imports.toml)
 - Cross-checked the imports against the HLE handlers registered in sal063: **159 of 300 are implemented**. → F-031
-  Report: [research/hle_coverage_vs_sal063.txt](research/hle_coverage_vs_sal063.txt)
+  Report: [research/hle_coverage_vs_sal063.txt](../research/hle_coverage_vs_sal063.txt)
 - Checked how sal063 handles dispatch: jump-table targets are not recovered. → F-017
 
 **PSP.DAT**
@@ -925,7 +944,7 @@ yet and the 77 trapping stubs are not regenerated. No PPSSPP install (T-0.5).
 - [PLAN.md](PLAN.md): architecture, decisions D1–D8, phases 0–8 with exit criteria and estimates, the D3D12 design, and risks.
 - [TODO.md](TODO.md): about 75 tasks with IDs, priorities and links to findings.
 - [FINDINGS.md](FINDINGS.md): findings F-001 to F-042.
-- [tools/survey/](tools/survey/): `isols.py` (lists and dumps ISO files), `inspect.py` (header and SFO dumps),
+- [tools/survey/](../tools/survey/): `isols.py` (lists and dumps ISO files), `inspect.py` (header and SFO dumps),
   `prx.py` (PRX survey), `hlecov.py` (HLE coverage against a runtime tree).
 
 **Not done or deferred:** no git repo has been created yet (T-0.2). sal063 is not added as a submodule yet (T-0.3).
