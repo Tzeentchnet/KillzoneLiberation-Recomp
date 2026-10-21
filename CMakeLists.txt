@@ -172,7 +172,8 @@ set(KZL_RUNTIME_SRCS
   ${RT}/vfpu_interp.c ${RT}/vfpu_asin.c ${RT}/hle.c ${RT}/net.c ${RT}/kmem.c ${RT}/intr.c ${RT}/gelist.c ${RT}/callback.c ${RT}/sched.c
   ${RT}/iso.c ${RT}/mpeg.c ${RT}/pgf.c ${RT}/gui.c
   ${RT}/settings_path.c ${RT}/graphics_config.c ${RT}/graphics_settings.c
-  ${RT}/input_config.c ${RT}/startup_check.c
+  ${RT}/input_config.c ${RT}/input_settings.c ${RT}/kzl_twinstick.c
+  ${RT}/startup_check.c
   ${RT}/audio_mixer.c ${RT}/audio_xaudio2.cpp ${RT}/sas_reverb.c ${RT}/h264_mf.c ${RT}/savedata.c
   ${RT}/osk_win.c ${RT}/ge.c)
 if(KZL_ENABLE_D3D12)
@@ -261,6 +262,15 @@ if(BUILD_TESTING)
   target_compile_definitions(kzl_input_tests PRIVATE _CRT_SECURE_NO_WARNINGS)
   target_compile_options(kzl_input_tests PRIVATE ${KZL_FP_FLAGS})
   add_test(NAME kzl_input_config COMMAND kzl_input_tests)
+
+  add_executable(kzl_twinstick_tests EXCLUDE_FROM_ALL
+    ${PSP_RECOMP_DIR}/tools/tests/kzl_twinstick_test.c
+    ${RT}/kzl_twinstick.c)
+  target_include_directories(kzl_twinstick_tests PRIVATE "${RT}")
+  target_compile_definitions(
+    kzl_twinstick_tests PRIVATE _CRT_SECURE_NO_WARNINGS)
+  target_compile_options(kzl_twinstick_tests PRIVATE ${KZL_FP_FLAGS})
+  add_test(NAME kzl_twinstick COMMAND kzl_twinstick_tests)
 
   add_executable(kzl_graphics_config_tests EXCLUDE_FROM_ALL
     ${PSP_RECOMP_DIR}/tools/tests/graphics_config_test.c

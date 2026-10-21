@@ -40,3 +40,10 @@ handler = "sr_kzl_killzone_com_disabled"
 [[host_function]]
 at = 0x089baac8
 handler = "sr_kzl_downloads_unavailable"
+
+# SoldierJoystickController has completed its base facing calculation at this point and is about
+# to run the original target/auto-aim correction. Replace only the base vector when host aim is
+# active so the game's correction and final turn-rate path remain intact.
+[[instruction_hook]]
+at = 0x08900688
+handler = "sr_kzl_twinstick_apply_aim"

@@ -118,9 +118,11 @@ a missing or different image exits with an explicit supported-version error.
 
 ## Configuration and controls
 
-The first windowed run opens a native graphics launcher. It defaults to D3D12
-at 2x internal resolution (960x544), then writes `graphics.ini` beside
-`kzl.exe`. Run `kzl.exe --configure` to reopen it, or edit the portable file:
+The first windowed run opens native graphics and controller settings. Graphics
+default to D3D12 at 2x internal resolution (960x544), then write
+`graphics.ini` beside `kzl.exe`. Run `kzl.exe --configure` to reopen both
+dialogs, `kzl.exe --configure-input` for controller settings only, or edit the
+portable file:
 
 ```ini
 renderer = d3d12
@@ -137,7 +139,60 @@ beside `kzl.exe`, not under AppData. The default PC scheme uses WASD for the
 analog stick, arrow keys for the D-pad, left mouse to fire, right mouse to aim,
 middle mouse to reload, Space for Cross/interact, G for grenades, and Q/E for
 the shoulder buttons. SDL-compatible gamepads are mapped automatically and can
-be used at the same time. Detailed controls and runtime environment settings are documented in
+be used at the same time.
+
+### Controller remapper
+
+Open the native controller remapper directly with:
+
+```powershell
+out\build\clang-cl\kzl.exe --configure-input
+```
+
+Each PSP action accepts up to four comma-separated gamepad inputs. Use `none`
+to clear an action. For example:
+
+```ini
+gamepad.r = left_trigger
+gamepad.square = west, right_trigger
+```
+
+The remapper can run in a second process while the game is running. **Save**
+writes `input.ini` and hot-reloads valid changes into the game within
+approximately 250 ms. The window stays open after saving so controls can be
+adjusted repeatedly; select **Close** when finished. Invalid changes are
+reported in the runtime log while the last valid setup remains active.
+
+### Twin-stick controller scheme
+
+Twin-stick controls are experimental, opt-in, and disabled by default. Enable
+**Experimental twin-stick controls** in the remapper or set:
+
+```ini
+twin_stick.enabled = true
+```
+
+Enabling the mode from an off state loads this tested, editable preset:
+
+| Input | Action |
+|---|---|
+| Left stick | Movement, synthesized through the PSP D-pad path |
+| Right stick | On-foot facing/aim before the original target and auto-aim correction |
+| LB | PSP L / strafe |
+| LT | PSP R / aim |
+| RT or West face button | PSP Square / fire |
+| D-pad | PSP D-pad and menu navigation |
+
+Horizontal and vertical right-stick reversal are independent remapper options;
+the preset uses normal horizontal and reversed vertical aim. Centering the
+right stick restores the game's original facing behavior. The temporary hidden
+movement profile is applied only while a controller is connected, is not
+marked dirty in the PSP save profile, and is restored on disconnect. The native
+right-stick facing hook currently targets on-foot control; other gameplay
+contexts retain their original aim behavior.
+
+Detailed binding names, keyboard/mouse controls, and runtime environment
+settings are documented in
 [external/psp-recomp/README.md](external/psp-recomp/README.md).
 
 The original infrastructure-mode servers are gone. Selecting **Downloads**

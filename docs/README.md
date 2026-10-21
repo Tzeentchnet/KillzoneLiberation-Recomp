@@ -8,6 +8,8 @@ tasks, and development history without crowding the repository root.
 - [FINDINGS.md](FINDINGS.md) — evidence-backed technical findings with stable
   `F-xxx` identifiers.
 - [WORK_DONE.md](WORK_DONE.md) — chronological development archive.
+- [twinstickresearch.md](twinstickresearch.md) — hidden D-pad movement,
+  controller-profile APIs, and the twin-stick experiment design.
 
 Supporting reproducible reports live in [research/](../research/). Tool-specific
 instructions are documented beside the tools, including
