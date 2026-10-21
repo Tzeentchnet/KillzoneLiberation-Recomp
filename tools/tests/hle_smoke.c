@@ -1252,6 +1252,7 @@ static void configure_sas_noise(CpuState *cpu, uint32_t core, uint32_t output) {
 static void test_sas(CpuState *cpu) {
     const uint32_t core = 0x0881b000u;
     const uint32_t output = 0x0881c000u;
+    const uint32_t vag = 0x0881d000u;
 
     check_u32("SAS invalid noise voice",
               hle_call(cpu, 0xb7660a23u, core, 0xffffffffu, 1, 0), 0x80420010u);
@@ -1290,6 +1291,37 @@ static void test_sas(CpuState *cpu) {
               hle_call(cpu, 0x2c8e6ab3u, core, 0, 0, 0), 0x80000003u);
     check_u32("SAS clear pause mask",
               hle_call(cpu, 0x787d04d5u, core, 0xffffffffu, 0, 0), 0);
+
+    uint8_t vag_blocks[48] = {0};
+    vag_blocks[0] = 0x0c;
+    vag_blocks[1] = 6;
+    memset(vag_blocks + 2, 0x11, 14);
+    vag_blocks[16] = 0x0c;
+    vag_blocks[17] = 3;
+    memset(vag_blocks + 18, 0x11, 14);
+    vag_blocks[33] = 7;
+    guest_bytes(vag, vag_blocks, sizeof(vag_blocks));
+    check_u32("SAS init for VAG loop mode",
+              hle_call7(cpu, 0x42778a9fu, core, 64, 32, 0, 44100, 0, 0), 0);
+    check_u32("SAS one-shot VAG",
+              hle_call7(cpu, 0x99944089u, core, 0, vag, sizeof(vag_blocks), 0, 0, 0), 0);
+    check_u32("SAS one-shot key on",
+              hle_call(cpu, 0x76f01acau, core, 0, 0, 0), 0);
+    for (int i = 0; i < 4; i++)
+        check_u32("SAS one-shot mix",
+                  hle_call(cpu, 0xa3589d81u, core, output, 0, 0), 0);
+    check_u32("SAS one-shot ignores embedded loop markers",
+              hle_call(cpu, 0x68a46b95u, core, 0, 0, 0) & 1u, 1);
+
+    check_u32("SAS looping VAG",
+              hle_call7(cpu, 0x99944089u, core, 0, vag, sizeof(vag_blocks), 1, 0, 0), 0);
+    check_u32("SAS looping key on",
+              hle_call(cpu, 0x76f01acau, core, 0, 0, 0), 0);
+    for (int i = 0; i < 8; i++)
+        check_u32("SAS looping mix",
+                  hle_call(cpu, 0xa3589d81u, core, output, 0, 0), 0);
+    check_u32("SAS loop mode honors embedded loop markers",
+              hle_call(cpu, 0x68a46b95u, core, 0, 0, 0) & 1u, 0);
 
     configure_sas_noise(cpu, core, output);
     check_u32("SAS duplicate key on",
@@ -2504,6 +2536,40 @@ static void test_hle_deadbeef_policy(CpuState *cpu) {
     check_u32("rescheduled HLE keeps a1", cpu->r[5], 0x12345678u);
 }
 
+static void test_downloads_override(CpuState *cpu) {
+    memset(cpu, 0, sizeof(*cpu));
+    sr_kzl_killzone_com_disabled(cpu);
+    check_u32("Killzone website override reports unsupported", cpu->r[2], 0x80020325u);
+
+    memset(cpu, 0, sizeof(*cpu));
+    sr_kzl_downloads_unavailable(cpu);
+    check_u32("downloads override reports unsupported", cpu->r[2], 0x80020325u);
+}
+
+static void test_offline_menu_patch(void) {
+    uint8_t markup[] =
+        "<BUTTON name=\"website\" selectable=\"true\" x=\"0\" "
+        "href=\"static://script.mainmenu.StartBrowserHome\" "
+        "right=\"website\" >";
+    size_t size = strlen((char *)markup);
+
+    check_u32(
+        "website button patched",
+        (uint32_t)sr_kzl_patch_offline_menu(markup, (uint32_t)size), 1);
+    check_u32(
+        "website button is not selectable",
+        strstr((char *)markup, "selectable=\"false\"") != NULL, 1);
+    check_u32(
+        "website action retained",
+        strstr((char *)markup, "href=\"static://script.mainmenu.StartBrowserHome\"") != NULL, 1);
+    check_u32(
+        "website tag length retained",
+        (uint32_t)strlen((char *)markup), (uint32_t)size);
+    check_u32(
+        "website button patch is idempotent",
+        (uint32_t)sr_kzl_patch_offline_menu(markup, (uint32_t)size), 0);
+}
+
 int main(void) {
     char root[128], local_app_data[128];
     snprintf(root, sizeof(root), "kzl_hle_test_fs_%lu", (unsigned long)GetCurrentProcessId());
@@ -2543,6 +2609,8 @@ int main(void) {
     test_offline_network(&cpu);
     test_boot_seed_state(&cpu);
     test_hle_deadbeef_policy(&cpu);
+    test_downloads_override(&cpu);
+    test_offline_menu_patch();
 
     if (failures) {
         fprintf(stderr, "HLE smoke tests: %d failure(s)\n", failures);

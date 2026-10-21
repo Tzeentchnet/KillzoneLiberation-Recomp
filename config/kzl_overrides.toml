@@ -27,3 +27,16 @@ at = 0x08b21920
 # dispatch(). Listed so the jump-table report has no unexplained sites.
 [[dispatch_ok]]
 jr = 0x08cc5b48
+
+# The main-menu KILLZONE.COM action targets a retired website. Keep the menu callback inert instead
+# of entering the original online handoff.
+[[host_function]]
+at = 0x089b541c
+handler = "sr_kzl_killzone_com_disabled"
+
+# KZL's online actions hand control to BOOT.BIN through this non-returning bridge. The original
+# download servers are gone and BOOT.BIN is intentionally skipped by the static runtime, so host
+# the unavailable-service notice and return to the existing menu caller instead.
+[[host_function]]
+at = 0x089baac8
+handler = "sr_kzl_downloads_unavailable"
