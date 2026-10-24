@@ -1630,3 +1630,102 @@ extensions add `__builtin_bswap32`. gcc and clang (including clang-cl) accept al
   hash check) are good models.
 - **PPSSPP:** not a recompiler. It is the **ground truth** for HLE behavior, GE semantics (software renderer) and
   traces (`PPSSPPHeadless`). Its D3D11 backend (`GPU/D3D11`) is the closest existing map from PSP GE to Direct3D.
+
+### F-101 D3D12, Vulkan and xBRZ share one validated KZL launcher — Confirmed
+The runtime submodule is pinned to `138c2b8`, the same graphics baseline used
+by the Metal Gear Acid 2 project. The standard clang-cl preset now compiles
+D3D12, Vulkan and software into one executable, fetches a hash-pinned SDL3
+3.2.20 package when needed, and discovers the standard Windows Vulkan SDK.
+A separate software preset retains the dependency-free reference build.
+
+The persisted graphics model exposes Automatic, D3D12, software and Vulkan
+selection; 1×–8× D3D12 internal resolution; 1×–5× xBRZ texture scaling for
+both hardware paths; balanced or full-resolution D3D12 shading; and F11
+desktop fullscreen in both SDL3 backends. xBRZ applies only to decoded game
+textures, not framebuffer or render-target textures. Vulkan still owns a
+native 512×272 offscreen GE target, while D3D12 is the high-resolution path.
+
+The combined build found Vulkan 1.4.363, linked both hardware backends, and
+passed all 12 native CTests, including graphics-config, texture-scaler and
+D3D12 vertex coverage. Bounded boots against the verified KZL image produced
+five presentations and exit code 0 on each backend. D3D12 reported a 960×544
+2× target and native GE submission; Vulkan reported a 960×544 swapchain and
+the full GPU GE path. The software driver and graphics-config test also build
+and pass independently.
+
+- **Impact:** renderer choice and texture quality are now portable user
+  settings rather than title-specific build variants, while the exact software
+  oracle remains available for differential validation.
+
+### F-102 Quantized framebuffer sampling must convert logical texels to physical scale — Confirmed
+The PSP-quantized D3D12 sampler originally used integer `Texture2D.Load`
+coordinates for every non-mipmapped texture. Decoded game textures are stored
+at their logical dimensions, but framebuffer aliases are physically enlarged
+with the 1×–8× internal-resolution setting. At 2×, loading an alias with
+unscaled logical coordinates addressed only its top-left 480×272 texels inside
+the 960×544 resource. Full-screen framebuffer effects therefore expanded that
+quarter across the window.
+
+Framebuffer-backed bindings now carry an explicit shader flag. Their wrapped
+logical texel plus alias offset is multiplied by the internal render scale and
+sampled at the physical texel center; ordinary decoded textures retain their
+unscaled address path. The same mapping was already used by the indexed
+framebuffer-feedback path.
+
+Presentation-120 internal-resolution captures measured the correction against
+the hardware-sampler full-frame reference:
+
+| Capture comparison | Mean absolute channel error |
+|---|---:|
+| Broken quantized sampler vs full-frame reference | 77.443 |
+| Broken quantized sampler vs 2× crop model | 26.862 |
+| Fixed quantized sampler vs full-frame reference | 2.182 |
+| Fixed quantized sampler vs 2× crop model | 62.790 |
+
+The remaining 2.182 difference is the intended PSP integer filtering versus
+host hardware filtering. Embedded DXIL regeneration and verification pass, the
+shader-constant test locks framebuffer flagging, and all 12 native CTests pass.
+
+- **Impact:** internal-resolution scaling now preserves the full logical PSP
+  framebuffer when it is sampled as a texture, without disabling the
+  quantized sampler globally.
+
+### F-103 Scaled framebuffer sampling must retain the physical texel grid — Confirmed
+The crop correction in F-102 selected the center of each scaled framebuffer
+texel block. That restored the complete 480x272 logical image, but at 8x it
+still reduced every 8x8 physical block to one source sample before the game's
+full-screen framebuffer passes. Geometry and texture detail rendered at
+3840x2176 therefore returned to an effectively PSP-density image before
+presentation.
+
+The quantized shader now promotes framebuffer UVs, wrap/clamp dimensions and
+alias offsets to physical texels before nearest or 8-bit bilinear filtering.
+Decoded game textures remain on their existing logical/xBRZ path, 1x output
+retains PSP sampling, and the explicit framebuffer flag still prevents the
+top-left-quarter regression.
+
+This matches PPSSPP's model at commit
+[`53a7127`](https://github.com/hrydgard/ppsspp/tree/53a71276186f63cf1605823099be728eef982a59):
+`VirtualFramebuffer` keeps logical `bufferWidth`/`bufferHeight` separately
+from `renderWidth`/`renderHeight`; framebuffer offsets and debug/depal regions
+are multiplied by `renderScaleFactor`; and ordinary textures are decoded to
+packed RGBA before texture scaling and upload.
+
+A matched pre-fix/fixed 8x capture at presentation 120 and vblank 1920
+measured:
+
+| Measurement | Before | Fixed |
+|---|---:|---:|
+| Laplacian edge variance | 14.713 | 121.495 |
+| MAE from reconstruction on one sample per 8x8 block | 1.633 | 4.347 |
+
+The fixed and pre-fix logical center samples differ by only 1.218 mean channel
+levels, while the full physical images differ by 3.963. This preserves the
+logical composition but retains substantially more detail between PSP pixel
+centers. The fixed embedded DXIL is reproducible, the focused shader-state
+test passes, and the live capture completes without sampler overrides.
+
+- **Impact:** D3D12 internal resolution now improves the image even through
+  Killzone's framebuffer post-processing path; xBRZ remains a separate
+  enhancement for decoded source textures and cannot invent missing asset
+  detail.

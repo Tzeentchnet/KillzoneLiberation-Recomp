@@ -18,7 +18,7 @@ game code, disc data, saves, or other game assets.
 |---|---|
 | Platform | Windows 10/11 x64; clang-cl and Direct3D 12 are the primary path |
 | Gameplay | Boot, menus, the Chapter 1 presentation, tutorial, and Mission 1 have been completed |
-| Graphics | Native D3D12 renderer, software reference path, and 1x-8x internal scaling; 2x is the measured default |
+| Graphics | D3D12, Vulkan, and software renderers; D3D12 1x-8x internal scaling; hardware 1x-5x xBRZ texture scaling |
 | Audio/video/input | XAudio2, SAS/ATRAC, Media Foundation PMF playback, keyboard/mouse, and SDL gamepads are implemented |
 | Saves | PSP-compatible secure savedata is implemented; full-game validation remains in progress |
 | Online | Original infrastructure services are gone; ad-hoc multiplayer is not implemented |
@@ -67,10 +67,15 @@ locate copyrighted game data.
   - clang-cl/LLVM tools
   - MSVC v143 libraries
   - Windows 11 SDK
-- SDL3 development package for the D3D12 window/input build
+- Vulkan SDK for the combined hardware preset. A standard
+  `C:\VulkanSDK\<version>` install is detected automatically.
 - DirectX Shader Compiler (`dxc.exe`) only when regenerating checked-in shaders
 
 PIX for Windows is optional but recommended for GPU debugging.
+
+The standard preset downloads the official SDL3 3.2.20 VC development package
+with a pinned SHA-256 when SDL3 is not already discoverable by CMake. Set
+`KZL_FETCH_SDL3=OFF` and provide `SDL3_DIR` to require a local package instead.
 
 ## Build from source
 
@@ -94,18 +99,24 @@ in `/O2` translation units and all other game functions in `/O1` units. Release
 builds retain precise, non-contracting floating point; startup enables x86
 flush-to-zero and denormals-are-zero to match the PSP's single-precision mode.
 
-From a Visual Studio x64 developer shell, configure the native D3D12 build.
-Point `CMAKE_PREFIX_PATH` at the SDL3 package directory containing
-`SDL3Config.cmake`. The standard `clang-cl` preset enables D3D12:
+From a Visual Studio x64 developer shell, configure the combined hardware
+build. The standard `clang-cl` preset enables D3D12 and Vulkan:
 
 ```powershell
-cmake --preset clang-cl -DCMAKE_PREFIX_PATH=C:\path\to\SDL3
+cmake --preset clang-cl
 cmake --build --preset clang-cl --target kzl_driver
 ```
 
-D3D12 hardware rendering is selected automatically in a D3D12-enabled build.
-Set `SR_GPU=sw` only when the reference CPU rasterizer is needed for comparison.
-Run with the same verified ISO:
+The dependency-free software reference build remains available as a separate
+preset:
+
+```powershell
+cmake --preset clang-cl-software
+cmake --build --preset clang-cl-software --target kzl_driver
+```
+
+Automatic rendering selects D3D12 when it is compiled in. Run with the same
+verified ISO:
 
 ```powershell
 $env:PSP_ISO = 'C:\path\to\Killzone_Liberation_v1.20_US.ISO'
@@ -118,21 +129,59 @@ a missing or different image exits with an explicit supported-version error.
 
 ## Configuration and controls
 
-The first windowed run opens native graphics and controller settings. Graphics
-default to D3D12 at 2x internal resolution (960x544), then write
-`graphics.ini` beside `kzl.exe`. Run `kzl.exe --configure` to reopen both
-dialogs, `kzl.exe --configure-input` for controller settings only, or edit the
-portable file:
+The first windowed run opens native graphics and controller settings. Run
+`kzl.exe --configure` to reopen both dialogs, `kzl.exe --configure-input` for
+controller settings only, or edit the portable `graphics.ini` beside
+`kzl.exe`:
 
 ```ini
 renderer = d3d12
 internal_resolution = 2
+texture_scale = 1
+d3d12_full_rate = 0
 ```
 
-At scaled resolutions, supported GPUs keep geometry, coverage, and depth at
-the selected resolution while shading direct draws at PSP-native fragment
-density. This avoids multiplying the original game's heavy framebuffer effects
-by four or sixteen; set `SR_D3D12_VRS=0` to force full-rate fragment shading.
+The controller dialog's **Save & Launch Game** button saves pending bindings
+and starts the game with the selected graphics settings. The build copies
+`kzl_image.bin` beside `kzl.exe` for this launcher path; `PSP_ISO` must still
+point to the supported disc image for startup validation.
+
+The native graphics dialog exposes:
+
+- **Renderer:** Automatic, D3D12 hardware, Vulkan, or software reference.
+- **Internal resolution:** 1x through 8x on D3D12.
+- **Texture upscaling:** Off or 2x through 5x xBRZ on hardware renderers.
+- **D3D12 shading:** Balanced variable-rate shading or full-resolution
+  shading.
+- **Fullscreen:** F11 toggles borderless desktop fullscreen on D3D12 and
+  Vulkan.
+
+D3D12 is the high-resolution path; Vulkan currently uses its native 512x272
+offscreen GE target while presenting to the desktop swapchain.
+
+| Renderer | Internal GE resolution | Texture scaling | Role |
+|---|---|---|---|
+| D3D12 | 1x-8x | 1x-5x xBRZ | Recommended high-resolution renderer |
+| Vulkan | Native 512x272 target | 1x-5x xBRZ | Alternate hardware renderer |
+| Software | Native PSP resolution | None | Pixel-exact reference baseline |
+
+For the highest-quality 4K path, select D3D12, 8x internal resolution
+(3840x2176), 3x or 4x xBRZ, and **Full resolution (best quality)** shading.
+Press **F11** in either hardware renderer to toggle borderless desktop
+fullscreen. Presentation preserves the PSP aspect ratio rather than stretching
+3840x2176 to 3840x2160.
+
+xBRZ scales decoded game textures before hardware upload. It deliberately does
+not scale framebuffer or render-target textures, and higher factors can use
+substantially more GPU memory. Texture scaling reduces source-texture
+pixelation but cannot create detail absent from the PSP assets. D3D12 keeps
+framebuffer effects on the selected physical internal-resolution grid while
+retaining PSP-unit wrap, clamp, and alias offsets, matching PPSSPP's separation
+of logical framebuffer dimensions from scaled render dimensions. D3D12's
+**Balanced** mode uses variable-rate shading on supported GPUs; **Full
+resolution** shades every internal-resolution fragment.
+`SR_D3D12_VRS=0` remains available as an environment override that forces
+full-rate shading.
 
 The rebinding/analog configuration is also portable: `input.ini` is created
 beside `kzl.exe`, not under AppData. The default PC scheme uses WASD for the
