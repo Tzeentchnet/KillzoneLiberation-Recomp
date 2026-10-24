@@ -30,11 +30,16 @@ assets. Users must supply their own supported disc image.
   [`external/psp-recomp/third_party/at3_standalone/`](external/psp-recomp/third_party/at3_standalone/).
 - **SDL3** provides native window/gamepad integration for GPU builds and is
   distributed under the zlib license.
+- **xBRZ** by Zenju provides optional hardware texture scaling. The vendored
+  PPSSPP v1.20.4 copy, modifications, and GPL/MAME linking-exception notice are
+  under
+  [`external/psp-recomp/third_party/xbrz/`](external/psp-recomp/third_party/xbrz/).
 
 ## Platform APIs and tools
 
-The native Windows runtime uses Direct3D 12, DXGI, DirectX Shader Compiler,
-Media Foundation, XAudio2, DirectInput, and other Windows SDK interfaces.
+The native Windows runtime uses Direct3D 12, Vulkan, DXGI, DirectX Shader
+Compiler, Media Foundation, XAudio2, DirectInput, and other platform SDK
+interfaces.
 PIX for Windows is an optional external diagnostics tool and is not
 redistributed here.
 

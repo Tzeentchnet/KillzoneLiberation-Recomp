@@ -12,16 +12,67 @@ project(KZLRecomp LANGUAGES C CXX)
 set(KZL_GEN_DIR "${CMAKE_SOURCE_DIR}/build/kzl/gen" CACHE PATH "Directory written by tools/kzl/gen.py")
 set(PSP_RECOMP_DIR "${CMAKE_SOURCE_DIR}/external/psp-recomp" CACHE PATH "sal063 fork (submodule)")
 
-option(KZL_ENABLE_D3D12 "Build the SDL3/D3D12 backend" OFF)
+option(KZL_ENABLE_D3D12 "Build the SDL3/D3D12 renderer" OFF)
+option(KZL_ENABLE_VULKAN "Build the SDL3/Vulkan renderer" OFF)
+option(KZL_FETCH_SDL3
+       "Download the pinned SDL3 development package when it is not installed"
+       ON)
 option(KZL_RUNTIME_ONLY "Compile the redistributable runtime without generated game code" OFF)
 option(KZL_ENABLE_INSTRUCTION_TRACE "Keep per-instruction trace hooks in generated game code" OFF)
-if(KZL_RUNTIME_ONLY AND KZL_ENABLE_D3D12)
+if(KZL_RUNTIME_ONLY AND (KZL_ENABLE_D3D12 OR KZL_ENABLE_VULKAN))
   message(FATAL_ERROR "KZL_RUNTIME_ONLY currently supports the dependency-free Windows runtime only")
 endif()
-if(KZL_ENABLE_D3D12)
+if(NOT EXISTS "${PSP_RECOMP_DIR}/src/rt/recomp.h")
+  message(FATAL_ERROR "PSP_RECOMP_DIR is not a psp-recomp checkout")
+endif()
+if(KZL_ENABLE_D3D12 OR KZL_ENABLE_VULKAN)
   if(NOT WIN32)
-    message(FATAL_ERROR "KZL_ENABLE_D3D12 requires Windows")
+    message(FATAL_ERROR "The SDL3 hardware renderers currently require Windows")
   endif()
+  if(NOT EXISTS "${PSP_RECOMP_DIR}/src/rt/texture_scaler.cpp" OR
+     NOT EXISTS "${PSP_RECOMP_DIR}/third_party/xbrz/xbrz.cpp")
+    message(FATAL_ERROR
+      "Hardware rendering requires psp-recomp commit 138c2b8 or newer")
+  endif()
+  find_package(SDL3 CONFIG QUIET COMPONENTS SDL3-shared)
+  if(NOT SDL3_FOUND)
+    if(NOT KZL_FETCH_SDL3)
+      message(FATAL_ERROR
+        "SDL3 was not found. Set SDL3_DIR or enable KZL_FETCH_SDL3.")
+    endif()
+    include(FetchContent)
+    FetchContent_Declare(kzl_sdl3
+      URL
+        "https://github.com/libsdl-org/SDL/releases/download/release-3.2.20/SDL3-devel-3.2.20-VC.zip"
+      URL_HASH
+        "SHA256=33968846724F8B68D58AD0B42274E00E845FB4B35C0AC88CEDBE023A755116D4"
+      DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
+    FetchContent_GetProperties(kzl_sdl3)
+    if(NOT kzl_sdl3_POPULATED)
+      if(POLICY CMP0169)
+        cmake_policy(PUSH)
+        cmake_policy(SET CMP0169 OLD)
+      endif()
+      FetchContent_Populate(kzl_sdl3)
+      if(POLICY CMP0169)
+        cmake_policy(POP)
+      endif()
+    endif()
+    find_path(KZL_SDL3_CONFIG_DIR SDL3Config.cmake
+      PATHS
+        "${kzl_sdl3_SOURCE_DIR}/cmake"
+        "${kzl_sdl3_SOURCE_DIR}/SDL3-3.2.20/cmake"
+      NO_DEFAULT_PATH)
+    if(NOT KZL_SDL3_CONFIG_DIR)
+      message(FATAL_ERROR
+        "The pinned SDL3 package did not contain SDL3Config.cmake")
+    endif()
+    set(SDL3_DIR "${KZL_SDL3_CONFIG_DIR}" CACHE PATH
+        "Directory containing SDL3Config.cmake" FORCE)
+    find_package(SDL3 CONFIG REQUIRED COMPONENTS SDL3-shared)
+  endif()
+endif()
+if(KZL_ENABLE_D3D12)
   find_package(SDL3 CONFIG REQUIRED COMPONENTS SDL3-shared)
   find_package(Python3 REQUIRED COMPONENTS Interpreter)
   set(KZL_DXC_EXECUTABLE "" CACHE FILEPATH "Optional explicit path to dxc.exe")
@@ -37,6 +88,20 @@ if(KZL_ENABLE_D3D12)
     COMMAND "${Python3_EXECUTABLE}"
             "${PSP_RECOMP_DIR}/tools/compile_d3d12_shaders.py" ${_KZL_DXC_ARGS} --check
     VERBATIM)
+endif()
+if(KZL_ENABLE_VULKAN)
+  if(WIN32 AND NOT DEFINED Vulkan_ROOT AND "$ENV{VULKAN_SDK}" STREQUAL "")
+    file(GLOB KZL_VULKAN_SDKS LIST_DIRECTORIES TRUE "C:/VulkanSDK/*")
+    list(SORT KZL_VULKAN_SDKS COMPARE NATURAL ORDER DESCENDING)
+    foreach(KZL_VULKAN_SDK IN LISTS KZL_VULKAN_SDKS)
+      if(EXISTS "${KZL_VULKAN_SDK}/Include/vulkan/vulkan.h")
+        set(Vulkan_ROOT "${KZL_VULKAN_SDK}")
+        message(STATUS "Using Vulkan SDK ${Vulkan_ROOT}")
+        break()
+      endif()
+    endforeach()
+  endif()
+  find_package(Vulkan REQUIRED)
 endif()
 
 if(NOT KZL_RUNTIME_ONLY AND CMAKE_C_COMPILER_ID STREQUAL "MSVC")
@@ -167,9 +232,12 @@ else()
 endif()
 
 set(KZL_RUNTIME_SRCS
-  ${RT}/recomp.c ${RT}/dispatch_table.c ${RT}/fpu_mode.c ${RT}/interp_runtime.cpp
+  ${RT}/recomp.c ${RT}/dispatch_table.c ${RT}/fpu_mode.c ${RT}/fps_counter.c
+  ${RT}/interp_runtime.cpp
   ${PSP_RECOMP_DIR}/src/ref/interp.cpp
-  ${RT}/vfpu_interp.c ${RT}/vfpu_asin.c ${RT}/hle.c ${RT}/net.c ${RT}/kmem.c ${RT}/intr.c ${RT}/gelist.c ${RT}/callback.c ${RT}/sched.c
+  ${RT}/module.c ${RT}/vfpu_interp.c ${RT}/vfpu_asin.c ${RT}/hle.c
+  ${RT}/memstick_state.c ${RT}/net.c ${RT}/kmem.c ${RT}/intr.c
+  ${RT}/gelist.c ${RT}/callback.c ${RT}/sched.c
   ${RT}/iso.c ${RT}/mpeg.c ${RT}/pgf.c ${RT}/gui.c
   ${RT}/settings_path.c ${RT}/graphics_config.c ${RT}/graphics_settings.c
   ${RT}/input_config.c ${RT}/input_settings.c ${RT}/kzl_twinstick.c
@@ -190,6 +258,16 @@ if(KZL_ENABLE_D3D12)
     ${RT}/gpu_d3d12/texture_key.cpp
     ${RT}/gpu_d3d12/vertex.cpp)
 endif()
+if(KZL_ENABLE_VULKAN)
+  list(APPEND KZL_RUNTIME_SRCS
+    ${RT}/gpu_sdl3vk/sdl3vk.c
+    ${RT}/gpu_sdl3vk/ge_gpu.c)
+endif()
+if(KZL_ENABLE_D3D12 OR KZL_ENABLE_VULKAN)
+  list(APPEND KZL_RUNTIME_SRCS
+    ${RT}/texture_scaler.cpp
+    ${PSP_RECOMP_DIR}/third_party/xbrz/xbrz.cpp)
+endif()
 
 if(KZL_RUNTIME_ONLY)
   add_library(kzl_runtime_compile STATIC ${KZL_RUNTIME_SRCS})
@@ -208,15 +286,24 @@ endif()
 
 function(kzl_configure_runtime_target target)
   target_include_directories(${target} PRIVATE "${RT}")
-  target_compile_definitions(${target} PRIVATE _CRT_SECURE_NO_WARNINGS)
+  target_compile_definitions(${target} PRIVATE
+    _CRT_SECURE_NO_WARNINGS
+    SR_GAME_TITLE="Killzone: Liberation")
+  target_compile_features(${target} PRIVATE cxx_std_17)
   target_compile_options(${target} PRIVATE ${KZL_FP_FLAGS})
   target_link_libraries(${target} PRIVATE
     kzl_game kzl_at3 kzl_savedata_crypto
     mfplat mfuuid gdi32 user32 dinput8 dxguid ole32 winmm xaudio2 bcrypt)
   if(KZL_ENABLE_D3D12)
     target_compile_definitions(${target} PRIVATE SR_D3D12)
-    target_compile_features(${target} PRIVATE cxx_std_17)
-    target_link_libraries(${target} PRIVATE SDL3::SDL3 d3d12 dxgi)
+    target_link_libraries(${target} PRIVATE d3d12 dxgi)
+  endif()
+  if(KZL_ENABLE_VULKAN)
+    target_compile_definitions(${target} PRIVATE SR_SDL3VK)
+    target_link_libraries(${target} PRIVATE Vulkan::Vulkan)
+  endif()
+  if(KZL_ENABLE_D3D12 OR KZL_ENABLE_VULKAN)
+    target_link_libraries(${target} PRIVATE SDL3::SDL3)
     add_custom_command(TARGET ${target} POST_BUILD
       COMMAND ${CMAKE_COMMAND} -E copy_if_different
               $<TARGET_FILE:SDL3::SDL3-shared> $<TARGET_FILE_DIR:${target}>)
@@ -228,10 +315,23 @@ kzl_configure_runtime_target(kzl_driver)
 target_compile_definitions(kzl_driver PRIVATE
   SR_EXPECTED_ISO_SIZE=568498176
   SR_EXPECTED_ISO_SHA1="5bc4fc8cd8d72c9c2e7c1c03a4325a29bed6e69a"
+  SR_CONFIG_BOOT_IMAGE="kzl_image.bin"
+  SR_CONFIG_BOOT_BASE=0x08804000u
+  SR_CONFIG_BOOT_ENTRY=0x08804000u
   SR_BOOT_UID_GAP_ENTRY=0x08804000u
   SR_BOOT_UID_GAP_COUNT=1
   SR_INITIAL_GE_LIST_ID=41)
 set_target_properties(kzl_driver PROPERTIES OUTPUT_NAME kzl)
+add_custom_command(TARGET kzl_driver POST_BUILD
+  COMMAND ${CMAKE_COMMAND} -E copy_directory
+          "${PSP_RECOMP_DIR}/assets"
+          "$<TARGET_FILE_DIR:kzl_driver>/assets"
+  COMMAND ${CMAKE_COMMAND} -E copy_directory
+          "${PSP_RECOMP_DIR}/font"
+          "$<TARGET_FILE_DIR:kzl_driver>/font"
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different
+          "${KZL_GEN_DIR}/kzl_image.bin"
+          "$<TARGET_FILE_DIR:kzl_driver>/kzl_image.bin")
 
 include(CTest)
 if(BUILD_TESTING)
@@ -241,6 +341,7 @@ if(BUILD_TESTING)
   target_include_directories(kzl_startup_tests PRIVATE "${RT}")
   target_compile_definitions(kzl_startup_tests PRIVATE
     _CRT_SECURE_NO_WARNINGS
+    SR_GAME_TITLE="Killzone: Liberation"
     SR_EXPECTED_ISO_SIZE=3
     SR_EXPECTED_ISO_SHA1="a9993e364706816aba3e25717850c26c9cd0d89d")
   target_compile_options(kzl_startup_tests PRIVATE ${KZL_FP_FLAGS})
@@ -283,6 +384,18 @@ if(BUILD_TESTING)
     kzl_graphics_config_tests PRIVATE ${KZL_FP_FLAGS})
   add_test(NAME kzl_graphics_config COMMAND kzl_graphics_config_tests)
 
+  if(KZL_ENABLE_D3D12 OR KZL_ENABLE_VULKAN)
+    add_executable(kzl_texture_scaler_tests EXCLUDE_FROM_ALL
+      ${PSP_RECOMP_DIR}/tools/tests/texture_scaler_test.cpp
+      ${RT}/texture_scaler.cpp
+      ${PSP_RECOMP_DIR}/third_party/xbrz/xbrz.cpp)
+    target_include_directories(kzl_texture_scaler_tests PRIVATE "${RT}")
+    target_compile_features(kzl_texture_scaler_tests PRIVATE cxx_std_17)
+    target_compile_options(
+      kzl_texture_scaler_tests PRIVATE ${KZL_FP_FLAGS})
+    add_test(NAME kzl_texture_scaler COMMAND kzl_texture_scaler_tests)
+  endif()
+
   add_executable(kzl_dispatch_tests EXCLUDE_FROM_ALL
     ${PSP_RECOMP_DIR}/tools/tests/dispatch_table_test.c
     ${RT}/dispatch_table.c)
@@ -310,6 +423,9 @@ if(BUILD_TESTING)
     ${RT}/recomp.c
     ${RT}/dispatch_table.c
     ${RT}/fpu_mode.c
+    ${RT}/vfpu_interp.c
+    ${RT}/vfpu_asin.c
+    ${RT}/settings_path.c
     ${RT}/interp_runtime.cpp
     ${PSP_RECOMP_DIR}/src/ref/interp.cpp)
   target_include_directories(kzl_interp_tests PRIVATE
@@ -332,7 +448,9 @@ if(BUILD_TESTING)
       ${RT}/gpu_d3d12/texture_key.cpp
       ${RT}/gpu_d3d12/vertex.cpp)
     target_include_directories(kzl_d3d12_vertex_tests PRIVATE "${RT}")
-    target_compile_definitions(kzl_d3d12_vertex_tests PRIVATE SR_D3D12)
+    target_compile_definitions(kzl_d3d12_vertex_tests PRIVATE
+      _CRT_SECURE_NO_WARNINGS
+      SR_D3D12)
     target_compile_features(kzl_d3d12_vertex_tests PRIVATE cxx_std_17)
     target_compile_options(kzl_d3d12_vertex_tests PRIVATE ${KZL_FP_FLAGS})
     target_link_libraries(kzl_d3d12_vertex_tests PRIVATE d3d12)

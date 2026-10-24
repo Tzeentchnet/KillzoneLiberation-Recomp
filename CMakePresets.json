@@ -2,8 +2,8 @@
   "version": 6,
   "configurePresets": [
     {
-      "name": "clang-cl",
-      "displayName": "clang-cl (x64, Ninja, Release)",
+      "name": "clang-cl-base",
+      "hidden": true,
       "description": "VS 2022 Build Tools clang-cl. VS Code CMake Tools loads the MSVC environment itself; from a shell, run vcvars64.bat first.",
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/out/build/${presetName}",
@@ -12,13 +12,32 @@
       "cacheVariables": {
         "CMAKE_C_COMPILER": "clang-cl",
         "CMAKE_CXX_COMPILER": "clang-cl",
-        "CMAKE_BUILD_TYPE": "Release",
-        "KZL_ENABLE_D3D12": "ON"
+        "CMAKE_BUILD_TYPE": "Release"
       },
       "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Windows" }
+    },
+    {
+      "name": "clang-cl",
+      "displayName": "clang-cl (D3D12 + Vulkan, x64, Release)",
+      "inherits": "clang-cl-base",
+      "cacheVariables": {
+        "KZL_ENABLE_D3D12": "ON",
+        "KZL_ENABLE_VULKAN": "ON",
+        "KZL_FETCH_SDL3": "ON"
+      }
+    },
+    {
+      "name": "clang-cl-software",
+      "displayName": "clang-cl (software reference, x64, Release)",
+      "inherits": "clang-cl-base",
+      "cacheVariables": {
+        "KZL_ENABLE_D3D12": "OFF",
+        "KZL_ENABLE_VULKAN": "OFF"
+      }
     }
   ],
   "buildPresets": [
-    { "name": "clang-cl", "configurePreset": "clang-cl" }
+    { "name": "clang-cl", "configurePreset": "clang-cl" },
+    { "name": "clang-cl-software", "configurePreset": "clang-cl-software" }
   ]
 }
