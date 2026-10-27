@@ -1,28 +1,32 @@
 # Graphics and input configuration
 
-Full reference for the native graphics dialog, the controller remapper, and
-the experimental twin-stick scheme. See the [README](../README.md#configuration-and-controls)
-for the quick-start version.
+Full reference for the Windows native graphics dialog, the controller
+remapper, the portable INI files, and the experimental twin-stick scheme. See
+the [README](../README.md#configuration-and-controls) for the quick-start
+version.
 
 ## Graphics dialog
 
 The native graphics dialog exposes:
 
 - **Renderer:** Automatic, D3D12 hardware, Vulkan, or software reference.
-- **Internal resolution:** 1x through 8x on D3D12.
+- **Internal resolution:** 1x through 8x on D3D12 and Vulkan.
 - **Texture upscaling:** Off or 2x through 5x xBRZ on hardware renderers.
 - **D3D12 shading:** Balanced variable-rate shading or full-resolution
   shading.
 - **Fullscreen:** F11 toggles borderless desktop fullscreen on D3D12 and
   Vulkan.
 
-D3D12 is the high-resolution path; Vulkan currently uses its native 512x272
-offscreen GE target while presenting to the desktop swapchain.
+D3D12 and Vulkan scale their 512x272 logical offscreen GE target before
+presenting to the desktop swapchain. On Apple Silicon, Vulkan runs through
+MoltenVK and is presented by Metal. The level and player in the first mission
+have been checked with this path; the rest of the game has not been fully
+validated. Setting `SR_GPU=sw` selects the software GE reference renderer.
 
 | Renderer | Internal GE resolution | Texture scaling | Role |
 |---|---|---|---|
 | D3D12 | 1x-8x | 1x-5x xBRZ | Recommended high-resolution renderer |
-| Vulkan | Native 512x272 target | 1x-5x xBRZ | Alternate hardware renderer |
+| Vulkan | 1x-8x | 1x-5x xBRZ | Hardware renderer backed by Metal on Apple Silicon |
 | Software | Native PSP resolution | None | Pixel-exact reference baseline |
 
 ### Highest-quality 4K path
@@ -47,17 +51,36 @@ resolution** shades every internal-resolution fragment.
 `SR_D3D12_VRS=0` remains available as an environment override that forces
 full-rate shading.
 
-Higher internal resolutions are available but remain experimental. The 2x
-default is the validated performance/quality target.
+New macOS configurations default to 1x internal resolution for performance;
+other platforms default to 2x. Existing `graphics.ini` files are not changed.
+Set `internal_resolution = 1` in the file beside `kzl`, or launch with
+`SR_VK_SCALE=1`, to select native resolution. Set the value to `2`, `3`, or
+`4` for higher internal resolutions; F11 can make the extra detail easier to
+see.
+
+On an Apple M5, a normally paced first-mission test with texture scaling off
+measured game presentations over a 1,300-presentation interval:
+
+| Internal resolution | Visible rendered size | Game presentations/s |
+|---|---:|---:|
+| 2x | 960x544 | 30.312 |
+| 3x | 1440x816 | 29.979 |
+| 4x | 1920x1088 | 29.843 |
+
+These are averages from one route, not a whole-game guarantee. The 3x and 4x
+results are close to nominal 30 FPS but remain below 30 FPS exactly. The PSP
+vblank is paced at approximately 59.94 Hz, so a game presenting every other
+vblank normally runs near 29.97 FPS. Performance and visual correctness in
+other scenes and on other hardware remain unverified.
 
 ## Input defaults
 
-The rebinding/analog configuration is portable: `input.ini` is created
-beside `kzl.exe`, not under AppData. The default PC scheme uses WASD for the
-analog stick, arrow keys for the D-pad, left mouse to fire, right mouse to aim,
-middle mouse to reload, Space for Cross/interact, G for grenades, and Q/E for
-the shoulder buttons. SDL-compatible gamepads are mapped automatically and can
-be used at the same time.
+The rebinding/analog configuration is portable: `input.ini` is created beside
+`kzl.exe` on Windows or `kzl` on macOS, not under AppData. The default PC
+scheme uses WASD for the analog stick, arrow keys for the D-pad, left mouse to
+fire, right mouse to aim, middle mouse to reload, Space for Cross/interact, G
+for grenades, and Q/E for the shoulder buttons. SDL-compatible gamepads are
+mapped automatically and can be used at the same time.
 
 Detailed binding names, keyboard/mouse controls, and runtime environment
 settings are documented in
@@ -65,11 +88,14 @@ settings are documented in
 
 ## Controller remapper
 
-Open the native controller remapper directly with:
+On Windows, open the native controller remapper directly with:
 
 ```powershell
 out\build\clang-cl\kzl.exe --configure-input
 ```
+
+On macOS, edit `out/build/macos-arm64/input.ini`; valid changes hot-reload
+while the game is running.
 
 Each PSP action accepts up to four comma-separated gamepad inputs. Use `none`
 to clear an action. For example:

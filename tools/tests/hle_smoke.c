@@ -1,12 +1,12 @@
 #include "recomp.h"
 #include "ge_shared.h"
+#include "platform.h"
+#include "test_platform.h"
 
-#include <direct.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
-#include <windows.h>
 
 static int failures;
 static uint32_t backend_dirty_addr;
@@ -126,7 +126,7 @@ static void test_ge_state_dump(void) {
     char path[128];
     snprintf(
         path, sizeof(path), "kzl_ge_state_test_%lu.txt",
-        (unsigned long)GetCurrentProcessId());
+        sr_test_process_id());
     ge_debug_set_list(7, 0x08123400u);
     ge_execute_op(0x9c001234u, 0x08123420u);
     ge_execute_op(0x04030000u, 0x08123440u);
@@ -1671,7 +1671,7 @@ static void test_savedata_secure_roundtrip(CpuState *cpu, const char *root) {
         0x10, 0x32, 0x54, 0x76, 0x98, 0xba, 0xdc, 0xfe,
         0xef, 0xcd, 0xab, 0x89, 0x67, 0x45, 0x23, 0x01,
     };
-    _putenv_s("SR_MEMSTICK", root);
+    sr_test_set_env("SR_MEMSTICK", root);
     uint8_t expected[64];
     for (uint32_t i = 0; i < sizeof(expected); i++) {
         expected[i] = (uint8_t)(i * 13u + 7u);
@@ -1712,13 +1712,19 @@ static void test_savedata_secure_roundtrip(CpuState *cpu, const char *root) {
     char directory[512], data_path[512], sfo_path[512];
     snprintf(
         directory, sizeof(directory),
-        "%s\\PSP\\SAVEDATA\\TEST98646DATA00", root);
-    snprintf(data_path, sizeof(data_path), "%s\\DATA.BIN", directory);
-    snprintf(sfo_path, sizeof(sfo_path), "%s\\PARAM.SFO", directory);
-    struct _stat status;
+        "%s%sPSP%sSAVEDATA%sTEST98646DATA00",
+        root, SR_TEST_PATH_SEPARATOR, SR_TEST_PATH_SEPARATOR,
+        SR_TEST_PATH_SEPARATOR);
+    snprintf(
+        data_path, sizeof(data_path), "%s%sDATA.BIN",
+        directory, SR_TEST_PATH_SEPARATOR);
+    snprintf(
+        sfo_path, sizeof(sfo_path), "%s%sPARAM.SFO",
+        directory, SR_TEST_PATH_SEPARATOR);
+    struct _stat64 status;
     check_u32(
         "secure savedata encrypted size",
-        _stat(data_path, &status) == 0 ? (uint32_t)status.st_size : 0,
+        _stat64(data_path, &status) == 0 ? (uint32_t)status.st_size : 0,
         sizeof(expected) + 16);
     int hash_nonzero = 0;
     check_u32(
@@ -1774,7 +1780,7 @@ static void test_savedata_secure_roundtrip(CpuState *cpu, const char *root) {
     check_u32("legacy plaintext save result", MEM_R32(param + 0x1c), 0);
     check_u32(
         "legacy plaintext size",
-        _stat(data_path, &status) == 0 ? (uint32_t)status.st_size : 0,
+        _stat64(data_path, &status) == 0 ? (uint32_t)status.st_size : 0,
         sizeof(expected));
     hash_nonzero = 0;
     check_u32(
@@ -1786,16 +1792,16 @@ static void test_savedata_secure_roundtrip(CpuState *cpu, const char *root) {
     (void)hle_call(cpu, 0x8874dbe0u, 0, 0, 0, 0);
     for (uint32_t i = 0; i < sizeof(expected); i++) MEM_W8(data + i, 0);
     MEM_W32(param + 0x30, 2);
-    _putenv_s("SR_SAVEDATA_MIGRATE", "1");
+    sr_test_set_env("SR_SAVEDATA_MIGRATE", "1");
     (void)hle_call(cpu, 0x50c4cd57u, param, 0, 0, 0);
-    _putenv_s("SR_SAVEDATA_MIGRATE", "");
+    sr_test_set_env("SR_SAVEDATA_MIGRATE", NULL);
     (void)hle_call(cpu, 0x8874dbe0u, 0, 0, 0, 0);
     (void)hle_call(cpu, 0xd4b95ffbu, 1, 0, 0, 0);
     check_u32("legacy migration load result", MEM_R32(param + 0x1c), 0);
     check_guest_bytes("legacy migration payload", data, expected, sizeof(expected));
     check_u32(
         "legacy migration encrypted size",
-        _stat(data_path, &status) == 0 ? (uint32_t)status.st_size : 0,
+        _stat64(data_path, &status) == 0 ? (uint32_t)status.st_size : 0,
         sizeof(expected) + 16);
     hash_nonzero = 0;
     check_u32(
@@ -1806,11 +1812,15 @@ static void test_savedata_secure_roundtrip(CpuState *cpu, const char *root) {
     _unlink(data_path);
     _unlink(sfo_path);
     _rmdir(directory);
-    snprintf(directory, sizeof(directory), "%s\\PSP\\SAVEDATA", root);
+    snprintf(
+        directory, sizeof(directory), "%s%sPSP%sSAVEDATA",
+        root, SR_TEST_PATH_SEPARATOR, SR_TEST_PATH_SEPARATOR);
     _rmdir(directory);
-    snprintf(directory, sizeof(directory), "%s\\PSP", root);
+    snprintf(
+        directory, sizeof(directory), "%s%sPSP",
+        root, SR_TEST_PATH_SEPARATOR);
     _rmdir(directory);
-    _putenv_s("SR_MEMSTICK", "");
+    sr_test_set_env("SR_MEMSTICK", NULL);
 }
 
 static void test_atrac_reset_buffer_info(CpuState *cpu) {
@@ -1947,12 +1957,12 @@ static void test_time(CpuState *cpu) {
     check_u32("SysClock2USec remainder", MEM_R32(usec_addr), 234567);
 
     const uint64_t fixed_tick = 62135596923456789ull;
-    _putenv_s("SR_RTC_FIXED_TICK", "62135596923456789");
+    sr_test_set_env("SR_RTC_FIXED_TICK", "62135596923456789");
     check_u32(
         "RTC fixed tick",
         hle_call(cpu, 0x3f7ad767u, clock_addr, 0, 0, 0),
         0);
-    _putenv_s("SR_RTC_FIXED_TICK", "");
+    sr_test_set_env("SR_RTC_FIXED_TICK", NULL);
     check_u32("RTC fixed tick low", MEM_R32(clock_addr), (uint32_t)fixed_tick);
     check_u32(
         "RTC fixed tick high",
@@ -2022,14 +2032,18 @@ static void test_io(CpuState *cpu, const char *root) {
     check_u32("rmdir empty", hle_call(cpu, 0x1117c65fu, path_addr, 0, 0, 0), 0);
 
     char path[512];
-    snprintf(path, sizeof(path), "%s\\ms0\\PSP", root);
+    snprintf(
+        path, sizeof(path), "%s%sms0%sPSP",
+        root, SR_TEST_PATH_SEPARATOR, SR_TEST_PATH_SEPARATOR);
     _rmdir(path);
-    snprintf(path, sizeof(path), "%s\\ms0", root);
+    snprintf(
+        path, sizeof(path), "%s%sms0",
+        root, SR_TEST_PATH_SEPARATOR);
     _rmdir(path);
     _rmdir(root);
 }
 
-static void test_default_vfs_root(CpuState *cpu, const char *local_app_data) {
+static void test_default_vfs_root(CpuState *cpu, const char *application_data) {
     const uint32_t path_addr = 0x08818000u;
     const uint32_t data_addr = 0x08818100u;
     const uint32_t read_addr = 0x08818200u;
@@ -2058,7 +2072,9 @@ static void test_default_vfs_root(CpuState *cpu, const char *local_app_data) {
 
     char path[512];
     struct _stat64 info;
-    snprintf(path, sizeof(path), "%s\\KZLRecomp\\ms0\\CHAPTER5.BIN", local_app_data);
+    snprintf(
+        path, sizeof(path), "%s%sms0%sCHAPTER5.BIN",
+        application_data, SR_TEST_PATH_SEPARATOR, SR_TEST_PATH_SEPARATOR);
     if (_stat64(path, &info) != 0) {
         fprintf(stderr, "FAIL: default VFS path does not exist: %s\n", path);
         failures++;
@@ -2069,11 +2085,11 @@ static void test_default_vfs_root(CpuState *cpu, const char *local_app_data) {
     guest_string(path_addr, "cache:/CHAPTER5.BIN");
     check_u32("remove Chapter 5 through cache alias",
               hle_call(cpu, 0xf27a9c51u, path_addr, 0, 0, 0), 0);
-    snprintf(path, sizeof(path), "%s\\KZLRecomp\\ms0", local_app_data);
+    snprintf(
+        path, sizeof(path), "%s%sms0",
+        application_data, SR_TEST_PATH_SEPARATOR);
     _rmdir(path);
-    snprintf(path, sizeof(path), "%s\\KZLRecomp", local_app_data);
-    _rmdir(path);
-    _rmdir(local_app_data);
+    _rmdir(application_data);
 }
 
 static uint32_t mpeg_callback_packets;
@@ -2404,7 +2420,7 @@ static void test_async_io(CpuState *cpu, const char *root) {
     sr_set_dispatch_table(async_dispatch, 3);
     memset(cpu, 0, sizeof(*cpu));
     cpu->r[29] = 0x09ff0000u;
-    _putenv_s("SR_NOVBPACE", "1");
+    sr_test_set_env("SR_NOVBPACE", "1");
     sched_init(cpu);
     sched_run(entry, 0, 0, 1);
 
@@ -2412,9 +2428,13 @@ static void test_async_io(CpuState *cpu, const char *root) {
     check_u32("remove async test file",
               hle_call(cpu, 0xf27a9c51u, path_addr, 0, 0, 0), 0);
     char path[512];
-    snprintf(path, sizeof(path), "%s\\ms0\\PSP", root);
+    snprintf(
+        path, sizeof(path), "%s%sms0%sPSP",
+        root, SR_TEST_PATH_SEPARATOR, SR_TEST_PATH_SEPARATOR);
     _rmdir(path);
-    snprintf(path, sizeof(path), "%s\\ms0", root);
+    snprintf(
+        path, sizeof(path), "%s%sms0",
+        root, SR_TEST_PATH_SEPARATOR);
     _rmdir(path);
     _rmdir(root);
 }
@@ -2571,13 +2591,26 @@ static void test_offline_menu_patch(void) {
 }
 
 int main(void) {
-    char root[128], local_app_data[128];
-    snprintf(root, sizeof(root), "kzl_hle_test_fs_%lu", (unsigned long)GetCurrentProcessId());
-    snprintf(local_app_data, sizeof(local_app_data), "kzl_hle_test_localappdata_%lu",
-             (unsigned long)GetCurrentProcessId());
-    _putenv_s("LOCALAPPDATA", local_app_data);
-    _putenv_s("SR_FSDIR", "");
-    _putenv_s("SR_NOAUDIO", "1");
+    char root[128], local_app_data[128], application_data[512];
+    snprintf(
+        root, sizeof(root), "kzl_hle_test_fs_%lu",
+        sr_test_process_id());
+    snprintf(
+        local_app_data, sizeof(local_app_data),
+        "kzl_hle_test_localappdata_%lu", sr_test_process_id());
+#ifdef _WIN32
+    sr_test_set_env("LOCALAPPDATA", local_app_data);
+#else
+    sr_test_set_env("HOME", local_app_data);
+    sr_test_set_env("XDG_DATA_HOME", local_app_data);
+#endif
+    sr_test_set_env("SR_FSDIR", NULL);
+    sr_test_set_env("SR_NOAUDIO", "1");
+    if (!sr_user_data_path(
+            "KZLRecomp", application_data, sizeof(application_data))) {
+        fprintf(stderr, "FAIL: could not resolve the user data path\n");
+        return 2;
+    }
 
     sr_mem_init();
     CpuState cpu;
@@ -2591,8 +2624,22 @@ int main(void) {
     test_ge_morph_skinning();
     test_ge_patch_tessellation();
     test_ge_texture_decode();
-    test_default_vfs_root(&cpu, local_app_data);
-    _putenv_s("SR_FSDIR", root);
+    test_default_vfs_root(&cpu, application_data);
+#ifdef __APPLE__
+    {
+        char path[512];
+        snprintf(
+            path, sizeof(path), "%s%sLibrary%sApplication Support",
+            local_app_data, SR_TEST_PATH_SEPARATOR, SR_TEST_PATH_SEPARATOR);
+        _rmdir(path);
+        snprintf(
+            path, sizeof(path), "%s%sLibrary",
+            local_app_data, SR_TEST_PATH_SEPARATOR);
+        _rmdir(path);
+    }
+#endif
+    _rmdir(local_app_data);
+    sr_test_set_env("SR_FSDIR", root);
     test_threadman(&cpu);
     test_utility_system_params(&cpu);
     test_utility_dialogs(&cpu);
