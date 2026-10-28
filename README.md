@@ -5,8 +5,9 @@
 Experimental, source-only native Windows and Apple Silicon static
 recompilation of **Killzone: Liberation v1.20 (UCUS-98646)**. The PSP Allegrex
 module is translated to C and linked with a game-specific HLE runtime. Windows
-uses Direct3D 12, XAudio2, and Media Foundation; macOS uses SDL3 audio and the
-Vulkan renderer over Metal through MoltenVK.
+uses Direct3D 12, XAudio2, and Media Foundation; macOS uses SDL3 audio,
+VideoToolbox for H.264 video, and the Vulkan renderer over Metal through
+MoltenVK.
 
 This project is not affiliated with or endorsed by Guerrilla or Sony
 Interactive Entertainment. It does not distribute a game executable, generated
@@ -28,9 +29,9 @@ game code, disc data, saves, or other game assets.
 | Area | Current state |
 |---|---|
 | Platform | Windows 10/11 x64 and macOS Apple Silicon; clang-cl/D3D12 remains the primary Windows path |
-| Gameplay | Windows: boot through Mission 1 completed; Apple Silicon: the first mission has missing 3D geometry and severe slowdown with Vulkan; the software renderer displays the scene |
+| Gameplay | Windows: boot through Mission 1 completed; Apple Silicon: the first mission's level and player render with Vulkan through MoltenVK; full-game validation remains in progress |
 | Graphics | D3D12, Vulkan, and software renderers; Vulkan runs through MoltenVK/Metal on macOS; hardware 1x-5x xBRZ texture scaling |
-| Audio/video/input | XAudio2 or SDL3 audio, SAS/ATRAC, keyboard/mouse, and SDL gamepads; H.264 PMF video is currently Windows-only |
+| Audio/video/input | XAudio2 or SDL3 audio, SAS/ATRAC, keyboard/mouse, and SDL gamepads; H.264 PMF video uses Media Foundation on Windows and hardware-accelerated VideoToolbox on macOS |
 | Saves | PSP-compatible secure savedata is implemented; full-game validation remains in progress |
 | Online | Original infrastructure services are gone; ad-hoc multiplayer is not implemented |
 | Distribution | Source release only; no redistributable game executable is published |
