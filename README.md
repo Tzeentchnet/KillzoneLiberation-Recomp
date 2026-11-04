@@ -1,44 +1,60 @@
-# Killzone: Liberation Recomp
+# Killzone: Liberation Recomp - Apple Silicon
 
-[![CI](https://github.com/Tzeentchnet/KillzoneLiberation-Recomp/actions/workflows/ci.yml/badge.svg)](https://github.com/Tzeentchnet/KillzoneLiberation-Recomp/actions/workflows/ci.yml)
+[![Apple Silicon CI](https://github.com/Tzeentchnet/KillzoneLiberation-Recomp/actions/workflows/ci.yml/badge.svg?branch=apple-silicon)](https://github.com/Tzeentchnet/KillzoneLiberation-Recomp/actions/workflows/ci.yml?query=branch%3Aapple-silicon)
 
-Experimental, source-only native Windows and Apple Silicon static
-recompilation of **Killzone: Liberation v1.20 (UCUS-98646)**. The PSP Allegrex
-module is translated to C and linked with a game-specific HLE runtime. Windows
-uses Direct3D 12, XAudio2, and Media Foundation; macOS uses SDL3 audio,
-VideoToolbox for H.264 video, and the Vulkan renderer over Metal through
-MoltenVK.
+Native Apple Silicon static recompilation of
+**Killzone: Liberation v1.20 (UCUS-98646)**. This `apple-silicon` branch turns
+the translated PSP Allegrex module into an arm64 macOS application backed by
+AppKit, SDL3, VideoToolbox, and Vulkan over Metal through MoltenVK.
+
+The branch is designed around the Mac experience: a Finder-launchable app,
+Retina-aware rendering, hardware-specific quality defaults, native settings
+and text entry, controller remapping, optional twin-stick controls, and
+sleep/wake-safe audio and frame pacing.
 
 This project is not affiliated with or endorsed by Guerrilla or Sony
 Interactive Entertainment. It does not distribute a game executable, generated
 game code, disc data, saves, or other game assets.
 
-> [!NOTE]
-> **Why isn't there just an .exe to download?** Two reasons. First, safety:
-> please don't download random .exe files from the internet, even from
-> GitHub releases, including this one if it ever shows up! It's just good
-> practice to be careful about what you run on your computer. Second, it's
-> the law: this project doesn't own Killzone: Liberation, so it's not
-> allowed to hand out a ready-to-play build of the game. Instead, you build
-> the program yourself from this source code and combine it with a copy of
-> the game disc that you already legally own. That way nobody's copyrighted
-> game data ever leaves your own computer.
+> [!IMPORTANT]
+> This repository publishes source, not a ready-to-play `.app`. Build the app
+> locally and combine it with a supported disc image that you legally own.
+> Generated game code, disc data, and copyrighted game assets must remain on
+> your Mac and must not be uploaded or committed.
 
 ## Project status
 
 | Area | Current state |
 |---|---|
-| Platform | Windows 10/11 x64 and macOS Apple Silicon; macOS also has a locally built, self-contained, Finder-launchable app |
-| Gameplay | Windows: boot through Mission 1 completed; Apple Silicon: deterministic menu, movie, and live Mission 1 movement routes pass; full-game validation remains in progress |
-| Graphics | D3D12, Vulkan, and software renderers; macOS uses Retina-aware Vulkan through MoltenVK/Metal with 1x-8x internal rendering, 1x-5x xBRZ, and SMAA 1x High |
-| Audio/video/input | XAudio2 or SDL3 audio, SAS/ATRAC, keyboard/mouse, SDL gamepads, and optional twin-stick controls; H.264 PMF video uses Media Foundation on Windows and hardware-accelerated VideoToolbox on macOS |
+| Platform | Native macOS arm64 with a locally built, self-contained, Finder-launchable app |
+| Gameplay | Deterministic menu, movie, and live Mission 1 movement routes pass; full-game validation remains in progress |
+| Graphics | Retina-aware Vulkan through MoltenVK/Metal with 1x-8x internal rendering, 1x-5x xBRZ, SMAA 1x High, GPU upload scaling, and a persistent pipeline cache |
+| Audio/video | SDL3 audio, SAS/ATRAC, and hardware-accelerated VideoToolbox H.264 playback |
+| Input | Keyboard/mouse, SDL gamepads, native remapping, hot-plug recovery, and optional twin-stick controls |
 | Saves | PSP-compatible secure savedata is implemented; full-game validation remains in progress |
 | Online | Original infrastructure services are gone; ad-hoc multiplayer is not implemented |
-| Distribution | Source release only; no redistributable game executable is published |
+| Distribution | Source release only; the app and generated game image are built locally |
 
-This is still a work in progress rather than a finished replacement for the
-original game. Chapters 2-4, challenges, user-supplied Chapter 5, and long soak
-testing remain release validation work.
+This is a working port, not yet a fully validated replacement for the original
+game. Chapters 2-4, challenges, user-supplied Chapter 5, and long soak testing
+remain release-validation work.
+
+## Apple Silicon features
+
+- Native arm64 executable and scheduler fibers with guarded stacks; no
+  deprecated macOS `ucontext` dependency.
+- Retina-aware Vulkan presentation through MoltenVK and Metal, including
+  display-scale changes and F11 or Control-Command-F fullscreen.
+- Automatic M-series quality profiles plus complete Manual control over
+  internal resolution, xBRZ texture scaling, and SMAA.
+- GPU-side framebuffer upload expansion and a strict per-device Vulkan
+  pipeline cache to reduce host traffic and warm-start compilation cost.
+- Native AppKit first-run ISO picker, graphics settings, controller remapper,
+  alerts, on-screen keyboard, and persistent Application Support paths.
+- Presentation-timed input scripting for bounded regression routes.
+- SDL3 audio and gamepad handling with focus, minimize, sleep/wake, redraw,
+  stale-input, and controller-removal recovery.
+- Hardware-required VideoToolbox decoding for H.264 game movies.
 
 ## Documentation
 
@@ -77,101 +93,62 @@ locate copyrighted game data.
 
 ## Requirements
 
+- An Apple Silicon Mac (M1 or newer)
+- macOS with Xcode Command Line Tools
+- Homebrew
 - Git with submodule support
 - Python 3.11 or newer (the tested Apple setup uses Homebrew Python 3.13)
 - CMake 3.25 or newer and Ninja
 
-### Windows
-
-- Windows 10/11 x64
-- Visual Studio 2022 Build Tools with clang-cl/LLVM, MSVC v143 libraries, and
-  the Windows 11 SDK
-- Vulkan SDK for the combined hardware preset. A standard
-  `C:\VulkanSDK\<version>` install is detected automatically.
-- DirectX Shader Compiler (`dxc.exe`) only when regenerating checked-in shaders
-
-PIX for Windows is optional but recommended for GPU debugging.
-
-The standard preset downloads the official SDL3 3.2.20 VC development package
-with a pinned SHA-256 when SDL3 is not already discoverable by CMake. Set
-`KZL_FETCH_SDL3=OFF` and provide `SDL3_DIR` to require a local package instead.
-
-### Apple Silicon
-
-- macOS arm64 with Xcode Command Line Tools and Homebrew
-- Native SDL3, Vulkan loader and headers, and MoltenVK:
-
 ```bash
+xcode-select --install
 brew install cmake ninja python@3.13 pkg-config \
   sdl3 vulkan-loader vulkan-headers molten-vk
 ```
 
-## Build from source
+The CMake preset targets macOS 13 and arm64. The effective deployment floor of
+a locally packaged app can be higher when locally installed Homebrew
+libraries were built for a newer macOS release. A protected release matrix
+with appropriately built dependencies is still required before publishing a
+minimum supported macOS version.
 
-Clone with the runtime fork:
+## Build and launch
 
-```powershell
-git clone --recurse-submodules https://github.com/Tzeentchnet/KillzoneLiberation-Recomp.git
-Set-Location KillzoneLiberation-Recomp
+Clone this branch with its runtime fork:
+
+```bash
+git clone --branch apple-silicon --recurse-submodules \
+  https://github.com/Tzeentchnet/KillzoneLiberation-Recomp.git
+cd KillzoneLiberation-Recomp
 ```
 
 Extract and verify the disc, then generate the translated C and relocated
 image. Everything written under `build/` remains local and ignored:
 
-```powershell
-python tools\kzl\extract.py C:\path\to\Killzone_Liberation_v1.20_US.ISO
-python tools\kzl\gen.py
+```bash
+PYTHON="$(brew --prefix python@3.13)/bin/python3.13"
+"$PYTHON" tools/kzl/extract.py \
+  /path/to/Killzone_Liberation_v1.20_US.ISO
+"$PYTHON" tools/kzl/gen.py
 ```
 
 Generation uses the measured boot call-target audit to place observed functions
 in `/O2` translation units and all other game functions in `/O1` units. Release
-builds retain precise, non-contracting floating point; startup enables x86
-flush-to-zero and denormals-are-zero to match the PSP's single-precision mode.
+builds retain precise, non-contracting floating point.
 
-### Windows
-
-From a Visual Studio x64 developer shell, configure the combined hardware
-build. The standard `clang-cl` preset enables D3D12 and Vulkan:
-
-```powershell
-cmake --preset clang-cl
-cmake --build --preset clang-cl --target kzl_driver
-```
-
-The dependency-free software reference build remains available as a separate
-preset:
-
-```powershell
-cmake --preset clang-cl-software
-cmake --build --preset clang-cl-software --target kzl_driver
-```
-
-Automatic rendering selects D3D12 when it is compiled in. Run with the same
-verified ISO:
-
-```powershell
-$env:PSP_ISO = 'C:\path\to\Killzone_Liberation_v1.20_US.ISO'
-out\build\clang-cl\kzl.exe --boot `
-  build\kzl\gen\kzl_image.bin 08804000 08804000 none --gui
-```
-
-Standalone boot rechecks the ISO size and SHA-1 before allocating guest memory;
-a missing or different image exits with an explicit supported-version error.
-
-### Apple Silicon and Metal
-
-Extract and generate with the Homebrew Python, then use the native arm64
-preset:
+Configure the native arm64 build and create the local app:
 
 ```bash
-PYTHON=/opt/homebrew/opt/python@3.13/bin/python3.13
-"$PYTHON" tools/kzl/extract.py \
-  /path/to/Killzone_Liberation_v1.20_US.ISO
-"$PYTHON" tools/kzl/gen.py
-
 cmake --preset macos-arm64
-cmake --build --preset macos-arm64 --target kzl_driver
+cmake --build --preset macos-arm64 --target kzl_app
+open "out/build/macos-arm64/Killzone Liberation.app"
 ```
+
+The first launch opens a native picker for the verified v1.20 image, followed
+by the graphics and controller settings. The ISO remains external to the app
+and is revalidated before guest memory is allocated.
+
+## Apple Silicon rendering and packaging
 
 The preset builds an arm64 Mach-O executable and selects the SDL3/Vulkan
 renderer. MoltenVK translates that Vulkan work to Metal; this is the supported
@@ -202,7 +179,8 @@ native execution time by about -2.4% but produced no repeatable frame-time or
 pacing improvement. Both experiments remained pixel-exact and were rejected
 rather than becoming release defaults.
 
-Build the local Finder-launchable app after generating the game image:
+Rebuild or refresh the Finder-launchable app after changing the executable,
+generated game image, runtime assets, or packaging:
 
 ```bash
 cmake --build --preset macos-arm64 --target kzl_app
@@ -279,20 +257,16 @@ stale input and reopen another connected gamepad when available.
 
 ## Configuration and controls
 
-The first Windows or macOS app launch opens native graphics and controller
-settings. Run `kzl --configure` to reopen both dialogs or
-`kzl --configure-input` for controller settings only.
+The first app launch opens native graphics and controller settings. From a
+development build, run the following to reopen both dialogs or only the
+controller remapper:
 
-```ini
-# Windows default
-renderer = d3d12
-quality = manual
-internal_resolution = 2
-texture_scale = 1
-d3d12_full_rate = 0
+```bash
+out/build/macos-arm64/kzl --configure
+out/build/macos-arm64/kzl --configure-input
 ```
 
-The macOS defaults are `renderer = vk` and `quality = auto`. Existing
+New configurations use `renderer = vk` and `quality = auto`. Existing
 configuration files without a `quality` entry migrate to Manual and keep
 their exact resolution, texture, and anti-aliasing values.
 Mutable Mac files live under
@@ -307,10 +281,11 @@ and starts the game with the selected graphics settings. The build copies
 `kzl_image.bin` beside the development executable and into the locally built
 app's resources. The ISO remains external and is revalidated before use.
 
-Renderer options are D3D12 (recommended on Windows, 1x-8x resolution with
-1x-5x xBRZ texture scaling), Vulkan (1x-8x resolution with the same texture
-scaling and SMAA 1x High), and a software reference path. `input.ini` holds the rebinding/analog configuration, including an
-experimental, opt-in twin-stick scheme.
+Vulkan is the production renderer on this branch. It supports 1x-8x internal
+resolution, 1x-5x xBRZ texture scaling, and SMAA 1x High. A software reference
+renderer remains available for diagnostics. `input.ini` holds the
+rebinding/analog configuration, including an experimental, opt-in twin-stick
+scheme.
 
 See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for the full graphics
 dialog reference, the 4K path, the controller remapper, and the twin-stick
@@ -321,26 +296,22 @@ preset.
 The public [CI workflow](.github/workflows/ci.yml) uses only tracked source and
 synthetic fixtures. To run its tool coverage locally:
 
-```powershell
-python -m unittest discover -s tools\tests -p "test_*.py"
-python -m unittest `
-  external\psp-recomp\tools\tests\test_codegen_dispatch.py `
-  external\psp-recomp\tools\tests\test_ppmdiff.py `
-  external\psp-recomp\tools\tests\test_tracediff.py
-python tools\kzl\content_audit.py
+```bash
+PYTHON="$(brew --prefix python@3.13)/bin/python3.13"
+"$PYTHON" -m unittest discover -s tools/tests -p "test_*.py"
+"$PYTHON" -m unittest \
+  external/psp-recomp/tools/tests/test_codegen_dispatch.py \
+  external/psp-recomp/tools/tests/test_ppmdiff.py \
+  external/psp-recomp/tools/tests/test_tracediff.py
+"$PYTHON" tools/kzl/content_audit.py
 ```
 
 The runtime-only build compiles every redistributable runtime source without
 generated game code:
 
-```powershell
-cmake -S . -B out\build\runtime-only -G Ninja `
-  -DCMAKE_BUILD_TYPE=Release `
-  -DCMAKE_C_COMPILER=clang-cl `
-  -DCMAKE_CXX_COMPILER=clang-cl `
-  -DKZL_RUNTIME_ONLY=ON `
-  -DBUILD_TESTING=OFF
-cmake --build out\build\runtime-only --target kzl_runtime_compile
+```bash
+cmake --preset macos-arm64-runtime
+cmake --build --preset macos-arm64-runtime --target kzl_runtime_compile
 ```
 
 Full HLE, renderer, movie/audio, and protected 50-frame comparison tests require
@@ -374,8 +345,9 @@ trees and runs the content audit before publishing.
 
 Build the same archive locally from a clean checkout with:
 
-```powershell
-python tools\kzl\source_bundle.py --version v0.1.0
+```bash
+PYTHON="$(brew --prefix python@3.13)/bin/python3.13"
+"$PYTHON" tools/kzl/source_bundle.py --version v0.1.0
 ```
 
 No redistributable game executable is currently published: generated game code
