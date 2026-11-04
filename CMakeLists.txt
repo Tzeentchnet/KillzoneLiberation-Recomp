@@ -8,6 +8,10 @@
 # (__builtin_clz, statement expressions), which MSVC cl rejects, so clang-cl is required (F-045).
 cmake_minimum_required(VERSION 3.25)
 project(KZLRecomp LANGUAGES C CXX)
+if(APPLE)
+  enable_language(OBJCXX)
+  enable_language(ASM)
+endif()
 
 set(KZL_GEN_DIR "${CMAKE_SOURCE_DIR}/build/kzl/gen" CACHE PATH "Directory written by tools/kzl/gen.py")
 set(PSP_RECOMP_DIR "${CMAKE_SOURCE_DIR}/external/psp-recomp" CACHE PATH "sal063 fork (submodule)")
@@ -110,6 +114,21 @@ if(KZL_ENABLE_VULKAN)
     endforeach()
   endif()
   find_package(Vulkan REQUIRED)
+  set(_KZL_GLSLANG_ARGS)
+  if(Vulkan_GLSLANG_VALIDATOR_EXECUTABLE)
+    list(APPEND _KZL_GLSLANG_ARGS
+      --glslang "${Vulkan_GLSLANG_VALIDATOR_EXECUTABLE}")
+  endif()
+  add_custom_target(kzl_vulkan_shaders
+    COMMAND "${Python3_EXECUTABLE}"
+            "${PSP_RECOMP_DIR}/tools/compile_vulkan_shaders.py"
+            ${_KZL_GLSLANG_ARGS}
+    VERBATIM)
+  add_custom_target(kzl_vulkan_shaders_check
+    COMMAND "${Python3_EXECUTABLE}"
+            "${PSP_RECOMP_DIR}/tools/compile_vulkan_shaders.py"
+            ${_KZL_GLSLANG_ARGS} --check
+    VERBATIM)
 endif()
 
 if(NOT KZL_RUNTIME_ONLY AND CMAKE_C_COMPILER_ID STREQUAL "MSVC")
@@ -188,6 +207,10 @@ endif()
 # sal063 runtime (HLE kernel, scheduler, ISO, media, GDI window, software GE) plus its
 # bring-up driver. SDL3/D3D12 is optional; SDL3/Vulkan remains outside the root build.  -> T-3.1, T-4.2
 set(RT "${PSP_RECOMP_DIR}/src/rt")
+set(KZL_PLATFORM_SRCS ${RT}/platform.c)
+if(APPLE)
+  list(APPEND KZL_PLATFORM_SRCS ${RT}/fiber_arm64.S)
+endif()
 set(AT3 "${PSP_RECOMP_DIR}/third_party/at3_standalone")
 set(KZL_AT3_SRCS
   ${AT3}/atrac.cpp
@@ -241,15 +264,16 @@ endif()
 
 set(KZL_RUNTIME_SRCS
   ${RT}/recomp.c ${RT}/dispatch_table.c ${RT}/fpu_mode.c ${RT}/fps_counter.c
-  ${RT}/platform.c ${RT}/perf_stats.c ${RT}/display_state.c
+  ${KZL_PLATFORM_SRCS} ${RT}/perf_stats.c ${RT}/display_state.c
+  ${RT}/host_lifecycle.c
   ${RT}/interp_runtime.cpp
   ${PSP_RECOMP_DIR}/src/ref/interp.cpp
   ${RT}/module.c ${RT}/vfpu_interp.c ${RT}/vfpu_asin.c ${RT}/hle.c
   ${RT}/memstick_state.c ${RT}/net.c ${RT}/kmem.c ${RT}/intr.c
   ${RT}/gelist.c ${RT}/callback.c ${RT}/sched.c
   ${RT}/iso.c ${RT}/mpeg.c ${RT}/pgf.c
-  ${RT}/settings_path.c ${RT}/graphics_config.c
-  ${RT}/input_config.c ${RT}/kzl_twinstick.c
+  ${RT}/settings_path.c ${RT}/graphics_config.c ${RT}/graphics_auto.c
+  ${RT}/input_config.c ${RT}/input_script.c ${RT}/kzl_twinstick.c
   ${RT}/startup_check.c
   ${RT}/audio_mixer.c ${RT}/sas_reverb.c ${RT}/savedata.c
   ${RT}/ge.c)
@@ -265,13 +289,24 @@ if(WIN32)
 else()
   list(APPEND KZL_RUNTIME_SRCS
     ${RT}/gui_sdl.c
-    ${RT}/settings_portable.c
-    ${RT}/audio_sdl.c
-    ${RT}/osk_posix.c)
+    ${RT}/audio_sdl.c)
   if(APPLE)
-    list(APPEND KZL_RUNTIME_SRCS ${RT}/h264_vt.c ${RT}/h264_psmf.c)
+    set(KZL_MACOS_UI_SRCS
+      ${RT}/macos_app.mm
+      ${RT}/settings_macos.mm
+      ${RT}/osk_macos.mm)
+    set_source_files_properties(
+      ${KZL_MACOS_UI_SRCS}
+      PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
+    list(APPEND KZL_RUNTIME_SRCS
+      ${KZL_MACOS_UI_SRCS}
+      ${RT}/h264_vt.c
+      ${RT}/h264_psmf.c)
   else()
-    list(APPEND KZL_RUNTIME_SRCS ${RT}/h264_stub.c)
+    list(APPEND KZL_RUNTIME_SRCS
+      ${RT}/settings_portable.c
+      ${RT}/osk_posix.c
+      ${RT}/h264_stub.c)
   endif()
 endif()
 if(KZL_ENABLE_D3D12)
@@ -292,6 +327,9 @@ if(KZL_ENABLE_VULKAN)
   list(APPEND KZL_RUNTIME_SRCS
     ${RT}/gpu_sdl3vk/sdl3vk.c
     ${RT}/gpu_sdl3vk/ge_gpu.c
+    ${RT}/gpu_sdl3vk/pipeline_cache_vk.c
+    ${RT}/gpu_sdl3vk/present_layout.c
+    ${RT}/gpu_sdl3vk/smaa_vk.c
     ${RT}/gpu_sdl3vk/shader_state.c)
 endif()
 if(KZL_ENABLE_D3D12 OR KZL_ENABLE_VULKAN)
@@ -307,16 +345,20 @@ if(KZL_RUNTIME_ONLY)
   if(APPLE)
     target_link_libraries(kzl_runtime_compile PRIVATE
       "-framework VideoToolbox" "-framework CoreMedia"
-      "-framework CoreVideo" "-framework CoreFoundation")
+      "-framework CoreVideo" "-framework CoreFoundation"
+      "-framework AppKit")
   endif()
   target_include_directories(kzl_runtime_compile PRIVATE "${RT}")
-  target_compile_definitions(kzl_runtime_compile PRIVATE _CRT_SECURE_NO_WARNINGS)
+  target_compile_definitions(kzl_runtime_compile PRIVATE
+    _CRT_SECURE_NO_WARNINGS
+    SR_APPLICATION_DATA_NAME="KZLRecomp")
   if(KZL_ENABLE_D3D12)
     target_compile_definitions(kzl_runtime_compile PRIVATE SR_D3D12)
     target_link_libraries(kzl_runtime_compile PRIVATE d3d12 dxgi SDL3::SDL3)
   endif()
   if(KZL_ENABLE_VULKAN)
-    target_compile_definitions(kzl_runtime_compile PRIVATE SR_SDL3VK)
+    target_compile_definitions(
+      kzl_runtime_compile PRIVATE SR_SDL3VK SR_SDL3VK_SMAA)
     target_link_libraries(kzl_runtime_compile PRIVATE Vulkan::Vulkan SDL3::SDL3)
   endif()
   target_compile_features(kzl_runtime_compile PRIVATE cxx_std_17)
@@ -332,7 +374,8 @@ function(kzl_configure_runtime_target target)
   target_include_directories(${target} PRIVATE "${RT}")
   target_compile_definitions(${target} PRIVATE
     _CRT_SECURE_NO_WARNINGS
-    SR_GAME_TITLE="Killzone: Liberation")
+    SR_GAME_TITLE="Killzone: Liberation"
+    SR_APPLICATION_DATA_NAME="KZLRecomp")
   target_compile_features(${target} PRIVATE cxx_std_17)
   target_compile_options(${target} PRIVATE ${KZL_FP_FLAGS})
   target_link_libraries(${target} PRIVATE
@@ -344,14 +387,16 @@ function(kzl_configure_runtime_target target)
   if(APPLE)
     target_link_libraries(${target} PRIVATE
       "-framework VideoToolbox" "-framework CoreMedia"
-      "-framework CoreVideo" "-framework CoreFoundation")
+      "-framework CoreVideo" "-framework CoreFoundation"
+      "-framework AppKit")
   endif()
   if(KZL_ENABLE_D3D12)
     target_compile_definitions(${target} PRIVATE SR_D3D12)
     target_link_libraries(${target} PRIVATE d3d12 dxgi)
   endif()
   if(KZL_ENABLE_VULKAN)
-    target_compile_definitions(${target} PRIVATE SR_SDL3VK)
+    target_compile_definitions(
+      ${target} PRIVATE SR_SDL3VK SR_SDL3VK_SMAA)
     target_link_libraries(${target} PRIVATE Vulkan::Vulkan)
   endif()
   if(KZL_ENABLE_D3D12 OR KZL_ENABLE_VULKAN)
@@ -385,6 +430,85 @@ add_custom_command(TARGET kzl_driver POST_BUILD
           "${KZL_GEN_DIR}/kzl_image.bin"
           "$<TARGET_FILE_DIR:kzl_driver>/kzl_image.bin")
 
+if(APPLE)
+  find_package(Python3 REQUIRED COMPONENTS Interpreter)
+  set(KZL_APP_VERSION "0.1.0" CACHE STRING
+      "Marketing version for the local macOS app")
+  set(KZL_APP_BUILD_VERSION "1" CACHE STRING
+      "Build version for the local macOS app")
+  if(CMAKE_OSX_DEPLOYMENT_TARGET)
+    set(KZL_APP_MINIMUM_MACOS "${CMAKE_OSX_DEPLOYMENT_TARGET}")
+  else()
+    set(KZL_APP_MINIMUM_MACOS "12.0")
+  endif()
+  set(KZL_APP_BUNDLE
+      "${CMAKE_BINARY_DIR}/Killzone Liberation.app"
+      CACHE PATH "Output path for the local macOS app")
+  configure_file(
+    "${CMAKE_SOURCE_DIR}/cmake/macos/Info.plist.in"
+    "${CMAKE_BINARY_DIR}/kzl-app-Info.plist"
+    @ONLY)
+  set(KZL_APP_ICONSET
+      "${CMAKE_BINARY_DIR}/KillzoneLiberation.iconset")
+  set(KZL_APP_ICON
+      "${CMAKE_BINARY_DIR}/KillzoneLiberation.icns")
+  add_custom_command(
+    OUTPUT "${KZL_APP_ICON}"
+    COMMAND ${CMAKE_COMMAND} -E rm -rf "${KZL_APP_ICONSET}"
+    COMMAND "${Python3_EXECUTABLE}"
+      "${CMAKE_SOURCE_DIR}/tools/macos/generate_icon.py"
+      --output-dir "${KZL_APP_ICONSET}"
+    COMMAND iconutil -c icns
+      "${KZL_APP_ICONSET}" -o "${KZL_APP_ICON}"
+    DEPENDS "${CMAKE_SOURCE_DIR}/tools/macos/generate_icon.py"
+    VERBATIM)
+  add_custom_target(kzl_app_icon DEPENDS "${KZL_APP_ICON}")
+
+  find_library(KZL_MOLTENVK_DYLIB
+    NAMES MoltenVK
+    HINTS /opt/homebrew/lib /usr/local/lib
+    REQUIRED)
+  find_file(KZL_SDL3_LICENSE
+    NAMES LICENSE.txt
+    HINTS
+      /opt/homebrew/opt/sdl3/share/licenses/SDL3
+      /usr/local/opt/sdl3/share/licenses/SDL3
+    REQUIRED)
+  find_file(KZL_VULKAN_LOADER_LICENSE
+    NAMES LICENSE.txt
+    HINTS
+      /opt/homebrew/opt/vulkan-loader
+      /usr/local/opt/vulkan-loader
+    REQUIRED)
+  find_file(KZL_MOLTENVK_LICENSE
+    NAMES LICENSE
+    HINTS
+      /opt/homebrew/opt/molten-vk
+      /usr/local/opt/molten-vk
+    REQUIRED)
+
+  add_custom_target(kzl_app
+    DEPENDS kzl_driver kzl_app_icon
+    COMMAND ${CMAKE_COMMAND}
+      "-DAPP_BUNDLE=${KZL_APP_BUNDLE}"
+      "-DEXECUTABLE=$<TARGET_FILE:kzl_driver>"
+      "-DINFO_PLIST=${CMAKE_BINARY_DIR}/kzl-app-Info.plist"
+      "-DGAME_IMAGE=${KZL_GEN_DIR}/kzl_image.bin"
+      "-DASSETS_DIR=${PSP_RECOMP_DIR}/assets"
+      "-DFONT_DIR=${PSP_RECOMP_DIR}/font"
+      "-DSDL_LIBRARY=$<TARGET_FILE:SDL3::SDL3-shared>"
+      "-DVULKAN_LIBRARY=$<TARGET_FILE:Vulkan::Vulkan>"
+      "-DMOLTENVK_LIBRARY=${KZL_MOLTENVK_DYLIB}"
+      "-DSDL_LICENSE=${KZL_SDL3_LICENSE}"
+      "-DVULKAN_LICENSE=${KZL_VULKAN_LOADER_LICENSE}"
+      "-DMOLTENVK_LICENSE=${KZL_MOLTENVK_LICENSE}"
+      "-DICD_FILE=${CMAKE_SOURCE_DIR}/cmake/macos/MoltenVK_icd.json"
+      "-DICON_FILE=${KZL_APP_ICON}"
+      -P "${CMAKE_SOURCE_DIR}/cmake/macos/package_app.cmake"
+    USES_TERMINAL
+    VERBATIM)
+endif()
+
 include(CTest)
 if(BUILD_TESTING)
   add_executable(kzl_psmf_tests EXCLUDE_FROM_ALL
@@ -403,16 +527,31 @@ if(BUILD_TESTING)
   add_executable(kzl_startup_tests EXCLUDE_FROM_ALL
     ${PSP_RECOMP_DIR}/tools/tests/startup_check_test.c
     ${RT}/startup_check.c
-    ${RT}/platform.c
+    ${RT}/settings_path.c
+    ${KZL_PLATFORM_SRCS}
     ${SAVEDATA_CRYPTO}/SHA1.c)
   target_include_directories(kzl_startup_tests PRIVATE "${RT}")
   target_compile_definitions(kzl_startup_tests PRIVATE
     _CRT_SECURE_NO_WARNINGS
     SR_GAME_TITLE="Killzone: Liberation"
+    SR_APPLICATION_DATA_NAME="KZLRecomp"
     SR_EXPECTED_ISO_SIZE=3
     SR_EXPECTED_ISO_SHA1="a9993e364706816aba3e25717850c26c9cd0d89d")
   target_compile_options(kzl_startup_tests PRIVATE ${KZL_FP_FLAGS})
   add_test(NAME kzl_startup_check COMMAND kzl_startup_tests)
+
+  add_executable(kzl_settings_path_tests EXCLUDE_FROM_ALL
+    ${PSP_RECOMP_DIR}/tools/tests/settings_path_test.c
+    ${RT}/settings_path.c
+    ${KZL_PLATFORM_SRCS})
+  target_include_directories(
+    kzl_settings_path_tests PRIVATE
+    "${RT}" "${PSP_RECOMP_DIR}/tools/tests")
+  target_compile_definitions(kzl_settings_path_tests PRIVATE
+    _CRT_SECURE_NO_WARNINGS
+    SR_APPLICATION_DATA_NAME="KZLRecomp")
+  target_compile_options(kzl_settings_path_tests PRIVATE ${KZL_FP_FLAGS})
+  add_test(NAME kzl_settings_path COMMAND kzl_settings_path_tests)
 
   add_executable(kzl_audio_mixer_tests EXCLUDE_FROM_ALL
     ${PSP_RECOMP_DIR}/tools/tests/audio_mixer_test.c
@@ -421,15 +560,42 @@ if(BUILD_TESTING)
   target_compile_options(kzl_audio_mixer_tests PRIVATE ${KZL_FP_FLAGS})
   add_test(NAME kzl_audio_mixer COMMAND kzl_audio_mixer_tests)
 
+  if(NOT WIN32)
+    add_executable(kzl_audio_sdl_lifecycle_tests EXCLUDE_FROM_ALL
+      ${PSP_RECOMP_DIR}/tools/tests/audio_sdl_lifecycle_test.c
+      ${RT}/audio_sdl.c
+      ${RT}/audio_mixer.c)
+    target_include_directories(
+      kzl_audio_sdl_lifecycle_tests PRIVATE "${RT}")
+    target_compile_options(
+      kzl_audio_sdl_lifecycle_tests PRIVATE ${KZL_FP_FLAGS})
+    target_link_libraries(
+      kzl_audio_sdl_lifecycle_tests PRIVATE SDL3::SDL3)
+    add_test(
+      NAME kzl_audio_sdl_lifecycle
+      COMMAND kzl_audio_sdl_lifecycle_tests)
+  endif()
+
   add_executable(kzl_input_tests EXCLUDE_FROM_ALL
     ${PSP_RECOMP_DIR}/tools/tests/input_config_test.c
     ${RT}/input_config.c
     ${RT}/settings_path.c
-    ${RT}/platform.c)
+    ${KZL_PLATFORM_SRCS})
   target_include_directories(kzl_input_tests PRIVATE "${RT}")
   target_compile_definitions(kzl_input_tests PRIVATE _CRT_SECURE_NO_WARNINGS)
   target_compile_options(kzl_input_tests PRIVATE ${KZL_FP_FLAGS})
   add_test(NAME kzl_input_config COMMAND kzl_input_tests)
+
+  add_executable(kzl_input_script_tests EXCLUDE_FROM_ALL
+    ${PSP_RECOMP_DIR}/tools/tests/input_script_test.c
+    ${RT}/input_script.c)
+  target_include_directories(kzl_input_script_tests PRIVATE
+    "${RT}" "${PSP_RECOMP_DIR}/tools/tests")
+  target_compile_definitions(
+    kzl_input_script_tests PRIVATE _CRT_SECURE_NO_WARNINGS)
+  target_compile_options(
+    kzl_input_script_tests PRIVATE ${KZL_FP_FLAGS})
+  add_test(NAME kzl_input_script COMMAND kzl_input_script_tests)
 
   add_executable(kzl_twinstick_tests EXCLUDE_FROM_ALL
     ${PSP_RECOMP_DIR}/tools/tests/kzl_twinstick_test.c
@@ -443,8 +609,9 @@ if(BUILD_TESTING)
   add_executable(kzl_graphics_config_tests EXCLUDE_FROM_ALL
     ${PSP_RECOMP_DIR}/tools/tests/graphics_config_test.c
     ${RT}/graphics_config.c
+    ${RT}/graphics_auto.c
     ${RT}/settings_path.c
-    ${RT}/platform.c)
+    ${KZL_PLATFORM_SRCS})
   target_include_directories(kzl_graphics_config_tests PRIVATE "${RT}")
   target_compile_definitions(
     kzl_graphics_config_tests PRIVATE _CRT_SECURE_NO_WARNINGS)
@@ -455,6 +622,7 @@ if(BUILD_TESTING)
   if(KZL_ENABLE_VULKAN)
     add_executable(kzl_vulkan_shader_state_tests EXCLUDE_FROM_ALL
       ${PSP_RECOMP_DIR}/tools/tests/vulkan_shader_state_test.c
+      ${RT}/gpu_sdl3vk/present_layout.c
       ${RT}/gpu_sdl3vk/shader_state.c)
     target_include_directories(kzl_vulkan_shader_state_tests PRIVATE "${RT}")
     target_compile_options(kzl_vulkan_shader_state_tests PRIVATE ${KZL_FP_FLAGS})
@@ -503,7 +671,7 @@ if(BUILD_TESTING)
     ${RT}/vfpu_interp.c
     ${RT}/vfpu_asin.c
     ${RT}/settings_path.c
-    ${RT}/platform.c
+    ${KZL_PLATFORM_SRCS}
     ${RT}/perf_stats.c
     ${RT}/interp_runtime.cpp
     ${PSP_RECOMP_DIR}/src/ref/interp.cpp)
@@ -513,6 +681,32 @@ if(BUILD_TESTING)
   target_compile_features(kzl_interp_tests PRIVATE cxx_std_17)
   target_compile_options(kzl_interp_tests PRIVATE ${KZL_FP_FLAGS})
   add_test(NAME kzl_interpreter_fallback COMMAND kzl_interp_tests)
+
+  if(NOT WIN32)
+    set(KZL_FIBER_TEST_SRCS
+      ${PSP_RECOMP_DIR}/tools/tests/fiber_test.c
+      ${KZL_PLATFORM_SRCS})
+    if(APPLE)
+      list(APPEND KZL_FIBER_TEST_SRCS
+        ${PSP_RECOMP_DIR}/tools/tests/fiber_arm64_test.S)
+    endif()
+    add_executable(kzl_fiber_tests EXCLUDE_FROM_ALL
+      ${KZL_FIBER_TEST_SRCS})
+    target_include_directories(kzl_fiber_tests PRIVATE "${RT}")
+    target_compile_options(kzl_fiber_tests PRIVATE ${KZL_FP_FLAGS})
+    add_test(NAME kzl_fiber_context COMMAND kzl_fiber_tests)
+  endif()
+
+  add_executable(kzl_host_lifecycle_tests EXCLUDE_FROM_ALL
+    ${PSP_RECOMP_DIR}/tools/tests/host_lifecycle_test.c
+    ${RT}/host_lifecycle.c)
+  target_include_directories(
+    kzl_host_lifecycle_tests PRIVATE "${RT}")
+  target_compile_options(
+    kzl_host_lifecycle_tests PRIVATE ${KZL_FP_FLAGS})
+  add_test(
+    NAME kzl_host_lifecycle
+    COMMAND kzl_host_lifecycle_tests)
 
   add_executable(kzl_hle_tests EXCLUDE_FROM_ALL tools/tests/hle_smoke.c ${KZL_RUNTIME_SRCS})
   kzl_configure_runtime_target(kzl_hle_tests)

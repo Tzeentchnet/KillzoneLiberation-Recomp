@@ -28,10 +28,10 @@ game code, disc data, saves, or other game assets.
 
 | Area | Current state |
 |---|---|
-| Platform | Windows 10/11 x64 and macOS Apple Silicon; clang-cl/D3D12 remains the primary Windows path |
-| Gameplay | Windows: boot through Mission 1 completed; Apple Silicon: the first mission's level and player render with Vulkan through MoltenVK; full-game validation remains in progress |
-| Graphics | D3D12, Vulkan, and software renderers; Vulkan runs through MoltenVK/Metal on macOS; hardware 1x-5x xBRZ texture scaling |
-| Audio/video/input | XAudio2 or SDL3 audio, SAS/ATRAC, keyboard/mouse, and SDL gamepads; H.264 PMF video uses Media Foundation on Windows and hardware-accelerated VideoToolbox on macOS |
+| Platform | Windows 10/11 x64 and macOS Apple Silicon; macOS also has a locally built, self-contained, Finder-launchable app |
+| Gameplay | Windows: boot through Mission 1 completed; Apple Silicon: deterministic menu, movie, and live Mission 1 movement routes pass; full-game validation remains in progress |
+| Graphics | D3D12, Vulkan, and software renderers; macOS uses Retina-aware Vulkan through MoltenVK/Metal with 1x-8x internal rendering, 1x-5x xBRZ, and SMAA 1x High |
+| Audio/video/input | XAudio2 or SDL3 audio, SAS/ATRAC, keyboard/mouse, SDL gamepads, and optional twin-stick controls; H.264 PMF video uses Media Foundation on Windows and hardware-accelerated VideoToolbox on macOS |
 | Saves | PSP-compatible secure savedata is implemented; full-game validation remains in progress |
 | Online | Original infrastructure services are gone; ad-hoc multiplayer is not implemented |
 | Distribution | Source release only; no redistributable game executable is published |
@@ -176,6 +176,46 @@ cmake --build --preset macos-arm64 --target kzl_driver
 The preset builds an arm64 Mach-O executable and selects the SDL3/Vulkan
 renderer. MoltenVK translates that Vulkan work to Metal; this is the supported
 Metal-backed path rather than a separate native Metal renderer.
+The Vulkan window renders at the Mac display's native backing resolution,
+recreates its swapchain when the drawable or display scale changes, and
+supports both F11 and Control-Command-F for fullscreen. Its optional
+three-pass SMAA 1x High post-process runs at the selected internal resolution.
+New Mac configurations use deterministic **Automatic** quality. The policy
+selects a conservative Apple-GPU tier, caps it to useful drawable detail and
+Vulkan limits, and logs the choice; **Manual** retains complete control.
+M1/M2 use 2x (3x for Pro/Max/Ultra), M3/M4 use 3x (4x for
+Pro/Max/Ultra), and the measured M5 profile uses 4x with SMAA. Unknown devices
+fall back to 2x. xBRZ remains a manual option because its measured warm-up
+cost is not yet suitable for an automatic default.
+The Vulkan path also persists its GE and SMAA pipeline cache under Application
+Support. Cache files are accepted only for the matching device, driver,
+pipeline-cache UUID, shader set, and cache schema, then replaced atomically at
+clean shutdown.
+At scaled internal resolutions, capable Vulkan devices upload logical
+framebuffer data once and expand it with an exact nearest GPU blit instead of
+CPU-expanding the host transfer. The CPU path remains available for
+diagnostic A/B runs.
+The macOS preset intentionally remains generic arm64 without LTO. On measured
+M5 Mission 1 runs, AppleClang ThinLTO increased native guest execution time by
+about 19% and grew the executable by about 96 MiB. `-mcpu=apple-m1` changed
+native execution time by about -2.4% but produced no repeatable frame-time or
+pacing improvement. Both experiments remained pixel-exact and were rejected
+rather than becoming release defaults.
+
+Build the local Finder-launchable app after generating the game image:
+
+```bash
+cmake --build --preset macos-arm64 --target kzl_app
+open "out/build/macos-arm64/Killzone Liberation.app"
+```
+
+The app embeds SDL3, the Vulkan loader, MoltenVK, free fonts, runtime assets,
+and the locally generated image. It does not copy or embed the ISO. The local
+bundle is ad-hoc signed, checks that no disc image was included, and launches
+without Homebrew library or Vulkan environment paths. Its third-party
+libraries inherit the OS compatibility of the locally installed packages;
+the protected M1 release matrix is still required before publishing a minimum
+supported macOS claim.
 
 Homebrew's Vulkan loader normally discovers MoltenVK automatically. If device
 enumeration fails, point the loader at its ICD explicitly:
@@ -184,7 +224,10 @@ enumeration fails, point the loader at its ICD explicitly:
 export VK_ICD_FILENAMES="$(brew --prefix molten-vk)/etc/vulkan/icd.d/MoltenVK_icd.json"
 ```
 
-Run with the verified v1.20 image:
+The first Finder launch opens a native picker for the verified v1.20 image,
+then native graphics and controller settings. The selected ISO path is stored
+under Application Support; `PSP_ISO` remains the highest-priority automation
+override. The command-line development path remains available:
 
 ```bash
 export PSP_ISO=/path/to/Killzone_Liberation_v1.20_US.ISO
@@ -201,12 +244,13 @@ cmake --preset macos-arm64 \
   -DCMAKE_OSX_SYSROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk
 ```
 
-The first mission's level and player have been verified with the Vulkan GE
-renderer through MoltenVK on Apple Silicon. New macOS graphics configurations
-default to 1x internal resolution for performance; existing `graphics.ini`
-settings are preserved. Set `internal_resolution = 1` in that file if needed,
-or use `SR_VK_SCALE=1` as a launch-time override. Higher resolutions can be
-slower. On an Apple M5, one normally paced first-mission test averaged
+Bounded menu, movie, and live Mission 1 movement routes have been verified
+with the Vulkan GE renderer through MoltenVK on Apple Silicon. New macOS
+graphics configurations use the Automatic policy described above; legacy
+files migrate to Manual and retain their exact values. Select Manual and set
+`internal_resolution = 1`, or use `SR_VK_SCALE=1`, to force native resolution
+for diagnostics. Higher resolutions can be slower. On an Apple M5, one
+normally paced first-mission test averaged
 30.312, 29.979, and 29.843 game presentations/s at 2x, 3x, and 4x,
 respectively, with texture scaling off. The 3x and 4x results are close to
 nominal 30 FPS but do not reach 30 FPS exactly. Other scenes and hardware may
@@ -223,37 +267,49 @@ the movie's logical tail. Set `SR_MPEGLOG=1` to log decoder selection and movie
 playback. If hardware decoding is unavailable, the decoder reports an error
 rather than silently using software.
 
-The macOS port uses a terminal text-entry fallback. The scheduler currently
-maps PSP threads to macOS `ucontext` fibers, which Apple marks deprecated but
-still provides.
+PSP text entry uses a native AppKit prompt on macOS. The scheduler maps PSP
+threads to a native arm64 fiber context with guarded, demand-paged stacks. The
+switch preserves the AArch64 nonvolatile integer registers, ABI-required SIMD
+lanes, stack/frame/link registers, FPCR, and FPSR without relying on Apple's
+deprecated `ucontext` API.
+Native sleep/wake notifications pause and resume SDL audio, rebase scheduler
+pacing so time asleep is not replayed as a catch-up burst, and force a redraw.
+SDL foreground, focus, minimize, display, and controller hot-plug events clear
+stale input and reopen another connected gamepad when available.
 
 ## Configuration and controls
 
-The first Windows run opens native graphics and controller settings. Run
-`kzl.exe --configure` to reopen both dialogs or `kzl.exe --configure-input`
-for controller settings only. On macOS, the runtime writes the same portable
-`graphics.ini` and `input.ini` files beside `kzl` and prints their paths;
-edit them directly because native settings dialogs are not implemented there.
+The first Windows or macOS app launch opens native graphics and controller
+settings. Run `kzl --configure` to reopen both dialogs or
+`kzl --configure-input` for controller settings only.
 
 ```ini
 # Windows default
 renderer = d3d12
+quality = manual
 internal_resolution = 2
 texture_scale = 1
 d3d12_full_rate = 0
 ```
 
-The macOS defaults are `renderer = vk` and `internal_resolution = 1`.
+The macOS defaults are `renderer = vk` and `quality = auto`. Existing
+configuration files without a `quality` entry migrate to Manual and keep
+their exact resolution, texture, and anti-aliasing values.
+Mutable Mac files live under
+`~/Library/Application Support/KZLRecomp/`: `graphics.ini`, `input.ini`,
+`launcher.ini`, and the shared `ms0` tree. Existing sibling graphics and input
+files are copied there only when the destination does not already exist.
+`SR_SETTINGS_DIR`, the explicit config variables, `SR_FSDIR`,
+`SR_MEMSTICK`, and `PSP_ISO` continue to isolate automation.
 
-The controller dialog's **Save & Launch Game** button saves pending bindings
+The controller dialog's **Play Game** button saves pending bindings
 and starts the game with the selected graphics settings. The build copies
-`kzl_image.bin` beside `kzl.exe` for this launcher path; `PSP_ISO` must still
-point to the supported disc image for startup validation.
+`kzl_image.bin` beside the development executable and into the locally built
+app's resources. The ISO remains external and is revalidated before use.
 
 Renderer options are D3D12 (recommended on Windows, 1x-8x resolution with
 1x-5x xBRZ texture scaling), Vulkan (1x-8x resolution with the same texture
-scaling), and a software reference path. `input.ini`, created
-beside `kzl.exe`, holds the rebinding/analog configuration, including an
+scaling and SMAA 1x High), and a software reference path. `input.ini` holds the rebinding/analog configuration, including an
 experimental, opt-in twin-stick scheme.
 
 See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for the full graphics

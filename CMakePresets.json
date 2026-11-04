@@ -43,6 +43,7 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
         "CMAKE_OSX_ARCHITECTURES": "arm64",
+        "CMAKE_OSX_DEPLOYMENT_TARGET": "13.0",
         "KZL_ENABLE_D3D12": "OFF",
         "KZL_ENABLE_VULKAN": "ON",
         "KZL_FETCH_SDL3": "OFF"

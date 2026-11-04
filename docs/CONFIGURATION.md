@@ -1,7 +1,7 @@
 # Graphics and input configuration
 
-Full reference for the Windows native graphics dialog, the controller
-remapper, the portable INI files, and the experimental twin-stick scheme. See
+Full reference for the Windows and macOS native graphics dialogs, the
+controller remapper, the portable INI files, and the experimental twin-stick scheme. See
 the [README](../README.md#configuration-and-controls) for the quick-start
 version.
 
@@ -9,13 +9,15 @@ version.
 
 The native graphics dialog exposes:
 
+- **Quality:** Automatic (recommended on macOS) or Manual.
 - **Renderer:** Automatic, D3D12 hardware, Vulkan, or software reference.
 - **Internal resolution:** 1x through 8x on D3D12 and Vulkan.
 - **Texture upscaling:** Off or 2x through 5x xBRZ on hardware renderers.
+- **Anti-aliasing:** Off or SMAA 1x High on D3D12 and Vulkan.
 - **D3D12 shading:** Balanced variable-rate shading or full-resolution
   shading.
-- **Fullscreen:** F11 toggles borderless desktop fullscreen on D3D12 and
-  Vulkan.
+- **Fullscreen:** F11 toggles fullscreen on D3D12 and Vulkan.
+  Control-Command-F is also supported on macOS.
 
 D3D12 and Vulkan scale their 512x272 logical offscreen GE target before
 presenting to the desktop swapchain. On Apple Silicon, Vulkan runs through
@@ -23,11 +25,46 @@ MoltenVK and is presented by Metal. The level and player in the first mission
 have been checked with this path; the rest of the game has not been fully
 validated. Setting `SR_GPU=sw` selects the software GE reference renderer.
 
-| Renderer | Internal GE resolution | Texture scaling | Role |
-|---|---|---|---|
-| D3D12 | 1x-8x | 1x-5x xBRZ | Recommended high-resolution renderer |
-| Vulkan | 1x-8x | 1x-5x xBRZ | Hardware renderer backed by Metal on Apple Silicon |
-| Software | Native PSP resolution | None | Pixel-exact reference baseline |
+| Renderer | Internal GE resolution | Texture scaling | Anti-aliasing | Role |
+|---|---|---|---|---|
+| D3D12 | 1x-8x | 1x-5x xBRZ | SMAA 1x High | Recommended high-resolution renderer |
+| Vulkan | 1x-8x | 1x-5x xBRZ | SMAA 1x High | Hardware renderer backed by Metal on Apple Silicon |
+| Software | Native PSP resolution | None | None | Pixel-exact reference baseline |
+
+### Automatic Apple quality
+
+Automatic quality is deterministic rather than a launch-time benchmark. It
+uses the Vulkan device name, image-size limits, SMAA format support, and the
+Retina drawable size. Manual resolution, texture, and anti-aliasing values
+remain in `graphics.ini` and apply again when Manual is selected.
+
+| Detected Apple GPU | Starting internal resolution |
+|---|---:|
+| M1/M2 | 2x |
+| M1/M2 Pro, Max, or Ultra | 3x |
+| M3/M4 | 3x |
+| M3/M4 Pro, Max, or Ultra | 4x |
+| M5 | 4x with SMAA when supported |
+| Unknown/future device | Conservative 2x |
+
+The selected scale is reduced when the current drawable cannot show the
+additional detail or the Vulkan image limit is lower. Automatic mode keeps
+xBRZ off because measured texture warm-up cost is not yet inside the pacing
+budget. SMAA is currently selected automatically only for the measured M5
+profile; it remains available manually on every capable Vulkan device. The
+runtime logs the profile and exact reason at launch. Selecting the software
+reference renderer resolves Automatic quality to native 1x without SMAA or
+texture scaling.
+
+Vulkan pipeline compilation is cached automatically in
+`cache/vulkan-pipelines.bin` below the settings directory. The runtime rejects
+incompatible or corrupt files using device, driver, Vulkan UUID, shader, and
+cache-schema keys, then rebuilds and atomically replaces them. This cache does
+not change graphics output or Manual settings.
+
+At 2x and higher, Vulkan also uses a capability-checked nearest GPU blit to
+expand logical framebuffer uploads. This preserves the exact replicated
+pixels while avoiding scale-squared host transfer traffic.
 
 ### Highest-quality 4K path
 
@@ -51,12 +88,12 @@ resolution** shades every internal-resolution fragment.
 `SR_D3D12_VRS=0` remains available as an environment override that forces
 full-rate shading.
 
-New macOS configurations default to 1x internal resolution for performance;
-other platforms default to 2x. Existing `graphics.ini` files are not changed.
-Set `internal_resolution = 1` in the file beside `kzl`, or launch with
-`SR_VK_SCALE=1`, to select native resolution. Set the value to `2`, `3`, or
-`4` for higher internal resolutions; F11 can make the extra detail easier to
-see.
+New macOS configurations default to Automatic quality. Existing
+`graphics.ini` files without `quality` migrate to Manual and are not changed.
+Set `internal_resolution = 1` in `graphics.ini`, or launch with
+`SR_VK_SCALE=1`, and set `quality = manual` to select native resolution.
+Set the value to `2`, `3`, or `4` for higher manual internal resolutions; F11
+can make the extra detail easier to see.
 
 On an Apple M5, a normally paced first-mission test with texture scaling off
 measured game presentations over a 1,300-presentation interval:
@@ -75,8 +112,9 @@ other scenes and on other hardware remain unverified.
 
 ## Input defaults
 
-The rebinding/analog configuration is portable: `input.ini` is created beside
-`kzl.exe` on Windows or `kzl` on macOS, not under AppData. The default PC
+The rebinding/analog configuration is portable. On Windows it is created
+beside `kzl.exe`; on macOS it is stored under
+`~/Library/Application Support/KZLRecomp/`. The default PC
 scheme uses WASD for the analog stick, arrow keys for the D-pad, left mouse to
 fire, right mouse to aim, middle mouse to reload, Space for Cross/interact, G
 for grenades, and Q/E for the shoulder buttons. SDL-compatible gamepads are
@@ -94,7 +132,8 @@ On Windows, open the native controller remapper directly with:
 out\build\clang-cl\kzl.exe --configure-input
 ```
 
-On macOS, edit `out/build/macos-arm64/input.ini`; valid changes hot-reload
+On macOS, use the native controller window or edit
+`~/Library/Application Support/KZLRecomp/input.ini`; valid changes hot-reload
 while the game is running.
 
 Each PSP action accepts up to four comma-separated gamepad inputs. Use `none`
