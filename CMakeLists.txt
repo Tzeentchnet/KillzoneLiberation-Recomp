@@ -351,7 +351,9 @@ if(KZL_RUNTIME_ONLY)
   target_include_directories(kzl_runtime_compile PRIVATE "${RT}")
   target_compile_definitions(kzl_runtime_compile PRIVATE
     _CRT_SECURE_NO_WARNINGS
-    SR_APPLICATION_DATA_NAME="KZLRecomp")
+    SR_APPLICATION_DATA_NAME="KZLRecomp"
+    SR_ENABLE_KZL_TWIN_STICK=1
+    SR_ISO_PICKER_TITLE="Choose Killzone: Liberation v1.20")
   if(KZL_ENABLE_D3D12)
     target_compile_definitions(kzl_runtime_compile PRIVATE SR_D3D12)
     target_link_libraries(kzl_runtime_compile PRIVATE d3d12 dxgi SDL3::SDL3)
@@ -375,7 +377,9 @@ function(kzl_configure_runtime_target target)
   target_compile_definitions(${target} PRIVATE
     _CRT_SECURE_NO_WARNINGS
     SR_GAME_TITLE="Killzone: Liberation"
-    SR_APPLICATION_DATA_NAME="KZLRecomp")
+    SR_APPLICATION_DATA_NAME="KZLRecomp"
+    SR_ENABLE_KZL_TWIN_STICK=1
+    SR_ISO_PICKER_TITLE="Choose Killzone: Liberation v1.20")
   target_compile_features(${target} PRIVATE cxx_std_17)
   target_compile_options(${target} PRIVATE ${KZL_FP_FLAGS})
   target_link_libraries(${target} PRIVATE
@@ -582,7 +586,9 @@ if(BUILD_TESTING)
     ${RT}/settings_path.c
     ${KZL_PLATFORM_SRCS})
   target_include_directories(kzl_input_tests PRIVATE "${RT}")
-  target_compile_definitions(kzl_input_tests PRIVATE _CRT_SECURE_NO_WARNINGS)
+  target_compile_definitions(kzl_input_tests PRIVATE
+    _CRT_SECURE_NO_WARNINGS
+    SR_ENABLE_KZL_TWIN_STICK=1)
   target_compile_options(kzl_input_tests PRIVATE ${KZL_FP_FLAGS})
   add_test(NAME kzl_input_config COMMAND kzl_input_tests)
 
