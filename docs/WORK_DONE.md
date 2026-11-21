@@ -2,9 +2,27 @@
 
 A dated log of finished work, newest first. Each entry lists what was done,
 what it produced, and the findings or tasks it touched. For current status and
-remaining work, start with the repository README and [TODO.md](TODO.md).
+remaining work, start with the [repository README](../README.md) and
+[TODO.md](TODO.md). Branch names, repository visibility, platform scope, and
+submodule pins in older entries describe the state at that entry's date.
 
 ---
+
+## 2026-11-20 — Session 5: integrate Apple Silicon into the public mainline (F-104)
+- Merged the runtime and title Apple Silicon histories into their respective
+  `main` branches, published the runtime first, and repinned the title
+  submodule to that integrated runtime. The graphics-config merge preserves
+  both automatic quality and startup skipping with distinct persisted setting
+  bits.
+- Kept the Windows D3D12, Vulkan, and software paths while adding the native
+  Apple Silicon app path with Vulkan/MoltenVK, SDL3 audio, VideoToolbox,
+  AppKit dialogs, automatic quality, and the opt-in twin-stick enhancement.
+- Passed the complete runtime suite, built the native arm64 app, and passed
+  all 19 title CTests against the integrated mainline.
+- Added the schema-validated `.recomp.json`, refreshed the GitHub description
+  and topics, and rewrote the public README and documentation for both
+  platforms. The README also links the related Killzone: Liberation Blender
+  importer.
 
 ## 2026-10-20 — Session 4g: publish the source-preview repositories (T-8.4)
 - Audited every blob reachable from the parent `main`, runtime `main`, and runtime `kzl` branches for protected

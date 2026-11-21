@@ -1,15 +1,22 @@
 # Graphics and input configuration
 
 Full reference for the Windows and macOS native graphics dialogs, the
-controller remapper, the portable INI files, and the experimental twin-stick scheme. See
-the [README](../README.md#configuration-and-controls) for the quick-start
-version.
+controller remapper, the shared INI format, and the experimental twin-stick
+scheme. See the [README](../README.md#configuration-and-controls) for the
+quick-start version.
+
+## Platform defaults
+
+| Platform | Default renderer and quality | Settings location | Disc selection |
+|---|---|---|---|
+| Windows 10/11 x64 | D3D12, Manual, 2x | Beside `kzl.exe` | Set `PSP_ISO` |
+| Apple Silicon macOS | Vulkan through MoltenVK, Automatic | `~/Library/Application Support/KZLRecomp/` | Native picker or `PSP_ISO` |
 
 ## Graphics dialog
 
 The native graphics dialog exposes:
 
-- **Quality:** Automatic (recommended on macOS) or Manual.
+- **Quality:** Automatic or Manual on macOS; Windows uses Manual.
 - **Renderer:** Automatic, D3D12 hardware, Vulkan, or software reference.
 - **Internal resolution:** 1x through 8x on D3D12 and Vulkan.
 - **Texture upscaling:** Off or 2x through 5x xBRZ on hardware renderers.
@@ -27,8 +34,8 @@ validated. Setting `SR_GPU=sw` selects the software GE reference renderer.
 
 | Renderer | Internal GE resolution | Texture scaling | Anti-aliasing | Role |
 |---|---|---|---|---|
-| D3D12 | 1x-8x | 1x-5x xBRZ | SMAA 1x High | Recommended high-resolution renderer |
-| Vulkan | 1x-8x | 1x-5x xBRZ | SMAA 1x High | Hardware renderer backed by Metal on Apple Silicon |
+| D3D12 | 1x-8x | 1x-5x xBRZ | SMAA 1x High | Recommended Windows renderer |
+| Vulkan | 1x-8x | 1x-5x xBRZ | SMAA 1x High | Windows option; production Metal-backed renderer on Apple Silicon |
 | Software | Native PSP resolution | None | None | Pixel-exact reference baseline |
 
 ### Automatic Apple quality

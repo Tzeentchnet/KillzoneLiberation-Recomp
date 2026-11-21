@@ -6,6 +6,15 @@ Target: Killzone: Liberation UCUS-98646 v1.20, loaded at `0x08804000`.
 Every game address below applies only to the target pinned in
 [`config/kzl.toml`](../config/kzl.toml).
 
+> [!NOTE]
+> This document preserves the original investigation and the failed Stage 1
+> experiment. Stage 2 is now implemented as an opt-in, default-off runtime
+> enhancement: the left stick drives movement, a native side channel carries
+> the right-stick aim vector, and a targeted on-foot controller hook applies
+> facing. See [CONFIGURATION.md](CONFIGURATION.md#twin-stick-controller-scheme)
+> for current user settings. It remains experimental and does not imply that
+> the original PSP game contained a hidden native twin-stick mode.
+
 ## Summary
 
 The game still contains a hidden alternate movement mode and a broader,
@@ -19,14 +28,13 @@ native twin-stick implementation:
 - the PSP input backend supplies one analog pair, `Lx/Ly`;
 - the game profile stores exactly two axis mappings;
 - gameplay selects either analog movement or digital D-pad movement;
-- no second continuous aim vector is delivered to the player controller; and
-- the PC runtime currently discards right-stick axes.
+- no second continuous aim vector is delivered to the player controller.
 
-A gamepad-only experiment is still worthwhile. The cheapest test is to enable
-the hidden D-pad movement mode, synthesize PSP D-pad directions from the host
-left stick, and send the host right stick through the PSP analog pair. If that
-does not independently rotate the player's aim, a real implementation will
-need a native second-stick side channel and a targeted player-controller hook.
+The first gamepad-only experiment enabled the hidden D-pad movement mode,
+synthesized PSP D-pad directions from the host left stick, and sent the host
+right stick through the PSP analog pair. That did not independently rotate the
+player's aim. The implemented Stage 2 path therefore adds a native
+second-stick side channel and a targeted player-controller hook.
 
 ## Confidence labels
 
@@ -216,23 +224,27 @@ The same broad control/profile strings are present in both v1.00 and v1.20.
 Neither executable contains a `SV_PAD_RIGHT_ANALOG` counterpart to the
 existing `SV_PAD_LEFT_ANALOG` string.
 
-## Current native runtime limitations
+## Original native runtime limitations
 
-The native runtime currently preserves the PSP's one-stick model on every
-presenter:
+At the start of the investigation, the native runtime preserved the PSP's
+one-stick model on every presenter:
 
 - [`external/psp-recomp/src/rt/gpu_d3d12/device.cpp`](../external/psp-recomp/src/rt/gpu_d3d12/device.cpp)
-  reads only `SDL_GAMEPAD_AXIS_LEFTX` and `SDL_GAMEPAD_AXIS_LEFTY`.
+  read only `SDL_GAMEPAD_AXIS_LEFTX` and `SDL_GAMEPAD_AXIS_LEFTY`.
 - [`external/psp-recomp/src/rt/gpu_sdl3vk/sdl3vk.c`](../external/psp-recomp/src/rt/gpu_sdl3vk/sdl3vk.c)
-  does the same.
+  did the same.
 - [`external/psp-recomp/src/rt/gui.c`](../external/psp-recomp/src/rt/gui.c)
-  declares XInput `sThumbRX/sThumbRY`, but copies only `sThumbLX/sThumbLY`
-  into the live pad state. Its DirectInput path also normalizes only X and Y.
+  declared XInput `sThumbRX/sThumbRY`, but copied only `sThumbLX/sThumbLY`
+  into the live pad state. Its DirectInput path also normalized only X and Y.
 - [`external/psp-recomp/src/rt/input_config.h`](../external/psp-recomp/src/rt/input_config.h)
-  has one set of analog directions and one analog transform.
+  had one set of analog directions and one analog transform.
 
 `SR_PAD_RIGHT_STICK` is the right-stick click button. It does not represent
 right-stick axes.
+
+The current runtime captures both aim axes, exposes them through
+`SrInputSticks`, and applies shared movement and aim transforms before the
+optional game-specific facing hook.
 
 ## Verdict
 
@@ -253,15 +265,15 @@ branches that honor the D-pad flag all remain in the executable.
 
 ### Native recomp enhancement
 
-**Feasible, but still experimental.**
+**Implemented, opt-in, and still experimental.**
 
-The hidden mode offers a useful first test because it can move locomotion away
-from the PSP analog pair. Whether the remaining analog direction affects
-on-foot aim in a useful way must be verified interactively. Static evidence
-suggests a complete implementation will probably need a targeted aim/facing
-hook.
+The hidden mode successfully moves locomotion away from the PSP analog pair,
+but the remaining analog direction did not control aim. The current
+implementation therefore uses the targeted aim/facing hook described below.
+The feature is disabled by default, keeps centered aim on the original path,
+and leaves unverified mounted-gun and vehicle contexts unchanged.
 
-## Proposed experiment
+## Implementation record
 
 The experiment must be opt-in and default off so baseline behavior and
 protected captures remain unchanged.
@@ -289,14 +301,15 @@ The current Stage 2 experiment carries the transformed aim vector through a
 native side channel. A generated instruction hook at `0x08900688`, inside
 `SoldierJoystickController`, replaces the base facing vector at controller
 offset `+0x114` immediately before the original target and auto-aim correction.
-Centered aim leaves the original vector untouched. On-foot gameplay validation
-of this second-vector path is still required.
+Centered aim leaves the original vector untouched. The path is exposed through
+the controller settings, but broader gameplay and context validation is still
+required.
 
 `input.ini` changes are polled during presentation and hot-reloaded after an
 atomic controller-dialog save. Invalid replacements are rejected without
 discarding the last valid mappings or active twin-stick policy.
 
-### Stage 1: test the surviving hidden mode
+### Stage 1 plan (completed)
 
 1. Capture both host gamepad sticks in the Win32, D3D12, and Vulkan paths.
 2. Apply independent radial transforms to the movement and aim sticks.
@@ -329,7 +342,7 @@ If the right stick does not independently affect on-foot aim while hidden
 D-pad movement is enabled, do not add timing hacks or alternate-frame input.
 Proceed to a real second-vector design.
 
-## Second-vector design if Stage 1 fails
+## Stage 2 second-vector design
 
 ### Host-side API
 
@@ -414,7 +427,8 @@ Do not change the serialized profile layout.
 
 Generated game code and RAM dumps are local, ignored artifacts and must not be
 committed. After extracting the supported image and running generation, the
-key routines can be inspected with:
+key routines can be inspected with the following PowerShell commands. On
+macOS, use `python3`, forward slashes, and shell line continuations instead.
 
 ```powershell
 python tools\kzl\mipsdis.py `

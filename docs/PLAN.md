@@ -1,8 +1,12 @@
-# Killzone Liberation: Windows / Direct3D 12 static recompilation plan
+# Historical plan — Windows / Direct3D 12 static recompilation
 
-> This is the original implementation plan and is retained for architectural
-> context. See [TODO.md](TODO.md) for remaining work, [WORK_DONE.md](WORK_DONE.md)
-> for completed work, and the repository README for the current public status.
+> [!NOTE]
+> This is the original implementation plan and intentionally preserves its
+> Windows-only assumptions, private-repository state, branch names, estimates,
+> and predicted architecture. It is not a current build guide. The project now
+> supports Windows and Apple Silicon from the public `main` branches; see the
+> [repository README](../README.md), [TODO.md](TODO.md), and
+> [WORK_DONE.md](WORK_DONE.md) for current state.
 
 **Goal:** a native Windows x64 executable that runs *Killzone: Liberation* (UCUS-98646 v1.20) from a disc image
 the user supplies. The game's MIPS code is statically recompiled to C, system calls are high-level emulated (HLE),

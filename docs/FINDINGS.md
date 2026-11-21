@@ -1,4 +1,4 @@
-# FINDINGS — Killzone: Liberation (UCUS-98646 v1.20) → Windows / Direct3D 12 recomp
+# FINDINGS — Killzone: Liberation (UCUS-98646 v1.20) static recompilation
 
 Things learned about the target that shape the plan. Each entry gives the evidence,
 how confident we are, and what it means for the work. IDs are stable, so TODO.md
@@ -7,6 +7,11 @@ and WORK_DONE.md can cite them.
 Confidence levels: **Confirmed** (measured directly) · **Likely** (strong inference) · **Hypothesis** (still to verify).
 
 Raw data lives in [research/](../research/). The scripts that produced it are in [tools/survey/](../tools/survey/).
+Early entries preserve the original Windows/D3D12 bring-up context; later
+entries cover the shared Vulkan runtime and Apple Silicon integration.
+Timestamped toolchain, repository-visibility, branch, and submodule states are
+historical evidence rather than current setup instructions. See the
+[repository README](../README.md) for the current platform and build matrix.
 
 ---
 
@@ -1577,6 +1582,10 @@ Ad-hoc mode handled co-op and versus.
 
 ### F-040 What it gives us — Confirmed (cloned 2026-10-19, HEAD `da17b0e`; forked as the private mirror
 `Tzeentchnet/psp-recomp`, our changes on branch `kzl`)
+This heading records the repository state when the finding was made. Both
+repositories are now public and the project/runtime work is integrated into
+their `main` branches (F-104).
+
 - **Python tools:** `analyze.py` (function discovery), `prxload.py` (applies type-A PRX relocations),
   `imports.py` (NID map), `codegen.py` (MIPS→C, VFPU included, with trace hooks), and the verification tools
   `tracediff.py`, `ppmdiff.py`, `funcdiff_cmp.py`, `microtest_gate.py`, `vfpu_fuzz_gen.py`.
@@ -1631,9 +1640,10 @@ extensions add `__builtin_bswap32`. gcc and clang (including clang-cl) accept al
 - **PPSSPP:** not a recompiler. It is the **ground truth** for HLE behavior, GE semantics (software renderer) and
   traces (`PPSSPPHeadless`). Its D3D11 backend (`GPU/D3D11`) is the closest existing map from PSP GE to Direct3D.
 
-### F-101 D3D12, Vulkan and xBRZ share one validated KZL launcher — Confirmed
-The runtime submodule is pinned to `138c2b8`, the same graphics baseline used
-by the Metal Gear Acid 2 project. The standard clang-cl preset now compiles
+### F-101 D3D12, Vulkan and xBRZ share one validated KZL launcher — Confirmed (historical Windows baseline)
+At this finding's validation baseline, the runtime submodule was pinned to
+`138c2b8`, the same graphics baseline used by the Metal Gear Acid 2 project.
+The standard clang-cl preset compiled
 D3D12, Vulkan and software into one executable, fetches a hash-pinned SDL3
 3.2.20 package when needed, and discovers the standard Windows Vulkan SDK.
 A separate software preset retains the dependency-free reference build.
@@ -1729,3 +1739,27 @@ test passes, and the live capture completes without sampler overrides.
   Killzone's framebuffer post-processing path; xBRZ remains a separate
   enhancement for decoded source textures and cannot invent missing asset
   detail.
+
+### F-104 Windows and Apple Silicon share one public mainline — Confirmed
+The title and runtime Apple Silicon histories were merged into their
+respective public `main` branches on 2026-11-20, and the title submodule was
+repinned to the integrated runtime. The shared configuration merge retains
+both automatic Apple quality selection and the independent startup-skipping
+option.
+
+The title's CMake presets now provide Windows clang-cl hardware/software
+builds and native arm64 macOS app/runtime builds from the same generated game
+code and HLE sources. Windows retains D3D12, Vulkan, software rendering,
+XAudio2, and Media Foundation. Apple Silicon uses Vulkan through MoltenVK,
+SDL3 audio, VideoToolbox, and native AppKit dialogs. Both hardware renderers
+share internal resolution, xBRZ, SMAA, input configuration, and the opt-in
+twin-stick policy.
+
+Integration validation passed the full runtime test suite, produced the native
+arm64 app bundle, and passed all 19 title CTests. The existing Windows public
+CI continues to cover recursive checkout, content auditing, focused tests, and
+the clang-cl runtime build.
+
+- **Impact:** platform support is no longer split across long-lived title or
+  runtime branches. The two `main` branches and the title's runtime gitlink are
+  the authoritative build relationship.

@@ -1,13 +1,18 @@
-# TODO — Killzone Liberation D3D12 recomp
+# TODO — Killzone: Liberation recompilation
 
-The live task list. When an item is done, tick it **and** move a one-line entry into [WORK_DONE.md](WORK_DONE.md)
-with the date. `→ F-xxx` points to the finding that motivates the task. Phases match [PLAN.md](PLAN.md#3-phases-and-exit-criteria).
+The live task list for the shared Windows and Apple Silicon mainline. When an
+item is done, tick it **and** add a dated entry to
+[WORK_DONE.md](WORK_DONE.md). `→ F-xxx` points to the finding that motivates
+the task. Phases retain the numbering from the
+[original plan](PLAN.md#3-phases-and-exit-criteria).
 
 Priority: **P0** blocks the next milestone · **P1** is needed for 1.0 · **P2** is nice to have or a stretch goal.
 
 The remaining release-critical work is the full-game/challenge/Chapter 5
-validation, soak testing, and an anonymous recursive-clone check after both
-repositories are made public. Enhancement tasks remain intentionally separate.
+validation and soak testing. Both repositories are public, their
+Apple Silicon work is integrated into `main`, and the anonymous recursive-clone
+and corresponding-source checks are complete. Enhancement tasks remain
+intentionally separate.
 
 ---
 
@@ -16,7 +21,7 @@ repositories are made public. Enhancement tasks remain intentionally separate.
   *2026-10-19: MSVC 14.44, clang-cl 19.1.5, SDK 10.0.26100 (with dxc) and Ninja are in. PIX moves to T-4.14 (needed only for GPU debugging).*
 - [x] **T-0.2 P0** `git init`, plus a `.gitignore` that excludes `*.ISO`, `*.PRX`, `*.DAT`, `CHAPTER5.BIN`, `/build`, `/gen` and `/external/*/build`.
 - [x] **T-0.3 P0** Fork `sal063/PSP-recompilation-project` and add it as the submodule `external/psp-recomp`. Pin `da17b0e`. → F-040
-  *Done as a private mirror, `Tzeentchnet/psp-recomp` (`main` = upstream `da17b0e`, our work on `kzl`).*
+  *Originally completed as a private mirror with project work on `kzl`. The runtime is now public, its project and Apple Silicon histories are integrated into `main`, and the title repository pins that mainline.*
 - [x] **T-0.4 P1** MSYS2 UCRT64 (gcc, sdl3, vulkan-loader, lld): build unmodified sal063 against one homebrew ELF to get a known-good baseline.
   *Done 2026-10-20: a portable MSYS2 20260927 UCRT64 environment with GCC 16.2, SDL3 3.4.18, Vulkan 1.4.363, lld 23.1.3, make 4.4.1 and Python 3.14.8 built the tracked-clean upstream `da17b0e`. `homebrew_elf.py` generates a 524-byte ET_SCE_PRX (`jr ra; nop`, module-info section, zero imports); upstream produced 1/1 functions, 0 stubs, a 68-byte image and 475,136-byte exe (SHA-256 `50c5f6fa…3eb56`). The executable ran to `done (hit_hle=0)` with exit 0. Full evidence is in `research/msys2_homebrew_baseline.txt` (F-098).*
 - [x] **T-0.5 P0** Get the PPSSPP desktop build and `PPSSPPHeadless.exe`. Confirm KZL boots there and capture a reference log.
@@ -180,7 +185,7 @@ repositories are made public. Enhancement tasks remain intentionally separate.
 - [ ] **T-7.3 P2** Frame rate: check whether game logic is tied to vblank. Then add an interpolated or 60 fps option, or keep 30 locked.
 - [ ] **T-7.4 P2** Texture dump and replacement, through the texture-cache hash.
 - [ ] **T-7.5 P2** Config UI (an ImGui overlay): graphics, input, paths and the Chapter 5 file picker.
-  *2026-10-24: the native first-run/`--configure` launcher now covers renderer, D3D12 internal resolution, xBRZ texture scaling and D3D12 shading quality. Live path controls and the Chapter 5 picker remain deferred to the overlay.*
+  *2026-11-20: native Windows and macOS dialogs now cover renderer, quality, 1x–8x internal resolution, xBRZ, SMAA, D3D12 shading, and controller remapping. Live path controls and the Chapter 5 picker remain deferred to the overlay.*
 - [x] **T-7.6 P0** Close the native-performance gap versus PPSSPP: profile and reduce recompiled CPU frontend time plus D3D12 synchronization/copy cost at the 2× default.
   *Done 2026-10-20: profiling traced 11.69 ms/frame to unconditional scaled D16 uploads and 2.33 ms to an always-on 3 MB vertex hash. Depth now stays GPU-owned until an actual CPU/DMA invalidation, and vertex hashes are computed only for active logs. `SR_NOVBPACE` now disables both scheduler and legacy GUI pacing for honest throughput tests. Across five 120-frame moving-gameplay windows, optimized 2× sustains 65.51–69.70 FPS with 13.83–14.67 ms frontend and 0.51–0.59 ms backend averages; the explicit 60 FPS gate passes. A deterministic 50-frame legacy/optimized A/B passes the delta-64/6,000-pixel gate: 30 frames are byte-identical and the remaining gameplay/HUD frames change only 17 pixels each (five above delta 64).*
 - [x] **T-7.7 P1** Ship one launcher with D3D12, Vulkan and software, optional xBRZ texture scaling, and borderless fullscreen. → F-101, F-102
