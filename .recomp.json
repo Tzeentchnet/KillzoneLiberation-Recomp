@@ -1,0 +1,22 @@
+{
+  "$schema": "https://recomp.fyi/schema/v1.json",
+  "game": "Killzone: Liberation",
+  "wikidata": "Q281392",
+  "system": "PSP",
+  "type": "recomp",
+  "original": {
+    "region": "USA",
+    "revision": "1.20",
+    "serial": "UCUS-98646",
+    "sha1": "5bc4fc8cd8d72c9c2e7c1c03a4325a29bed6e69a"
+  },
+  "project": "Killzone: Liberation Recomp",
+  "status": "in-progress",
+  "targets": [
+    "Windows",
+    "macOS"
+  ],
+  "toolchain": "psp-recomp",
+  "approach": "Static recompilation of Allegrex code with a native HLE runtime and D3D12/Vulkan renderers.",
+  "notes": "Mission 1 routes are working; full-game, challenge, Chapter 5, and soak validation remain in progress."
+}
