@@ -23,6 +23,12 @@ game code, disc data, saves, or other game assets.
 > you legally own. Generated game code, disc data, and copyrighted game assets
 > must remain on your computer and must not be uploaded or committed.
 
+> [!NOTE]
+> **Related project:** [Killzone: Liberation Blender add-on](https://github.com/Tzeentchnet/KillzoneLiberation-Blender)
+> imports maps, static and skinned models, armatures, materials, and PSP
+> textures from your own game ISO or extracted `.core` lumps. It is maintained
+> separately and does not include game data.
+
 ## Project status
 
 | Area | Current state |
